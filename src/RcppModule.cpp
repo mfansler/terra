@@ -1,0 +1,370 @@
+#include <Rcpp.h>
+#include "spatRaster.h"
+
+#include "gdal_priv.h"
+
+
+Rcpp::List getBlockSizeR(SpatRaster* r, unsigned n) { 
+    BlockSize bs = r->getBlockSize(n);
+	Rcpp::List L = Rcpp::List::create(Rcpp::Named("row") = bs.row, Rcpp::Named("nrows") = bs.nrows, Rcpp::Named("n") = bs.n);
+	return(L);
+}
+
+
+Rcpp::List getDataFrame(SpatDataFrame* v) {
+	unsigned n = v->ncol();
+	Rcpp::List out(n);	
+	if (n == 0) {
+		return(out);
+	} 
+
+	std::vector<std::string> nms = v->names;
+	std::vector<unsigned> itype = v->itype;
+	for (size_t i=0; i < n; i++) {
+		if (itype[i] == 0) {
+			out[i] = v->getD(i);
+		} else if (itype[i] == 1) {
+			out[i] = v->getI(i);
+		} else {
+			out[i] = v->getS(i);
+		}
+	}	
+	out.names() = nms;
+	// todo: deal with NAs in int and str
+	return out;
+//  Rcpp::df is nice, but no of variables is <= 20, 
+//  and no "stringsAsFactors"=false
+//	Rcpp::DataFrame result(out);
+//	result.attr("names") = v->names();
+//	return result;
+}	
+
+
+
+Rcpp::List getVectorAttributes(SpatVector* v) {
+	SpatDataFrame df = v->lyr.df;
+	Rcpp::List lst = getDataFrame(&df);
+	return lst;
+}
+
+Rcpp::List getRasterAttributes(SpatRaster* x) {
+	Rcpp::List lst;
+	if (x->nlyr() > 0) {
+		SpatDataFrame df = x->source[0].atts[0];
+		lst = getDataFrame(&df);
+	}
+	return lst;
+}
+
+
+
+Rcpp::DataFrame getGeometry(SpatVector* v) {
+	SpatDataFrame df = v->getGeometryDF();
+
+	Rcpp::DataFrame out = Rcpp::DataFrame::create(
+			Rcpp::Named("id") = df.iv[0], 
+			Rcpp::Named("part") = df.iv[1], 
+			Rcpp::Named("x") = df.dv[0],
+			Rcpp::Named("y") = df.dv[1],
+			Rcpp::Named("hole") = df.iv[2]
+	);
+	return out;
+}
+
+
+
+RCPP_EXPOSED_CLASS(SpatMessages)
+RCPP_EXPOSED_CLASS(SpatOptions)
+RCPP_EXPOSED_CLASS(SpatExtent)
+RCPP_EXPOSED_CLASS(SpatCategories)
+RCPP_EXPOSED_CLASS(SpatDataFrame)
+RCPP_EXPOSED_CLASS(RasterSource)
+RCPP_EXPOSED_CLASS(SpatRaster)
+RCPP_EXPOSED_CLASS(SpatRasterCollection)
+RCPP_EXPOSED_CLASS(SpatVector)
+
+
+RCPP_MODULE(spat){
+
+    using namespace Rcpp;
+
+
+    class_<SpatExtent>("SpatExtent")
+		.constructor()
+		.constructor<double, double, double, double>()
+		.property("vector", &SpatExtent::asVector)		
+		.property("valid", &SpatExtent::valid)		
+		.method("as.points", &SpatExtent::asPoints, "as.points")		
+		.method("ceil",  &SpatExtent::ceil,  "ceil")		
+		.method("equal", &SpatExtent::equal, "equal")		
+		.method("floor", &SpatExtent::floor, "floor")		
+		.method("round", &SpatExtent::round, "round")		
+		.method("union", &SpatExtent::unite, "union")		
+	;	
+
+    class_<SpatMessages>("SpatMessages")
+		.constructor()
+		.field("success", &SpatMessages::success)		
+		.field("has_error", &SpatMessages::has_error)		
+		.field("has_warning", &SpatMessages::has_warning)		
+		.field("error", &SpatMessages::error)		
+		.field("warnings", &SpatMessages::warnings)		
+	;	
+	
+    class_<SpatOptions>("SpatOptions")
+		.constructor()
+		.method("copy", &SpatOptions::deepCopy, "deepCopy")
+		.property("tempdir", &SpatOptions::get_tempdir, &SpatOptions::set_tempdir )
+		.property("memfrac", &SpatOptions::get_memfrac, &SpatOptions::set_memfrac )
+		.property("filename", &SpatOptions::get_filename, &SpatOptions::set_filename )
+		.property("filetype", &SpatOptions::get_filetype, &SpatOptions::set_filetype )
+		.property("datatype", &SpatOptions::get_datatype, &SpatOptions::set_datatype )
+		.property("bandorder", &SpatOptions::get_bandorder, &SpatOptions::set_bandorder )
+		.property("overwrite", &SpatOptions::get_overwrite, &SpatOptions::set_overwrite )
+		.property("progress", &SpatOptions::get_progress, &SpatOptions::set_progress)
+
+		.property("def_filetype", &SpatOptions::get_def_filetype, &SpatOptions::set_def_filetype )
+		.property("def_datatype", &SpatOptions::get_def_datatype, &SpatOptions::set_def_datatype )
+		.property("def_bandorder", &SpatOptions::get_def_bandorder, &SpatOptions::set_def_bandorder )
+
+		.property("todisk", &SpatOptions::get_todisk, &SpatOptions::set_todisk)
+		.field("messages", &SpatOptions::msg, "messages")
+		.field("gdal_options", &SpatOptions::gdal_options, "gdal_options")
+		.field("names", &SpatOptions::names, "names")
+	//	.property("overwrite", &SpatOptions::set_overwrite, &SpatOptions::get_overwrite )
+		//.field("gdaloptions", &SpatOptions::gdaloptions)		
+	;
+
+    class_<SpatDataFrame>("SpatDataFrame")
+		.constructor()
+
+		.field_readonly("itype", &SpatDataFrame::itype)
+		.field_readonly("iplace", &SpatDataFrame::iplace)
+		
+		.property("names", &SpatDataFrame::get_names, &SpatDataFrame::set_names)
+		.property("nrow", &SpatDataFrame::nrow, &SpatDataFrame::resize_rows, "nrow")
+		.property("ncol", &SpatDataFrame::ncol, &SpatDataFrame::resize_cols, "ncol")
+				
+		.method("add_column_double", (bool (SpatDataFrame::*)(std::vector<double>, std::string name))( &SpatDataFrame::add_column))
+		.method("add_column_long", (bool (SpatDataFrame::*)(std::vector<long>, std::string name))( &SpatDataFrame::add_column))
+		.method("add_column_string", (bool (SpatDataFrame::*)(std::vector<std::string>, std::string name))( &SpatDataFrame::add_column))
+		.method("values", &getDataFrame, "get data.frame")
+		
+		.field("messages", &SpatDataFrame::msg, "messages")		
+	;
+
+    class_<SpatCategories>("SpatCategories")
+		.constructor()
+		.field_readonly("levels", &SpatCategories::levels, "levels")
+		.field_readonly("labels", &SpatCategories::labels, "labels")
+		
+	;	
+
+
+    class_<SpatVector>("SpatVector")
+		.constructor()	
+
+		.method("add_column_empty", (void (SpatVector::*)(unsigned dtype, std::string name))( &SpatVector::add_column))
+		.method("add_column_double", (bool (SpatVector::*)(std::vector<double>, std::string name))( &SpatVector::add_column))
+		.method("add_column_long", (bool (SpatVector::*)(std::vector<long>, std::string name))( &SpatVector::add_column))
+		.method("add_column_string", (bool (SpatVector::*)(std::vector<std::string>, std::string name))( &SpatVector::add_column))
+		.method("area", &SpatVector::area, "area")		
+		.method("as_lines", &SpatVector::as_lines, "as_lines")
+		.method("couldBeLonLat", &SpatVector::could_be_lonlat, "couldBeLonLat") 
+		.property("crs", &SpatVector::getCRS, &SpatVector::setCRS, "crs")		
+		
+		.method("distance_self", (SpatDataFrame (SpatVector::*)())( &SpatVector::distance))
+		.method("distance_other", (SpatDataFrame (SpatVector::*)(SpatVector, bool))( &SpatVector::distance))
+//		.method("distance_other2", (SpatDataFrame (SpatVector::*)(SpatVector))( &SpatVector::distance2))
+		.method("extent", &SpatVector::getExtent, "extent")		
+		.method("getDF", &getVectorAttributes, "get attributes")
+		.method("getGeometry", &getGeometry, "getGeometry")
+		.method("isLonLat", &SpatVector::is_lonlat, "isLonLat")
+		.method("length", &SpatVector::length, "length")		
+
+		.field("messages", &SpatVector::msg, "messages")
+		.property("names", &SpatVector::get_names, &SpatVector::set_names)
+		.method("nrow", &SpatVector::nrow, "nrow")		
+		.method("ncol", &SpatVector::ncol, "ncol")		
+		.method("project", &SpatVector::project, "project")
+		.method("read", &SpatVector::read, "read")		
+		.method("setGeometry", &SpatVector::setGeometry, "setGeometry")
+		.method("size", &SpatVector::size, "size")		
+		.method("subset_cols", ( SpatVector (SpatVector::*)(std::vector<int>))( &SpatVector::subset_cols ))
+		.method("subset_rows", ( SpatVector (SpatVector::*)(std::vector<int>))( &SpatVector::subset_rows ))				
+		.method("type", &SpatVector::type, "type")		
+
+		.method("write", &SpatVector::write, "write")	
+		
+		.method("buffer", &SpatVector::buffer, "buffer")	
+#ifdef useGEOS
+		.method("buffer2", &SpatVector::buffer2, "buffer2")		
+		.method("intersect", &SpatVector::intersect, "intersect")		
+#endif
+	;
+
+    class_<RasterSource>("RasterSource")	
+		.field_readonly("memory", &RasterSource::memory)
+		.field_readonly("filename", &RasterSource::filename)
+		.field_readonly("driver", &RasterSource::driver)
+		.field_readonly("nrow", &RasterSource::nrow)
+		.field_readonly("ncol", &RasterSource::ncol)
+		.field_readonly("nlyr", &RasterSource::nlyr)
+		.field_readonly("crs", &RasterSource::crs)
+		.field_readonly("extent", &RasterSource::extent)
+		.field_readonly("datatype", &RasterSource::datatype)
+		.field_readonly("bandorder", &RasterSource::bandorder)
+		.field_readonly("NAflag", &RasterSource::NAflag)
+		.field_readonly("layers", &RasterSource::layers)
+	;	
+
+    class_<SpatRaster>("SpatRaster")
+		.constructor()
+	    //.constructor<std::string>()
+	    .constructor<std::vector<std::string> >()
+		.constructor<std::vector<unsigned>, std::vector<double>, std::string>()
+
+		.method("spatinit", &SpatRaster::spatinit, "init")
+		
+		.method("combineSources", &SpatRaster::combineSources, "combineSources")
+		.method("compare_geom", &SpatRaster::compare_geom, "compare_geom")
+		.method("couldBeLonLat", &SpatRaster::could_be_lonlat, "couldBeLonLat") 
+		.method("copy", &SpatRaster::deepCopy, "deepCopy")
+		.property("crs", &SpatRaster::getCRS, &SpatRaster::setCRS )
+		.property("extent", &SpatRaster::getExtent, &SpatRaster::setExtent )
+		.method("getRasterAtt", &getRasterAttributes, "get attributes")
+			
+		//.field_readonly("hasRAT", &SpatRaster::hasRAT )
+		//.field_readonly("hasCT", &SpatRaster::hasCT )
+		.property("filenames", &SpatRaster::filenames )
+
+		.method("hasAttributes", &SpatRaster::hasAttributes, "hasAttributes")
+		.method("getAttributes", &SpatRaster::getAttributes, "getAttributes")
+		.method("setAttributes", &SpatRaster::setAttributes, "setAttributes")
+		.method("createAttributes", &SpatRaster::createAttributes, "createAttributes")
+		.method("hasCategories", &SpatRaster::hasCategories, "hasCategories")
+		.method("getCategories", &SpatRaster::getCategories, "getCategories")
+		.method("setCategories", &SpatRaster::setCategories, "setCategories")
+		.method("createCategories", &SpatRaster::createCategories, "createCategories")
+		
+		.property("hasRange", &SpatRaster::hasRange )
+		.property("hasValues", &SpatRaster::hasValues )
+		.property("inMemory", &SpatRaster::inMemory )
+		.method("isLonLat", &SpatRaster::is_lonlat, "isLonLat")
+		.method("isGlobalLonLat", &SpatRaster::is_global_lonlat, "isGlobalLonLat") 
+
+		.property("names", &SpatRaster::getNames)
+		.method("nrow", &SpatRaster::nrow, "nrow")		
+		.method("ncol", &SpatRaster::ncol, "ncol")		
+		.method("nsrc", &SpatRaster::nsrc, "nsrc" )	
+		.field("messages", &SpatRaster::msg, "messages")
+		.method("nlyrBySource", &SpatRaster::nlyrBySource, "nlyrBySource" )		
+		.method("nlyr", &SpatRaster::nlyr, "nlyr" )
+		.property("origin", &SpatRaster::origin)
+		.property("range_min", &SpatRaster::range_min )
+		.property("range_max", &SpatRaster::range_max )
+		.property("res", &SpatRaster::resolution)
+				
+// only if RasterSource is exposed
+		.field_readonly("source", &SpatRaster::source )
+
+		.method("setNames", &SpatRaster::setNames, "setNames" )
+		.method("set_resolution", &SpatRaster::setResolution, "set resolution")
+		.method("subset", &SpatRaster::subset, "subset")
+				
+		.method("cellFromXY", ( std::vector<double> (SpatRaster::*)(std::vector<double>,std::vector<double>) )( &SpatRaster::cellFromXY ))
+		.method("cellFromRowCol", ( std::vector<double> (SpatRaster::*)(std::vector<unsigned>,std::vector<unsigned>) )( &SpatRaster::cellFromRowCol ))
+		.method("cellFromRowColCombine", ( std::vector<double> (SpatRaster::*)(std::vector<unsigned>,std::vector<unsigned>) )( &SpatRaster::cellFromRowColCombine ))
+		.method("yFromRow", ( std::vector<double> (SpatRaster::*)(std::vector<unsigned>&) )( &SpatRaster::yFromRow ))
+		.method("xFromCol", ( std::vector<double> (SpatRaster::*)(std::vector<unsigned>&) )( &SpatRaster::xFromCol ))
+		.method("colFromX", ( std::vector<unsigned> (SpatRaster::*)(std::vector<double>&) )( &SpatRaster::colFromX ))
+		.method("rowFromY", ( std::vector<unsigned> (SpatRaster::*)(std::vector<double>&) )( &SpatRaster::rowFromY ))
+		.method("xyFromCell", ( std::vector< std::vector<double> > (SpatRaster::*)(std::vector<double>&) )( &SpatRaster::xyFromCell ))
+		.method("rowColFromCell", ( std::vector< std::vector<unsigned> > (SpatRaster::*)(std::vector<double>) )( &SpatRaster::rowColFromCell ))
+		.method("readStart", &SpatRaster::readStart, "readStart") 
+		.method("readStop", &SpatRaster::readStop, "readStop") 
+		.method("readValues", &SpatRaster::readValues, "readValues")	
+		.method("getValues", &SpatRaster::getValues, "getValues")
+		.method("getBlockSize", &getBlockSizeR)
+		.method("setValues", &SpatRaster::setValues)
+		.method("setRange", &SpatRaster::setRange, "setRange")
+		.method("writeStart", &SpatRaster::writeStart, "writeStart") 
+		.method("writeStop", &SpatRaster::writeStop, "writeStop") 
+		.method("writeValues", &SpatRaster::writeValues, "writeValues") 
+		.method("writeRaster", &SpatRaster::writeRaster, "writeRaster")
+		.method("canProcessInMemory", &SpatRaster::canProcessInMemory, "canProcessInMemory")
+		.method("chunkSize", &SpatRaster::chunkSize, "chunkSize")
+		
+		.method("adjacent", &SpatRaster::adjacent, "adjacent")
+		.method("aggregate", &SpatRaster::aggregate, "aggregate")
+		.method("align", &SpatRaster::align, "align")
+		.method("apply", &SpatRaster::apply, "apply")
+		.method("arith_rast", ( SpatRaster (SpatRaster::*)(SpatRaster, std::string, SpatOptions&) )( &SpatRaster::arith ))
+		.method("arith_numb", ( SpatRaster (SpatRaster::*)(std::vector<double>, std::string, bool, SpatOptions&) )( &SpatRaster::arith ))
+		.method("area", &SpatRaster::area, "area")
+		.method("as_points", &SpatRaster::as_points, "as_points")
+		.method("as_polygons", &SpatRaster::as_polygons, "as_polygons")
+		.method("atan2", &SpatRaster::atan_2, "atan2")
+
+		.method("bilinearValues", &SpatRaster::bilinearValues, "bilin")
+
+		.method("boundaries", &SpatRaster::edges, "edges")
+		.method("buffer", &SpatRaster::buffer, "buffer")
+		.method("gridDistance", &SpatRaster::gridDistance, "gridDistance")
+		.method("rastDistance", ( SpatRaster (SpatRaster::*)(SpatOptions&) )( &SpatRaster::distance), "rastDistance")		
+		.method("vectDistance", ( SpatRaster (SpatRaster::*)(SpatVector, SpatOptions&) )( &SpatRaster::distance), "vectDistance")		
+		.method("clamp", &SpatRaster::clamp, "clamp")
+		.method("classify", ( SpatRaster (SpatRaster::*)(std::vector<double>, unsigned, unsigned, bool, bool, SpatOptions&) )( &SpatRaster::reclassify), "reclassify")		
+		.method("collapse", &SpatRaster::collapse, "collapse")
+		.method("cover", &SpatRaster::cover, "cover")
+		.method("crop", &SpatRaster::crop, "crop")
+		.method("cum", &SpatRaster::cum, "cum")
+		.method("disaggregate", &SpatRaster::disaggregate, "disaggregate")
+		.method("extend", &SpatRaster::extend, "extend")
+		.method("extractCell", &SpatRaster::extractCell, "extractCell")
+		.method("extractVector", &SpatRaster::extractVector, "extractVector")
+		.method("flip", &SpatRaster::flip, "flip")
+		.method("focal", &SpatRaster::focal, "focal")
+		.method("focalValues", &SpatRaster::focal_values, "focalValues")
+		.method("freq", &SpatRaster::freq, "freq")
+		.method("get_aggregates", &SpatRaster::get_aggregates, "get_aggregates")
+		.method("get_aggregate_dims", &SpatRaster::get_aggregate_dims2, "get_aggregate_dims")
+		.method("global", &SpatRaster::global, "global")
+		.method("initf", ( SpatRaster (SpatRaster::*)(std::string, bool, SpatOptions&) )( &SpatRaster::init ), "init fun")
+		.method("initv", ( SpatRaster (SpatRaster::*)(double, SpatOptions&) )( &SpatRaster::init ), "init value")
+		.method("logic_rast", ( SpatRaster (SpatRaster::*)(SpatRaster, std::string, SpatOptions&) )( &SpatRaster::logic ))
+		.method("logic_numb", ( SpatRaster (SpatRaster::*)(bool, std::string, SpatOptions&) )( &SpatRaster::logic ))
+		.method("mask_raster", ( SpatRaster (SpatRaster::*)(SpatRaster, bool, double, double, SpatOptions&) )( &SpatRaster::mask), "mask raster")
+		.method("mask_vector", ( SpatRaster (SpatRaster::*)(SpatVector, bool, double, double, SpatOptions&) )( &SpatRaster::mask), "mask vector")	
+		.method("math", &SpatRaster::math, "math")
+		.method("math2", &SpatRaster::math2, "math2")
+		.method("modal", &SpatRaster::modal, "modal")
+		.method("quantile", &SpatRaster::quantile, "quantile")
+		.method("rasterize", &SpatRaster::rasterize, "rasterize")
+		.method("rotate", &SpatRaster::rotate, "rotate")
+		.method("sampleRegular", &SpatRaster::sampleRegular, "sampleRegular")	
+		.method("sampleRandom", &SpatRaster::sampleRandom, "sampleRandom")	
+		.method("shift", &SpatRaster::shift, "shift")
+		.method("slope", &SpatRaster::slope, "slope")
+		.method("summary", &SpatRaster::summary, "summary")
+		.method("summary_numb", &SpatRaster::summary_numb, "summary_numb")
+		.method("transpose", &SpatRaster::transpose, "transpose")
+		.method("trig", &SpatRaster::trig, "trig")
+		.method("trim", &SpatRaster::trim, "trim")
+		.method("unique", &SpatRaster::unique, "unique")
+		.method("project", &SpatRaster::project, "project")
+		.method("warp", &SpatRaster::warp, "warp")
+		.method("zonal", &SpatRaster::zonal, "zonal")			
+	;
+
+    class_<SpatRasterCollection>("SpatRasterCollection")
+		.constructor()
+		.field_readonly("x", &SpatRasterCollection::x)
+		.method("length", &SpatRasterCollection::size, "size")
+		.method("resize", &SpatRasterCollection::resize, "resize")
+		.method("add", &SpatRasterCollection::push_back, "push_back")	
+		.method("merge", &SpatRasterCollection::merge, "merge")
+	;
+	
+}
+
