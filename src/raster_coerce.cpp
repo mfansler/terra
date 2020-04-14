@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2019  Robert J. Hijmans
+// Copyright (c) 2018-2020  Robert J. Hijmans
 //
 // This file is part of the "spat" library.
 //
@@ -75,7 +75,7 @@ SpatRaster rasterizePolygons(SpatVector p, SpatRaster r, std::vector<double> val
 	unsigned n = p.size();
 	unsigned nc = out.ncol();
 	SpatExtent extent = out.getExtent();
-	
+
 	for (size_t i = 0; i < out.bs.n; i++) {
 		std::vector<double> v(out.bs.nrows[i] * nc, background);
 
@@ -102,7 +102,7 @@ SpatRaster rasterizePolygons(SpatVector p, SpatRaster r, std::vector<double> val
 			}
 		}
 		if (!out.writeValues(v, out.bs.row[i], out.bs.nrows[i], 0, out.ncol())) return out;
-		
+
 	}
 	out.writeStop();
 	return(out);
@@ -153,7 +153,7 @@ SpatRaster rasterizeLines(SpatVector p, SpatRaster r, std::vector<double> value,
 			}
 		}
 		if (!out.writeValues(v, out.bs.row[i], out.bs.nrows[i], 0, out.ncol())) return out;
-		
+
 	}
 	out.writeStop();
 	return(out);
@@ -177,9 +177,9 @@ SpatRaster SpatRaster::rasterize(SpatVector p, std::vector<double> values, doubl
 	if (gtype == "polygons") {
 		out = rasterizePolygons(p, out, values, background, opts);
 	} else if (gtype == "lines") {
-		out = rasterizeLines(p, out, values, background, opts);		
+		out = rasterizeLines(p, out, values, background, opts);
 	}  else {
-		out = rasterizePoints(p, out, values, background, opts);		
+		out = rasterizePoints(p, out, values, background, opts);
 	}
 	if (update) out = cover(out, background, opt);
 	return out;
@@ -287,7 +287,7 @@ void getCorners(std::vector<double> &x,  std::vector<double> &y, const double &X
 	y[4] = y[0];
 }
 
-
+/*
 SpatVector SpatRaster::as_polygons(bool values, bool narm) {
 	if (!values) narm=false;
 	SpatVector v;
@@ -341,6 +341,47 @@ SpatVector SpatRaster::as_polygons(bool values, bool narm) {
 	}
 	v.setCRS(getCRS());
 	return(v);
+}
+
+*/
+
+SpatVector SpatRaster::as_polygons(bool values, bool narm) {
+	if (!values) narm=false;
+	SpatVector vect;
+	SpatGeom g;
+	g.gtype = polygons;
+	double xr = xres()/2;
+	double yr = yres()/2;
+	std::vector<double> x(5);
+	std::vector<double> y(5);
+
+	std::vector<double> cells(ncell()) ;
+	std::iota (std::begin(cells), std::end(cells), 0);
+	std::vector< std::vector<double> > xy = xyFromCell(cells);
+	for (size_t i=0; i<ncell(); i++) {
+		getCorners(x, y, xy[0][i], xy[1][i], xr, yr);
+		SpatPart p(x, y);
+		g.addPart(p);
+		vect.addGeom(g);
+		g.parts.resize(0);
+	}
+
+	if (values) {
+		unsigned nl = nlyr();
+		unsigned nc = ncell();
+		std::vector<double> v = getValues();
+		std::vector<std::string> nms = getNames();
+		for (size_t i=0; i<nl; i++) {
+			size_t offset = i * nc;
+			std::vector<double> vv(v.begin()+offset, v.begin()+offset+nc);
+			vect.add_column(vv, nms[i]);
+		}
+		if (narm) {
+            // loop over dataframe and remove rows if value is na
+		}
+	}
+	vect.setCRS(getCRS());
+	return(vect);
 }
 
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2019  Robert J. Hijmans
+// Copyright (c) 2018-2020  Robert J. Hijmans
 //
 // This file is part of the "spat" library.
 //
@@ -18,10 +18,8 @@
 //#include <vector>
 #include <limits>
 #include <cmath>
-#include <functional>
 #include "spatRaster.h"
-#include "vecmath.h"
-
+#include "vecmathfun.h"
 
 
 template <typename T>
@@ -214,26 +212,6 @@ std::vector<double> compute_aggregates(std::vector<double> &in, size_t nr, size_
 
 
 
-std::function<double(std::vector<double>&, bool)> getFun(std::string fun) {
-	std::function<double(std::vector<double>&, bool)> agFun;
-	if (fun == "mean") {
-		agFun = vmean<double>;
-	} else if (fun == "sum") {
-		agFun = vsum<double>;
-	} else if (fun == "min") {
-		agFun = vmin<double>;
-	} else if (fun == "max") {
-		agFun = vmax<double>;
-	} else if (fun == "median") {
-		agFun = vmedian<double>;
-	} else if (fun == "modal") {
-		agFun = vmodal<double>;
-	} else {
-		agFun = vmean<double>;
-	}
-	return agFun;
-}
-
 SpatRaster SpatRaster::aggregate(std::vector<unsigned> fact, std::string fun, bool narm, SpatOptions &opt) {
 
 	std::string message = "";
@@ -252,7 +230,9 @@ SpatRaster SpatRaster::aggregate(std::vector<unsigned> fact, std::string fun, bo
 	double ymin = extent.ymax - fact[3] * fact[0] * yres();
 	SpatExtent e = SpatExtent(extent.xmin, xmax, ymin, extent.ymax);
 	SpatRaster out = SpatRaster(fact[3], fact[4], fact[5], e, crs);
-
+	if (fact[5] == nlyr()) {
+		out.setNames(getNames());
+	}
 	if (!source[0].hasValues) { return out; }
 
 	std::vector<std::string> f {"sum", "mean", "min", "max", "median", "modal"};
@@ -265,7 +245,9 @@ SpatRaster SpatRaster::aggregate(std::vector<unsigned> fact, std::string fun, bo
 	unsigned outnc = out.ncol();
 
 	BlockSize bs = getBlockSize(4);
-	bs.n = floor(nrow() / fact[0]);
+	//bs.n = floor(nrow() / fact[0]); # ambiguous on solaris
+	bs.n = std::floor(static_cast <double> (nrow() / fact[0]));
+	
 	bs.nrows.resize(bs.n, fact[0]);
 	bs.row.resize(bs.n);
 	for (size_t i =0; i<bs.n; i++) {

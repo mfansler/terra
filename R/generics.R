@@ -57,7 +57,6 @@ setMethod("c", signature(x="SpatRaster"),
 				x@ptr <- x@ptr$combineSources(i@ptr)
 			}
 		}
-		x@ptr$setNames(x@ptr$names)
 		show_messages(x, "c")		
 	}
 )
@@ -91,7 +90,6 @@ function(x, rcl, include.lowest=FALSE, right=TRUE, othersNA=FALSE, filename="", 
 .getExt <- function(x) {
 	return(x)
 }
-
 
 setMethod("crop", signature(x="SpatRaster", y="ANY"), 
 	function(x, y, snap="near", filename="", overwrite=FALSE, wopt=list(), ...) {
@@ -177,7 +175,7 @@ setMethod("mask", signature(x="SpatRaster", mask="SpatRaster"),
 setMethod("mask", signature(x="SpatRaster", mask="SpatVector"), 
 	function(x, mask, inverse=FALSE, updatevalue=NA, filename="", overwrite=FALSE, wopt=list(), ...) { 
 		opt <- .runOptions(filename, overwrite,wopt)
-		x@ptr <- x@ptr$mask_vector(mask@ptr, inverse[1], NA, updatevalue[1], opt)
+		x@ptr <- x@ptr$mask_vector(mask@ptr, inverse[1], updatevalue[1], opt)
 		show_messages(x, "mask")		
 	}
 )
@@ -306,3 +304,6 @@ setMethod("warp", signature(x="SpatRaster", y="SpatRaster"),
 	}
 )
 
+
+
+if (!isGeneric("Which")) {setGeneric("Which", function(x) standardGeneric("Which"))}	

@@ -1,10 +1,10 @@
 Package: terra
 Type: Package
 Title: Classes and Methods for Spatial Data
-Version: 0.5-2
-Date: 2020-03-19
+Version: 0.5-8
+Date: 2020-04-09
 Depends: R (>= 3.3.0)
-Suggests: testthat, rgdal
+Suggests: testthat
 LinkingTo: Rcpp
 Imports: methods, Rcpp, raster (>= 3.0-12)
 SystemRequirements: C++11, GDAL (>= 2.0.1), GEOS (>= 3.4.0), PROJ (>=
@@ -12,7 +12,7 @@ SystemRequirements: C++11, GDAL (>= 2.0.1), GEOS (>= 3.4.0), PROJ (>=
 Maintainer: Robert J. Hijmans <r.hijmans@gmail.com>
 Description: Classes and methods for spatial data, especially raster data. Methods allow for low-level data manipulation as well as high-level global, local, zonal, and focal computation. The predict and interpolate methods facilitate the use of regression type (interpolation, machine learning) models for spatial prediction. The user-interface is very similar to that of the 'raster' package; but it is simpler and faster. Processing of very large files is supported. See the manual and tutorials on <https://rspatial.org/terra/> to get started. 
 License: GPL (>= 3)
-URL: https://github.com/rspatial/terra
+URL: https://rspatial.org/terra
 BugReports: https://github.com/rspatial/terra/issues/
 LazyLoad: yes
 Authors@R: c(
@@ -26,7 +26,7 @@ Authors@R: c(
 	person("Darel", "Finley", role = "ctb", comment="polygon fill approach")
 	)
 NeedsCompilation: yes
-Packaged: 2020-03-19 16:43:29 UTC; rhijm
+Packaged: 2020-04-09 22:46:36 UTC; rhijm
 Author: Robert J. Hijmans [cre, aut] (<https://orcid.org/0000-0001-5872-2872>),
   Roger Bivand [ctb] (install script, GDAL/GEOS code),
   Karl Forner [ctb] (progress bar),
@@ -34,4 +34,4 @@ Author: Robert J. Hijmans [cre, aut] (<https://orcid.org/0000-0001-5872-2872>),
   Edzer Pebesma [ctb] (GDAL/GEOS code from sf),
   Darel Finley [ctb] (polygon fill approach)
 Repository: CRAN
-Date/Publication: 2020-03-20 10:20:02 UTC
+Date/Publication: 2020-04-14 08:50:02 UTC

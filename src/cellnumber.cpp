@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2019  Robert J. Hijmans
+// Copyright (c) 2018-2020  Robert J. Hijmans
 //
 // This file is part of the "spat" library.
 //
@@ -37,7 +37,7 @@ std::vector<double> SpatRaster::cellFromXY (std::vector<double> x, std::vector<d
 			row = nrow()-1 ;
 		}
 
-		long col = floor((x[i] - extent.xmin) * xr_inv);
+		long col = std::floor((x[i] - extent.xmin) * xr_inv);
 		// as for rows above. Go right, except for last column
 		if (x[i] == extent.xmax) {
 			col = ncol() - 1 ;
@@ -68,7 +68,9 @@ std::vector<double> SpatRaster::cellFromRowCol(std::vector<unsigned> row, std::v
 	size_t n = row.size();
 	std::vector<double> result(n);
 	for (size_t i=0; i<n; i++) {
-		result[i] = (row[i]<0 || row[i] >= nrow() || col[i]<0 || col[i] >= ncol()) ? NAN : row[i] * ncol() + col[i];
+	//	result[i] = (row[i]<0 || row[i] >= nrow() || col[i]<0 || col[i] >= ncol()) ? NAN : row[i] * ncol() + col[i];
+	// < 0 never true for unsigned
+        result[i] = (row[i] >= nrow() || col[i] >= ncol()) ? NAN : row[i] * ncol() + col[i];
 	}
 	return result;
 }
@@ -197,12 +199,12 @@ std::vector< std::vector<double> > SpatRaster::xyFromCell( std::vector<double> &
 	double yr = yres();
 	double xr = xres();
     double ncells = ncell();
-    unsigned nc = ncol();
+    int nc = ncol();
 	std::vector< std::vector<double> > out(2, std::vector<double> (n, NAN) );
 	for (size_t i = 0; i<n; i++) {
-		if ((cell[i] < 0) || (cell[i] >= ncells)) continue;
-        unsigned row = cell[i] / nc;
-        unsigned col = cell[i] - (row * nc);
+		if (std::isnan(cell[i]) || (cell[i] < 0) || (cell[i] >= ncells)) continue;
+        int row = cell[i] / nc;
+        int col = cell[i] - (row * nc);
         out[0][i] = xmin + (col + 0.5) * xr;
         out[1][i] = ymax - (row + 0.5) * yr;
 	}

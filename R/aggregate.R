@@ -18,6 +18,11 @@
 			if (test1 | test2) { 
 				fun <- "mean" 
 			}
+			test1 <- isTRUE(try( deparse(fun)[2] == 'UseMethod(\"median\")', silent=TRUE))
+			test2 <- isTRUE(try( fun@generic == "median", silent=TRUE))
+			if (test1 | test2) { 
+				fun <- "median" 
+			}
 		} 
 	}
 	return(fun)
@@ -67,7 +72,7 @@ function(x, fact=2, fun="mean", ..., filename="", overwrite=FALSE, wopt=list()) 
 			v <- readValues(x, b$row[i]+1, b$nrows[i], 1, nc)
 			v <- x@ptr$get_aggregates(v, b$nrows[i], dims)
 			v <- sapply(v, fun, ...)
-			writeValues(out, v, c(outrows[i], outnr[i]))
+			writeVals(out, v, outrows[i], outnr[i])
 		}
 		readStop(x)
 		out <- writeStop(out)		

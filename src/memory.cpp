@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2019  Robert J. Hijmans
+// Copyright (c) 2018-2020  Robert J. Hijmans
 //
 // This file is part of the "spat" library.
 //
@@ -28,7 +28,10 @@ unsigned SpatRaster::chunkSize(unsigned n) {
 	double f = 0.2;
 	unsigned cells_in_row = n * ncol() * nlyr();
 	unsigned rows = availableRAM() * f / cells_in_row;
+	unsigned maxrows = 1000;
+	rows = std::min(rows, maxrows);
 	return rows == 0 ? 1 : std::min(rows, nrow());
+	
 }
 
 BlockSize SpatRaster::getBlockSize(unsigned n, unsigned steps) {
@@ -41,7 +44,7 @@ BlockSize SpatRaster::getBlockSize(unsigned n, unsigned steps) {
 		cs = nrow() / steps;
 	} else {
 		cs = chunkSize(n);
-		bs.n = ceil(nrow() / double(cs));
+		bs.n = std::ceil(nrow() / double(cs));
 	}
 
 	bs.row = std::vector<unsigned>(bs.n);

@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2019  Robert J. Hijmans
+// Copyright (c) 2018-2020  Robert J. Hijmans
 //
 // This file is part of the "spat" library.
 //
@@ -46,16 +46,26 @@ RasterSource::RasterSource() {
 
 
 SpatRaster SpatRaster::combineSources(SpatRaster x) {
-	SpatRaster out = deepCopy();
-	if (compare_geom(x, false, false)) {
-        if (!hasValues()) {
-            out.source = x.source;
-        } else {
-            out.source.insert(out.source.end(), x.source.begin(), x.source.end());
-        }
-	} else {
+
+	SpatRaster out = geometry();
+
+	if (!compare_geom(x, false, false)) {
 		out.setError("dimensions and/or extent do not match");
+		return out;
 	}
+
+	bool hv = hasValues();
+	if (hv != x.hasValues()) {
+		out.setError("combined sources must all have values; or none should have values");
+		return(out);
+	}
+
+	out = deepCopy();
+//    if (!hv) {
+//       out.source = x.source;
+//    } else {
+    out.source.insert(out.source.end(), x.source.begin(), x.source.end());
+//	}
 	return(out);
 }
 
@@ -121,7 +131,7 @@ std::vector<unsigned> SpatRaster::findLyr(unsigned lyr) {
     unsigned start = 0;
 	bool done = false;
     for (size_t i=0; i<source.size(); i++) {
-		if ((nlyrs + source[i].nlyr) >= lyr) {	
+		if ((nlyrs + source[i].nlyr) >= lyr) {
 			sl[0] = i;
 			for (size_t j=start; j<source[i].nlyr; j++) {
 				if ((nlyrs + j) == lyr) {
@@ -244,7 +254,7 @@ std::vector<unsigned> validLayers( std::vector<unsigned> lyrs , unsigned nl) {
     unsigned s = lyrs.size();
     for (size_t i=0; i<s; i++) {
         unsigned j = s - i - 1; // start from the back
-        if ((lyrs[j] < 0) | (lyrs[j] >= nl)) {
+        if (lyrs[j] >= nl) {
 			lyrs.erase(lyrs.begin() + j);
 		}
 	}
@@ -257,10 +267,7 @@ std::vector<unsigned> validLayers( std::vector<unsigned> lyrs , unsigned nl) {
 		}
 	}
 	*/
-
 	return lyrs;
-
-
 }
 
 

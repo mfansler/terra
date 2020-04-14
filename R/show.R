@@ -74,19 +74,19 @@ setMethod ("show" , "SpatRaster",
 			ln <- c(ln[1:mnr], "...")
 		}
 
-		if (.hasValues(object)) {
+		if (hasValues(object)) {
 			nsr <- nsrc(object)	
 			m <- .inMemory(object)
 			f <- .filenames(object)
 			f <- gsub("\\", "/", f, fixed=TRUE)
-
 			sources <- rep("memory", length(m))
 			sources[!m] <- f[!m] 
+
 			if (nsr > 1) {
 				lbs <- .nlyrBySource(object)
 				lbsprint <- paste0(" (", lbs, " layers)")
 				lbsprint[lbs == 1] <- ""
-				cat("data sources:", sources[1], lbsprint, "\n")
+				cat("data sources:", sources[1], lbsprint[1], "\n")
 				for (i in 2:(min(mnr, nsr))) {
 					cat("             ", sources[i], lbsprint[i], "\n")
 				}			

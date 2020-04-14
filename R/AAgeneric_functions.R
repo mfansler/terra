@@ -24,6 +24,8 @@ if (!isGeneric("slope")) {setGeneric("slope", function(x, ...) standardGeneric("
 if (!isGeneric("size")) {setGeneric("size", function(x, ...) standardGeneric("size"))}	
 if (!isGeneric("sources")) {setGeneric("sources", function(x, ...) standardGeneric("sources"))}	
 if (!isGeneric("tapp")) { setGeneric("tapp", function(x, ...) standardGeneric("tapp"))}
+if (!isGeneric("nlyr")) { setGeneric("nlyr", function(x) standardGeneric("nlyr")) }	
+if (!isGeneric("nsrc")) { setGeneric("nsrc", function(x) standardGeneric("nsrc")) }	
 if (!isGeneric("vect") ) { setGeneric("vect", function(x, ...) standardGeneric("vect")) }
 
 
@@ -126,9 +128,16 @@ if (!isGeneric("unique")) { setGeneric("unique", function(x, incomparables=FALSE
 if (!isGeneric("values")) { setGeneric("values", function(x, ...) standardGeneric("values")) }	
 if (!isGeneric("values<-")) { setGeneric("values<-", function(x, value) standardGeneric("values<-"))}	
 if (!isGeneric("warp")) { setGeneric("warp", function(x, y, ...) standardGeneric("warp")) }
+if (!isGeneric("which.max")) {setGeneric("which.max", function(x) standardGeneric("which.max"))}	
+if (!isGeneric("which.min")) {setGeneric("which.min", function(x) standardGeneric("which.min"))}	
+if (!isGeneric("Which")) {setGeneric("Which", function(x) standardGeneric("Which"))}	
+
 if (!isGeneric("writeStart")) {	setGeneric("writeStart", function(x, filename, ...)	standardGeneric("writeStart")) }
 if (!isGeneric("writeStop")) { setGeneric("writeStop", function(x, ...) standardGeneric("writeStop")) }
-if (!isGeneric("writeValues")) { setGeneric("writeValues", function(x, v, start) standardGeneric("writeValues")) }
+#if (!isGeneric("writeValues")) { setGeneric("writeValues", function(x, v, start) standardGeneric("writeValues")) }
+if (!isGeneric('writeVals')) { setGeneric('writeVals', function(x, v, ...) standardGeneric('writeVals')) }
+
+
 if (!isGeneric("writeRaster")) {setGeneric("writeRaster", function(x, filename, ...) standardGeneric("writeRaster"))}
 if (!isGeneric("writeVector")) {setGeneric("writeVector", function(x, filename, ...) standardGeneric("writeVector"))}
 if (!isGeneric("xmin")) {setGeneric("xmin", function(x) standardGeneric("xmin"))}
@@ -139,4 +148,6 @@ if (!isGeneric("xmin<-")) { setGeneric("xmin<-", function(x, ..., value) standar
 if (!isGeneric("xmax<-")) { setGeneric("xmax<-", function(x, ..., value) standardGeneric("xmax<-"))}	
 if (!isGeneric("ymin<-")) { setGeneric("ymin<-", function(x, ..., value) standardGeneric("ymin<-"))}	
 if (!isGeneric("ymax<-")) { setGeneric("ymax<-", function(x, ..., value) standardGeneric("ymax<-"))}	
+
+
 
