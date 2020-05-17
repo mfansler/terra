@@ -1,4 +1,5 @@
-# (!isGeneric("#")) { setGeneric("#", function(object) standardGeneric("#")) }
+#if (!isGeneric("#")) { setGeneric("#", function(object) standardGeneric("#")) }
+
 
 # terra
 if (!isGeneric("align")) { setGeneric("align", function(x, y, ...) standardGeneric("align"))}
@@ -11,9 +12,12 @@ if (!isGeneric("classify")) { setGeneric("classify", function(x, ...) standardGe
 if (!isGeneric("collapse")) {setGeneric("collapse", function(x, ...) standardGeneric("collapse"))}
 if (!isGeneric("compareGeom")) {setGeneric("compareGeom", function(x,y,...) standardGeneric("compareGeom"))}	
 if (!isGeneric("draw")) {setGeneric("draw", function(x,...) standardGeneric("draw"))}
-if (!isGeneric("ext")) { setGeneric("ext", function(x, ...)	standardGeneric("ext"))}	
-if (!isGeneric("ext<-")) { setGeneric("ext<-", function(x, value) standardGeneric("ext<-")) }		
-if (!isGeneric("geomtype")) {setGeneric("geomtype", function(x,...) standardGeneric("geomtype"))}	
+if (!isGeneric("ext")) { setGeneric("ext", function(x, ...)	standardGeneric("ext"))}
+if (!isGeneric("ext<-")) { setGeneric("ext<-", function(x, value) standardGeneric("ext<-")) }	
+if (!isGeneric("geomtype")) {setGeneric("geomtype", function(x,...) standardGeneric("geomtype"))}
+if (!isGeneric("is.points")) {setGeneric("is.points", function(x,...) standardGeneric("is.points"))}
+if (!isGeneric("is.lines")) {setGeneric("is.lines", function(x,...) standardGeneric("is.lines"))}
+if (!isGeneric("is.polygons")) {setGeneric("is.polygons", function(x,...) standardGeneric("is.polygons"))}
 if (!isGeneric("perimeter")) {setGeneric("perimeter", function(x, ...) standardGeneric("perimeter"))}	
 if (!isGeneric("project")) {setGeneric("project", function(x,...) standardGeneric("project"))}	
 if (!isGeneric("pack")) {setGeneric("pack", function(x, ...) standardGeneric("pack"))}	
@@ -89,12 +93,14 @@ if (!isGeneric("readStart")) {setGeneric("readStart", function(x, ...) standardG
 if (!isGeneric("readStop")) {setGeneric("readStop", function(x)	standardGeneric("readStop"))}
 if (!isGeneric("res")) { setGeneric("res", function(x) standardGeneric("res")) }
 if (!isGeneric("res<-")) { setGeneric("res<-", function(x, value) standardGeneric("res<-")) }
+if (!isGeneric("resample")) { setGeneric("resample", function(x, y, ...) standardGeneric("resample"))}
 if (!isGeneric("spatSample")) { setGeneric("spatSample", function(x, ...) standardGeneric("spatSample"))}
 if (!isGeneric("select")) {setGeneric("select", function(x, ...) standardGeneric("select"))}
 if (!isGeneric("setMinMax")) {setGeneric("setMinMax", function(x) standardGeneric("setMinMax"))}	
 if (!isGeneric("shift")) {setGeneric("shift", function(x, ...) standardGeneric("shift"))}	
 if (!isGeneric("stdev")) { setGeneric("stdev", function(x, ...) standardGeneric("stdev")) }	
 if (!isGeneric("subset")) {setGeneric("subset", function(x, ...) standardGeneric("subset")) }
+if (!isGeneric("summary")) {setGeneric("summary", function(object, ...) standardGeneric("summary")) }
 if (!isGeneric("t")) { setGeneric("t", function(x) standardGeneric("t"))}	
 if (!isGeneric("tail")) { setGeneric("tail", function(x, ...) standardGeneric("tail"))}	
 if (!isGeneric("text")) { setGeneric("text", function(x, ...) standardGeneric("text")) }	
@@ -127,15 +133,15 @@ if (!isGeneric('setMinMax')) {setGeneric('setMinMax', function(x, ...) standardG
 if (!isGeneric("unique")) { setGeneric("unique", function(x, incomparables=FALSE, ...) standardGeneric("unique")) }	
 if (!isGeneric("values")) { setGeneric("values", function(x, ...) standardGeneric("values")) }	
 if (!isGeneric("values<-")) { setGeneric("values<-", function(x, value) standardGeneric("values<-"))}	
-if (!isGeneric("warp")) { setGeneric("warp", function(x, y, ...) standardGeneric("warp")) }
+#if (!isGeneric("warp")) { setGeneric("warp", function(x, y, ...) standardGeneric("warp")) }
 if (!isGeneric("which.max")) {setGeneric("which.max", function(x) standardGeneric("which.max"))}	
 if (!isGeneric("which.min")) {setGeneric("which.min", function(x) standardGeneric("which.min"))}	
 if (!isGeneric("Which")) {setGeneric("Which", function(x) standardGeneric("Which"))}	
 
 if (!isGeneric("writeStart")) {	setGeneric("writeStart", function(x, filename, ...)	standardGeneric("writeStart")) }
 if (!isGeneric("writeStop")) { setGeneric("writeStop", function(x, ...) standardGeneric("writeStop")) }
-#if (!isGeneric("writeValues")) { setGeneric("writeValues", function(x, v, start) standardGeneric("writeValues")) }
-if (!isGeneric('writeVals')) { setGeneric('writeVals', function(x, v, ...) standardGeneric('writeVals')) }
+#if (!isGeneric("writeVals")) { setGeneric("writeVals", function(x, v, ...) standardGeneric("writeVals")) }
+if (!isGeneric('writeValues')) { setGeneric('writeValues', function(x, v, ...) standardGeneric('writeValues')) }
 
 
 if (!isGeneric("writeRaster")) {setGeneric("writeRaster", function(x, filename, ...) standardGeneric("writeRaster"))}

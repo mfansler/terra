@@ -22,6 +22,9 @@
 #include "ogrsf_frmts.h"
 #include "ogr_spatialref.h"
 
+#include "crs.h"
+
+
 std::string geomType(OGRLayer *poLayer) {
 	std::string s = "";
     poLayer->ResetReading();
@@ -38,13 +41,16 @@ std::string geomType(OGRLayer *poLayer) {
 
 
 SpatDataFrame readAttributes(OGRLayer *poLayer) {
+	SpatDataFrame df;
+
+    OGRFeatureDefn *poFDefn = poLayer->GetLayerDefn();
+	size_t nfields = poFDefn->GetFieldCount();
+	if (nfields == 0) return df;
+
 	OGRFieldType ft;
     poLayer->ResetReading();
     OGRFeature *poFeature;
-    OGRFeatureDefn *poFDefn = poLayer->GetLayerDefn();
-	unsigned nfields = poFDefn->GetFieldCount();
 	OGRFieldDefn *poFieldDefn;
-	SpatDataFrame df;
 	df.resize_cols(nfields);
 	bool first = true;
 	unsigned dtype;
@@ -92,50 +98,108 @@ SpatDataFrame readAttributes(OGRLayer *poLayer) {
 
 
 
-
-bool SpatVector::read(std::string fname) {
-
-	msg.success = true;
-
-    OGRRegisterAll();
-    GDALDataset *poDS = static_cast<GDALDataset*>(GDALOpenEx( fname.c_str(), GDAL_OF_VECTOR, NULL, NULL, NULL ));
-    if( poDS == NULL ) {
-        setError("Cannot open file");
-		return false;
-    }
-	std::string crs = "";
-	OGRSpatialReference *poSRS = poDS->GetLayer(0)->GetSpatialRef();
-	if (poSRS) {
-		char *pszPRJ = NULL;
-		poSRS->exportToProj4(&pszPRJ);
-		crs = pszPRJ;
+std::string getDs_WKT(GDALDataset *poDataset) { 
+	std::string wkt = "";
+	char *cp;
+#if GDAL_VERSION_MAJOR >= 3
+	const OGRSpatialReference *srs = poDataset->GetSpatialRef();
+	const char *options[3] = { "MULTILINE=YES", "FORMAT=WKT2", NULL };
+	OGRErr err = srs->exportToWkt(&cp, options);
+	if (err == OGRERR_NONE) {
+		wkt = std::string(cp);
+		CPLFree(cp);
+	} 
+#else
+	if (poDataset->GetProjectionRef() != NULL) { 
+		OGRSpatialReference oSRS(poDataset->GetProjectionRef());
+		OGRErr err = oSRS.exportToPrettyWkt(&cp);
+		if (err == OGRERR_NONE) {
+			wkt = std::string(cp);
+			CPLFree(cp);
+		}
 	}
-	OGRLayer *poLayer = poDS->GetLayerByName( basename_noext(fname).c_str() );
+#endif 	
+	return wkt;
+}
 
+std::string getDs_PRJ(GDALDataset *poDataset) { 
+	std::string prj = "";
+#if GDAL_VERSION_MAJOR >= 3
+	char *cp;
+	const OGRSpatialReference *srs = poDataset->GetSpatialRef();
+	OGRErr err = srs->exportToProj4(&cp);
+	if (err == OGRERR_NONE) {
+		prj = std::string(cp);
+		CPLFree(cp);
+	}
+#else
+	if( poDataset->GetProjectionRef() != NULL ) {
+		OGRSpatialReference oSRS(poDataset->GetProjectionRef());
+		char *pszPRJ = NULL;
+		oSRS.exportToProj4(&pszPRJ);
+		prj = pszPRJ;
+	}
+#endif	
+	return prj;
+}
+
+
+bool SpatVector::read_ogr(GDALDataset *poDS) {
+
+
+	OGRSpatialReference *poSRS = poDS->GetLayer(0)->GetSpatialRef();
+	std::string wkt, errmsg;
+	if (!wkt_from_spatial_reference(poSRS, wkt, errmsg)){
+		setError(errmsg);
+		return false;	
+	}
+	setSRS( {wkt}) ; 
+	//lyr.prj = prj;
+
+
+//	std::string crs = getDs_WKT(poDS);
+//	std::string prj = getDs_PRJ(poDS);
+/*
+	OGRSpatialReference *poSRS = poDS->GetLayer(0)->GetSpatialRef();
+
+	if (poSRS) {
+		char *pszCRS = NULL;
+		poSRS->exportToProj4(&pszCRS);
+		crs = pszCRS;
+		prj = pszCRS;
+			
+		//pszCRS = NULL;
+		//poSRS->exportToWKT(&pszCRS);
+		//crs = pszCRS;
+	}
+*/
+	
+	//OGRLayer *poLayer = poDS->GetLayerByName( basename_noext(fname).c_str() );
+	OGRLayer *poLayer = poDS->GetLayer(0);
 	lyr.df = readAttributes(poLayer);
 
-
 	OGRwkbGeometryType wkbgeom = wkbFlatten( poLayer ->GetGeomType());
+
 	OGRFeature *poFeature;
 	OGRPoint ogrPt;
 	unsigned np, nh, ng;
 
 	poLayer->ResetReading();
 	if ((wkbgeom == wkbPoint) | (wkbgeom == wkbMultiPoint)) {
-		SpatPart p(0,0);
+		//SpatPart p(0,0);
 		while( (poFeature = poLayer->GetNextFeature()) != NULL ) {
 			OGRGeometry *poGeometry = poFeature->GetGeometryRef();
-			SpatGeom g;
-			g.gtype = points;
-			if (poGeometry != NULL)
+			SpatGeom g(points);
+			if (poGeometry != NULL) {
 				if ( wkbFlatten(poGeometry->getGeometryType()) == wkbPoint ) {
 				#if GDAL_VERSION_NUM >= GDAL_COMPUTE_VERSION(2,3,0)
 					OGRPoint *poPoint = poGeometry->toPoint();
 				#else
 					OGRPoint *poPoint = (OGRPoint *) poGeometry;
 				#endif
-					p.x[0] = poPoint->getX();
-					p.y[0] = poPoint->getY();
+					double x = poPoint->getX();
+					double y = poPoint->getY();
+					SpatPart p(x, y);
 					g.addPart(p);
 				} else {
 					OGRMultiPoint *poMultipoint = ( OGRMultiPoint * )poGeometry;
@@ -152,11 +216,11 @@ bool SpatVector::read(std::string fname) {
 						X[i] = poPoint->getX();
 						Y[i] = poPoint->getY();
 					}
-					SpatPart pp(X, Y);
-					g.addPart(pp);
+					SpatPart p(X, Y);
+					g.addPart(p);
+				}
 			} else {
-				p.x[0] = NAN;
-				p.y[0] = NAN;
+				SpatPart p(NAN, NAN);
 				g.addPart(p);
 			}
 			addGeom(g);
@@ -200,7 +264,7 @@ bool SpatVector::read(std::string fname) {
 			}
 			addGeom(g);
 		}
-	} else if (wkbgeom == wkbPolygon) {
+	} else if (wkbgeom == wkbPolygon || wkbgeom == wkbMultiPolygon ) {
 		while ( (poFeature = poLayer->GetNextFeature()) != NULL ) {
 			OGRGeometry *poGeometry = poFeature ->GetGeometryRef();
 			SpatGeom g;
@@ -276,9 +340,7 @@ bool SpatVector::read(std::string fname) {
 	}
 
 	OGRFeature::DestroyFeature( poFeature );
-    GDALClose( poDS );
-	setCRS(crs);
-	return msg.success;
+ 	return true;
 }
 
 
@@ -287,4 +349,23 @@ bool SpatVector::read(std::string fname) {
  //       if( poLayer->GetExtent( &oExt, TRUE ) == OGRERR_NONE ){
  //           cout << "Extent: (" << oExt.MinX << ", " << oExt.MinY << ") - (" << oExt.MaxX << ", " << oExt.MaxY << ")" << endl;
 
+
+bool SpatVector::read(std::string fname) {
+
+    //OGRRegisterAll();
+    GDALDataset *poDS = static_cast<GDALDataset*>(GDALOpenEx( fname.c_str(), GDAL_OF_VECTOR, NULL, NULL, NULL ));
+    if( poDS == NULL ) {
+        setError("Cannot open this file");
+		return false;
+    }
+	bool success = read_ogr(poDS);
+	if (poDS != NULL) GDALClose( poDS );
+	return success;
+}
+
+SpatVector SpatVector::fromDS(GDALDataset *poDS) {
+	SpatVector out;
+	out.read_ogr(poDS);
+	return out;
+}
 

@@ -14,8 +14,9 @@ setMethod("rast", signature(x="missing"),
 		if (missing(crs)) {
 			if (e[1] > -360.01 & e[2] < 360.01 & e[3] > -90.01 & e[4] < 90.01) {
 				crs <- "+proj=longlat +datum=WGS84"
+				#crs <- 'GEOGCS["WGS 84", DATUM["WGS_1984", SPHEROID["WGS 84",6378137,298.257223563]], PRIMEM["Greenwich",0], UNIT["degree",0.0174532925199433]]'
 			} else {
-				crs <- as.character(NA)
+				crs <- ""
 			}
 		} else {
 			crs <- as.character(crs)
@@ -33,6 +34,26 @@ setMethod("rast", signature(x="missing"),
 	}
 )
 
+setMethod("rast", signature(x="list"),
+	function(x, ...) {
+		i <- sapply(x, function(i) inherits(i, "SpatRaster"))
+		if (!any(i)) {
+			stop("None of the elements of x are a SpatRaster")
+		}
+		if (!all(i)) {
+			warning(paste(sum(!i), "out of", length(x), "elements of x are a SpatRaster"))
+		}
+		x <- x[i]
+		r <- x[[1]]
+		if (length(x) > 1) {
+			for (i in seq_along(2:length(x))) {
+				r <- c(r, x[[i]])
+			}
+		}
+		r
+	}
+)
+
 
 setMethod("rast", signature(x="SpatExtent"),
 	function(x, nrows=10, ncols=10, nlyrs=1, crs="", ...) {
@@ -45,7 +66,10 @@ setMethod("rast", signature(x="SpatExtent"),
 
 setMethod("rast", signature(x="SpatVector"),
 	function(x, nrows=10, ncols=10, nlyrs=1, ...) {
-		rast(ext(x), nrows=nrows, ncols=ncols, nlyrs=nlyrs, crs=crs(x), ...)
+		r <- rast(ext(x), nrows=nrows, ncols=ncols, nlyrs=nlyrs, crs=crs(x), ...)
+		#why needed:
+		crs(r) <- crs(x)[1]
+		r
 	}
 )
 
@@ -53,12 +77,16 @@ setMethod("rast", signature(x="SpatVector"),
 
 .fullFilename <- function(x, expand=FALSE) {
 	x <- trimws(x)
-	if (identical(basename(x), x)) {
-		x <- file.path(getwd(), x)
+	p <- normalizePath(x, winslash = "/", mustWork = FALSE)
+	if (file.exists(p)) {
+		return(p)
 	}
-	if (expand) {
-		x <- path.expand(x)
-	}
+	#if (identical(basename(x), x)) {
+	#	x <- file.path(getwd(), x)
+	#}
+	#if (expand) {
+	#	x <- path.expand(x)
+	#}
 	return(x)
 }
 
@@ -78,10 +106,12 @@ setMethod("rast", signature(x="character"),
 setMethod("rast", signature(x="SpatRaster"),
 	function(x, nlyrs=nlyr(x), ...) {
 		r <- methods::new("SpatRaster")
-		dims <- dim(x)
-		stopifnot(nlyrs > 0)
-		dims[3] <- nlyrs
-		r@ptr <- SpatRaster$new(dims, as.vector(ext(x)), crs(x))
+		r@ptr <- x@ptr$geometry(nlyrs)
+		
+		#dims <- dim(x)
+		#stopifnot(nlyrs > 0)
+		#dims[3] <- nlyrs
+		#r@ptr <- SpatRaster$new(dims, as.vector(ext(x)), crs(x))
 		# also need the keep the names ?
 		show_messages(r, "rast")
 	}
@@ -112,7 +142,7 @@ setMethod("rast", signature(x="Raster"),
 )
 
 
-.rastFromXYZ <- function(xyz, digits=6, crs = NA, ...) {
+.rastFromXYZ <- function(xyz, digits=6, crs="", ...) {
 
 	ln <- colnames(xyz)
 	## xyz might not have colnames, or might have "" names
@@ -175,15 +205,14 @@ setMethod("rast", signature(x="Raster"),
 
 
 setMethod("rast", signature(x="matrix"),
-	function(x, crs=NA, type="", ...) {
+	function(x, crs="", type="", ...) {
 		if (type == "xyz") {
 			r <- .rastFromXYZ(x, crs = crs, ...)
 		} else {
 			r <- methods::new("SpatRaster")
-			r@ptr <- SpatRaster$new(c(dim(x), 1), c(0, ncol(x), 0, nrow(x)), "")
+			r@ptr <- SpatRaster$new(c(dim(x), 1), c(0, ncol(x), 0, nrow(x)), crs)
 			values(r) <- t(x)
 		}
-		if (!is.na(crs)) crs(r) <- crs
 		show_messages(r, "rast")
 	}
 )

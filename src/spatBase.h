@@ -25,9 +25,9 @@
 	#define useRcpp
 #endif
 
-#define useGDAL
-//#define useGEOS
-
+#ifndef nogdal
+  #define useGDAL
+#endif
 
 #ifndef M_PI
 #define M_PI (3.14159265358979323846)
@@ -43,7 +43,7 @@ class SpatOptions {
 	public:
 		std::string def_datatype = "FLT4S";
 		std::string def_filetype = "GTiff";
-		std::string def_bandorder = "BIL";
+		//std::string def_bandorder = "BIL";
 		bool overwrite = false;
 		unsigned progress = 3;
 		unsigned blocksizemp = 4;
@@ -140,37 +140,12 @@ class SpatExtent {
 			return(pts);
 		}
 
-		bool is_lonlat(std::string crs) {
-			bool b1 = crs.find("longlat") != std::string::npos;
-			bool b2 = crs.find("epsg:4326") != std::string::npos;
-			return (b1 | b2);
-		}
-
-		bool could_be_lonlat(std::string crs) {
-			bool b = is_lonlat(crs);
-			if ((!b) & (crs=="")) {
-				if ((xmin >=-180.1) & (xmax <= 180.1) & (ymin >= -90.1) & (ymax <= 90.1)) {
-					b = true;
-				}
-			}
-			return b;
-		}
-
-		bool is_global_lonlat(std::string crs) {
-			if (could_be_lonlat(crs)) {
-                // could be refined
-                if (std::abs(xmax - xmin - 360) < 0.001) {
-                    return true;
-                }
-            }
-			return false;
-		}
-
 		bool valid() {
-			return ((xmax > xmin) && (ymax > ymin));
+			return ((xmax >= xmin) && (ymax >= ymin));
 		}
 
-		bool equal(SpatExtent e, double tolerance);
+		bool compare(SpatExtent e, std::string oper, double tolerance);
+
 		SpatExtent round(int n);
 		SpatExtent floor();
 		SpatExtent ceil();
@@ -179,4 +154,56 @@ class SpatExtent {
 
 
 
+class SpatSRS {
+	public:
+		std::string input, proj4, wkt;
+		bool set(std::vector<std::string> txt, std::string &msg);
 
+		std::vector<std::string> get() {
+			std::vector<std::string> s = {proj4, wkt, input};
+			return s;
+		}
+
+		std::string get_prj() {
+			return proj4;
+		}
+
+		bool is_equal(SpatSRS x) {
+			return (proj4 == x.proj4);
+		}
+
+		bool is_empty() {
+			return (wkt == "");
+		}
+
+		bool is_lonlat() {
+			bool b1 = proj4.find("longlat") != std::string::npos;
+			bool b2 = proj4.find("epsg:4326") != std::string::npos;
+			return (b1 | b2);
+		}
+
+		bool could_be_lonlat(SpatExtent e) {
+			bool b = is_lonlat();
+			if ((!b) & is_empty()) {
+				if ((e.xmin >=-180.1) & (e.xmax <= 180.1) & (e.ymin >= -90.1) & (e.ymax <= 90.1)) {
+					b = true;
+				}
+			}
+			return b;
+		}
+
+		bool is_global_lonlat(SpatExtent e) {
+			if (could_be_lonlat(e)) {
+                if (std::abs(e.xmax - e.xmin - 360) < 0.001) {
+                    return true;
+                }
+				//double halfres = xres()/ 180;
+				//if (((e.xmin - halfres) <= -180) && ((e.xmax + halfres) >= 180)) {
+				//	return true;
+				//}
+			}
+			return false;
+		}
+
+
+};

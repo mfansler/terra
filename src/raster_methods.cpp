@@ -150,6 +150,26 @@ SpatRaster SpatRaster::mask(SpatRaster x, bool inverse, double maskvalue, double
 
 
 SpatRaster SpatRaster::mask(SpatVector x, bool inverse, double updatevalue, SpatOptions &opt) {
+
+//return grasterize(x, "", {updatevalue}, NAN, true, false, !inverse, opt);
+// gdal_rasterize with inverse=true does not work well with overlapping polygons 
+// also can't use NA as update value, it appears
+// looks like GDAL bug
+//	eturn grasterize(x, "", {updatevalue}, NAN, true, false, !inverse, opt);
+// so do it in two steps
+	SpatRaster out;
+	if (!hasValues()) {
+		out.setError("SpatRaster has no values");
+		return out;
+	}
+	std::string filename = opt.get_filename();
+	opt.set_filename("");
+	SpatRaster m = grasterize(x, "", {1}, 0, false, false, false, opt);
+	opt.set_filename(filename);
+	out = mask(m, inverse, 0, updatevalue, opt);
+	return(out);
+
+/*
 	std::string filename = opt.get_filename();
 	opt.set_filename("");
 	std::vector<double> feats(x.size(), 1) ;
@@ -157,6 +177,7 @@ SpatRaster SpatRaster::mask(SpatVector x, bool inverse, double updatevalue, Spat
 	opt.set_filename(filename);
 	SpatRaster out = mask(m, inverse, 0, updatevalue, opt);
 	return(out);
+*/
 }
 
 
@@ -654,7 +675,7 @@ SpatRaster SpatRaster::extend(SpatExtent e, SpatOptions &opt) {
 	SpatRaster out = geometry(nlyr());
 	e = out.align(e, "near");
 	e.unite(extent);
-	if (extent.equal(e, 1000)) {
+	if (extent.compare(e, "==", 1000)) {
 		out = deepCopy();
 		return out;
 	}
@@ -728,15 +749,13 @@ SpatRaster SpatRaster::crop(SpatExtent e, std::string snap, SpatOptions &opt) {
 	SpatRaster out = geometry();
 
 	e.intersect(out.getExtent());
-
-/*	if ( !e.valid() ) {
-		return NULL;
-		stop("extents do not overlap")
-	} */
+	if ( !e.valid() ) {
+		out.setError("extents do not overlap");
+		return out;
+	} 
 
 	out.setExtent(e, true, snap);
-
-	if (!source[0].hasValues ) {
+	if (!hasValues() ) {
 		return(out);
 	}
 
@@ -748,12 +767,13 @@ SpatRaster SpatRaster::crop(SpatExtent e, std::string snap, SpatOptions &opt) {
 	unsigned row1 = rowFromY(out.extent.ymax - 0.5 * yr);
 	unsigned row2 = rowFromY(out.extent.ymin + 0.5 * yr);
 	if ((row1==0) && (row2==nrow()-1) && (col1==0) && (col2==ncol()-1)) {
-		return(out);
+		// same extent
+		return deepCopy();
 	}
 
 	unsigned ncols = out.ncol();
-
  	if (!out.writeStart(opt)) { return out; }
+
 	readStart();
 	std::vector<double> v;
 	for (size_t i = 0; i < out.bs.n; i++) {

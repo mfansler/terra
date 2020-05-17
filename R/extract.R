@@ -27,8 +27,9 @@
 
 
 setMethod("extract", signature(x="SpatRaster", y="SpatVector"), 
-function(x, y, fun=NULL, ..., method="simple", drop=FALSE) { 
-    r <- x@ptr$extractVector(y@ptr, method[1])
+function(x, y, fun=NULL, ..., touches=is.lines(y), method="simple", drop=FALSE) { 
+    
+	r <- x@ptr$extractVector(y@ptr, touches[1], method[1])
 	x <- show_messages(x, "extract")
 
 	#f <- function(i) if(length(i)==0) { NA } else { i }
@@ -67,6 +68,15 @@ function(x, y, ...) {
 	x[i]
 })
 
+setMethod("extract", signature(x="SpatRaster", y="data.frame"), 
+function(x, y, ...) { 
+	y <- as.matrix(y)
+	if (ncol(y) != 2) {
+		stop("extract works with a 2 column matrix or data.frame of x and y coordinates")
+	}
+	i <- cellFromXY(x, y)
+	x[i]
+})
 
 setMethod("extract", signature(x="SpatRaster", y="numeric"), 
 function(x, y, ...) { 

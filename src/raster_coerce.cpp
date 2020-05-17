@@ -15,19 +15,18 @@
 // You should have received a copy of the GNU General Public License
 // along with spat. If not, see <http://www.gnu.org/licenses/>.
 
-// Based on  public-domain code by Darel Rex Finley, 2007
-// http://alienryderflex.com/polygon_fill/
+// inspired by http://alienryderflex.com/polygon_fill/
 
 #include <vector>
 #include "spatRaster.h"
 
 
-std::vector<double> rasterize_polygon(std::vector<double> r, double value, const std::vector<double> &pX, const std::vector<double> &pY, const unsigned nrows, const unsigned ncols, const double xmin, const double ymax, const double rx, const double ry) {
+std::vector<double> rasterize_polygon(std::vector<double> r, double value, const std::vector<double> &pX, const std::vector<double> &pY, const unsigned startrow, const unsigned nrows, const unsigned ncols, const double xmin, const double ymax, const double rx, const double ry) {
 
 	unsigned n = pX.size();
 	std::vector<unsigned> nCol(n);
-	for (size_t row=0; row<nrows; row++) {
-		double y = ymax - (row+0.5) * ry;
+	for (size_t row=0; row < (nrows); row++) {
+		double y = ymax - (startrow+row+0.5) * ry;
 
 		// find nodes.
 		unsigned nodes = 0;
@@ -86,10 +85,10 @@ SpatRaster rasterizePolygons(SpatVector p, SpatRaster r, std::vector<double> val
 			for (size_t k = 0; k < np; k++) {
 				part = poly.getPart(k);
 				if (part.hasHoles()) {
-					std::vector<double> vv = rasterize_polygon(v, value[j], part.x, part.y, out.nrow(), out.ncol(), extent.xmin, extent.ymax, resx, resy);
+					std::vector<double> vv = rasterize_polygon(v, value[j], part.x, part.y, out.bs.row[i], out.bs.nrows[i], out.ncol(), extent.xmin, extent.ymax, resx, resy);
 					for (size_t h=0; h < part.nHoles(); h++) {
 						hole = part.getHole(h);
-						vv = rasterize_polygon(vv, background, hole.x, hole.y, out.nrow(), out.ncol(), extent.xmin, extent.ymax, resx, resy);
+						vv = rasterize_polygon(vv, background, hole.x, hole.y, out.bs.row[i], out.bs.nrows[i], out.ncol(), extent.xmin, extent.ymax, resx, resy);
 					}
 					for (size_t q=0; q < vv.size(); q++) {
 						if ((vv[q] != background) && (!std::isnan(vv[q]))) {
@@ -97,7 +96,7 @@ SpatRaster rasterizePolygons(SpatVector p, SpatRaster r, std::vector<double> val
 						}
 					}
 				} else {
-					v = rasterize_polygon(v, value[j], part.x, part.y, out.nrow(), out.ncol(), extent.xmin, extent.ymax, resx, resy);
+					v = rasterize_polygon(v, value[j], part.x, part.y, out.bs.row[i], out.bs.nrows[i], out.ncol(), extent.xmin, extent.ymax, resx, resy);
 				}
 			}
 		}
@@ -111,10 +110,10 @@ SpatRaster rasterizePolygons(SpatVector p, SpatRaster r, std::vector<double> val
 
 
 
-std::vector<double> rasterize_line(std::vector<double> r, double value, const std::vector<double> &pX, const std::vector<double> &pY, const unsigned nrows, const unsigned ncols, const double xmin, const double ymax, const double rx, const double ry) {
+std::vector<double> rasterize_line(std::vector<double> r, double value, const std::vector<double> &pX, const std::vector<double> &pY, const unsigned startrow, const unsigned nrows, const unsigned ncols, const double xmin, const double ymax, const double rx, const double ry) {
 	unsigned n = pX.size();
 	for (size_t row=0; row<nrows; row++) {
-		double y = ymax - (row+0.5) * ry;
+		double y = ymax - (startrow+row+0.5) * ry;
 		unsigned ncell = ncols * row;
 		for (size_t i=1; i<n; i++) {
             size_t j = i-1;
@@ -149,11 +148,10 @@ SpatRaster rasterizeLines(SpatVector p, SpatRaster r, std::vector<double> value,
 			unsigned nln = line.size();
 			for (size_t k = 0; k < nln; k++) {
 				part = line.getPart(k);
-				v = rasterize_line(v, value[j], part.x, part.y, out.nrow(), out.ncol(), extent.xmin, extent.ymax, resx, resy);
+				v = rasterize_line(v, value[j], part.x, part.y, out.bs.row[i], out.bs.nrows[i], out.ncol(), extent.xmin, extent.ymax, resx, resy);
 			}
 		}
 		if (!out.writeValues(v, out.bs.row[i], out.bs.nrows[i], 0, out.ncol())) return out;
-
 	}
 	out.writeStop();
 	return(out);
@@ -161,7 +159,7 @@ SpatRaster rasterizeLines(SpatVector p, SpatRaster r, std::vector<double> value,
 
 
 SpatRaster rasterizePoints(SpatVector p, SpatRaster r, std::vector<double> values, double background, SpatOptions &opt) {
-	r.setError("not implented yet");
+	r.setError("not implemented yet");
 	return(r);
 }
 
@@ -345,9 +343,43 @@ SpatVector SpatRaster::as_polygons(bool values, bool narm) {
 
 */
 
-SpatVector SpatRaster::as_polygons(bool values, bool narm) {
-	if (!values) narm=false;
+SpatVector SpatRaster::as_polygons(bool trunc, bool dissolve, bool values, bool narm) {
+
+	if (!hasValues()) {
+		values = false;
+		narm = false;
+		dissolve=false;
+	}
+	
+	if (dissolve) {
+		return polygonize(trunc);
+	}
+
 	SpatVector vect;
+	if (!canProcessInMemory(12)) {
+		vect.setError("the raster is too large");
+		return vect;
+	}
+
+	bool remove_values = false;
+	if (narm) {
+		if (!values) remove_values = true;
+		values=true;
+	}
+
+	unsigned nl = nlyr();
+	unsigned nc = ncell();
+	if (values) {
+		std::vector<double> v = getValues();
+		std::vector<std::string> nms = getNames();
+		for (size_t i=0; i<nl; i++) {
+			size_t offset = i * nc;
+			std::vector<double> vv(v.begin()+offset, v.begin()+offset+nc);
+			vect.add_column(vv, nms[i]);
+		}
+	}
+	
+
 	SpatGeom g;
 	g.gtype = polygons;
 	double xr = xres()/2;
@@ -358,7 +390,22 @@ SpatVector SpatRaster::as_polygons(bool values, bool narm) {
 	std::vector<double> cells(ncell()) ;
 	std::iota (std::begin(cells), std::end(cells), 0);
 	std::vector< std::vector<double> > xy = xyFromCell(cells);
-	for (size_t i=0; i<ncell(); i++) {
+	for (int i=nc-1; i>=0; i--) {
+		if (narm) {
+			bool erase = false;
+			for (size_t j=0; j<nl; j++) {
+				if (std::isnan(vect.lyr.df.dv[j][i])) {
+					erase=true;
+					break;
+				}
+			}
+			if (erase) {
+				for (size_t j=0; j<nl; j++) {
+					vect.lyr.df.dv[j].erase (vect.lyr.df.dv[j].begin()+i);
+				}
+				continue; // skip the geom
+			}
+		}
 		getCorners(x, y, xy[0][i], xy[1][i], xr, yr);
 		SpatPart p(x, y);
 		g.addPart(p);
@@ -366,21 +413,12 @@ SpatVector SpatRaster::as_polygons(bool values, bool narm) {
 		g.parts.resize(0);
 	}
 
-	if (values) {
-		unsigned nl = nlyr();
-		unsigned nc = ncell();
-		std::vector<double> v = getValues();
-		std::vector<std::string> nms = getNames();
-		for (size_t i=0; i<nl; i++) {
-			size_t offset = i * nc;
-			std::vector<double> vv(v.begin()+offset, v.begin()+offset+nc);
-			vect.add_column(vv, nms[i]);
-		}
-		if (narm) {
-            // loop over dataframe and remove rows if value is na
-		}
+	std::reverse(std::begin(vect.lyr.geoms), std::end(vect.lyr.geoms));			
+
+	if (remove_values) {
+		vect.lyr.df = SpatDataFrame();		
 	}
-	vect.setCRS(getCRS());
+	vect.lyr.srs = srs;
 	return(vect);
 }
 
@@ -407,6 +445,23 @@ SpatVector SpatVector::as_lines() {
 			}
 		}
 		v.lyr.geoms[i].gtype = lines;
+	}
+	return(v);
+}
+
+
+SpatVector SpatVector::as_points() {
+	SpatVector v = *this;
+	if (lyr.geoms[0].gtype == points) {
+		v.addWarning("returning a copy");
+		return v;
+	}
+	if (lyr.geoms[0].gtype == polygons) {
+		v = v.as_lines();
+	}
+
+	for (size_t i=0; i<size(); i++) {
+		v.lyr.geoms[i].gtype = points;
 	}
 	return(v);
 }

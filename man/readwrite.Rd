@@ -7,7 +7,7 @@
 \alias{readValues}
 \alias{writeStart}
 \alias{writeStop}
-\alias{writeVals}
+\alias{writeValues}
 
 \alias{readStart,SpatRaster-method}
 \alias{readStop,SpatRaster-method}
@@ -15,7 +15,7 @@
 \alias{writeStart,SpatRaster,character-method}
 \alias{writeStop,SpatRaster-method}
 \alias{writeStop,SpatRaster-method}
-\alias{writeVals,SpatRaster,vector-method}
+\alias{writeValues,SpatRaster,vector-method}
 
 \title{Read from, or write to, file}
 
@@ -27,12 +27,16 @@ To write chunks, begin by opening a file with \code{writeStart}, then write valu
 
 \usage{
 \S4method{readStart}{SpatRaster}(x, ...)
+
 \S4method{readStop}{SpatRaster}(x)
+
 \S4method{readValues}{SpatRaster}(x, row=1, nrows=nrow(x), col=1, ncols=ncol(x), mat=FALSE, dataframe=FALSE, ...)
 
 \S4method{writeStart}{SpatRaster,character}(x, filename="", overwrite=FALSE, wopt=list(), ...)
+
 \S4method{writeStop}{SpatRaster}(x)
-\S4method{writeVals}{SpatRaster,vector}(x, v, start, nrows, ...)
+
+\S4method{writeValues}{SpatRaster,vector}(x, v, start, nrows, ...)
 }
 
 \arguments{
