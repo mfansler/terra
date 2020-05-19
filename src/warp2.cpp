@@ -1,11 +1,18 @@
+
 #include "gdalwarper.h"
 #include "ogr_spatialref.h"
 
+
 #include "spatRaster.h"
 #include "string_utils.h"
-#include "crs.h"
 #include "file_utils.h"
 
+#include "crs.h"
+
+//#include <vector>
+//#include "vecmath.h"
+
+#if GDAL_VERSION_MAJOR >= 3
 
 bool find_oputput_bounds(const GDALDatasetH &hSrcDS, GDALDatasetH &hDstDS, const std::string crs, std::string filename, std::string driver, int nlyrs, std::string &msg) {
 
@@ -297,32 +304,92 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 		GDALClose( hDstDS );
 		out = SpatRaster(filename);
 	}
-
-	//if (use_crs) out.setSRS({crs});	// fix the need for this
 	return out;
 }
 
 
-/*
-SpatRaster SpatRaster::tester(bool geom) {
+#else 
+	
 
-	SpatRaster out = geometry();
-	GDALDatasetH hDS;
-	if (source[0].driver != "memory") {
-		out.setError("mwaaa");
-		return out;		
-	}
+SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method, SpatOptions &opt) {
+	unsigned nl = nlyr();
+	SpatRaster out = x.geometry(nl);
 
-	if (!open_gdal(hDS)) {
-		out.setError("cannot create dataset");
+	if (crs != "") {
+		out.setError("This does not work with your version of GDAL");
 		return out;
 	}
-	bool test = out.setValuesMEM(hDS, geom); 
-	GDALClose( hDS );
-	if (!test) {
-		out.setError("wat nu?");
-	}
-	return out;
-}
-*/
 
+	out.setNames(getNames());
+	std::vector<std::string> f {"bilinear", "near"};
+	if (std::find(f.begin(), f.end(), method) == f.end()) {
+		out.setError("unknown warp method");
+		return out;
+	}
+	if (!hasValues()) {
+		return out;
+	}
+
+	std::string crsin = srs.wkt;
+	std::string crsout = out.srs.wkt;
+	bool do_prj = true;
+	if ((crsin == crsout) || (crsin == "") || (crsout == "")) {
+		do_prj = false;
+	}
+
+	if (!do_prj) {
+		SpatExtent e = out.extent;
+		e.intersect(extent);
+		if (!e.valid()) {
+			out.addWarning("No spatial overlap");
+			return out;
+		}
+	}
+
+	SpatRaster xx;
+	if (do_prj) {
+		xx = *this;
+	} else {
+		unsigned xq = x.xres() / xres();
+		unsigned yq = x.yres() / yres();
+		if (std::max(xq, yq) > 1) {
+			xq = xq == 0 ? 1 : xq;
+			yq = yq == 0 ? 1 : yq;
+			std::vector<unsigned> agf = {yq, xq, 1};
+			SpatOptions agopt;
+			if (method == "bilinear") {
+				xx = aggregate(agf, "mean", true, agopt);
+			} else {
+				xx = aggregate(agf, "modal", true, agopt);
+			}
+		} else {
+			xx = *this;
+		}
+	}
+	unsigned nc = out.ncol();
+
+  	if (!out.writeStart(opt)) { return out; }
+	for (size_t i = 0; i < out.bs.n; i++) {
+        unsigned firstcell = out.cellFromRowCol(out.bs.row[i], 0);
+		unsigned lastcell  = out.cellFromRowCol(out.bs.row[i]+out.bs.nrows[i]-1, nc-1);
+		std::vector<double> cells(1+lastcell-firstcell);
+		std::iota (std::begin(cells), std::end(cells), firstcell);
+        std::vector<std::vector<double>> xy = out.xyFromCell(cells);
+		if (do_prj) {
+			#ifdef useGDAL
+			out.msg = transform_coordinates(xy[0], xy[1], crsout, crsin);
+			#else
+			out.setError("GDAL is needed for crs transformation, but not available");
+			return out;
+			#endif
+		}
+		std::vector<std::vector<double>> v = xx.extractXY(xy[0], xy[1], method);
+		if (!out.writeValues2(v, out.bs.row[i], out.bs.nrows[i], 0, out.ncol())) return out;
+	}
+	out.writeStop();
+	return(out);
+}
+
+
+
+#endif

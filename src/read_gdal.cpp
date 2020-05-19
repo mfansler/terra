@@ -25,7 +25,6 @@
 #include "string_utils.h"
 #include "NA.h"
 
-#include "proj.h"
 
 #include "gdal_priv.h"
 #include "cpl_conv.h" // for CPLMalloc()
@@ -37,15 +36,21 @@
 
 #include "gdal_errors.h"
 
+#if GDAL_VERSION_MAJOR >= 3
+#include "proj.h"
+#endif
+
 
 void SpatRaster::gdalogrproj_init(std::string path) {
     GDALAllRegister();
     OGRRegisterAll(); 
 	//GDALregistred = true;
+#if GDAL_VERSION_MAJOR >= 3
 	if (path != "") {
 		const char *cp = path.c_str();
 		proj_context_set_search_paths(PJ_DEFAULT_CTX, 1, &cp);
 	}
+#endif
 }
 
 

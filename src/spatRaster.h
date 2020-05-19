@@ -22,6 +22,7 @@
 #ifdef useGDAL
 #include "gdal_priv.h"
 #endif
+
 #ifdef useRcpp
 #include <Rcpp.h>
 // Rcpp::depends(RcppProgress)
@@ -155,8 +156,14 @@ class SpatRaster {
 		//std::vector<std::string> getCRS();
 		//void setCRS(std::vector<std::string> _crs);
 
-		std::vector<std::string> getSRS();
-		bool setSRS(std::vector<std::string> _srs);
+		std::string getSRS(std::string x);
+		bool setSRS(std::string crs);
+
+/*
+#ifdef useGDAL	
+		bool setSRS(OGRSpatialReference *poSRS, std::string &msg) {
+#endif 
+*/
 
 		bool is_lonlat();
 		bool could_be_lonlat();
@@ -200,7 +207,7 @@ class SpatRaster {
 
 		SpatRaster();
 		SpatRaster(unsigned nr, unsigned nc, unsigned nl, SpatExtent ext, std::string crs);
-		SpatRaster(std::vector<unsigned> rcl, std::vector<double> ext, std::vector<std::string> crs);
+		SpatRaster(std::vector<unsigned> rcl, std::vector<double> ext, std::string crs);
 
 		SpatRaster(std::vector<std::string> fname);
 		SpatRaster(std::string fname);
@@ -399,8 +406,8 @@ class SpatRaster {
 		SpatRaster quantile(std::vector<double> probs, bool narm, SpatOptions &opt);
 
 		SpatRaster range(std::vector<double> add, bool narm, SpatOptions &opt);
-		SpatRaster rasterize(SpatVector p, std::vector<double> values, double background, bool update, SpatOptions &opt);
-		SpatRaster grasterize(SpatVector x, std::string field, std::vector<double> values, double background, bool update, bool touches, bool inverse, SpatOptions &opt);
+		//SpatRaster rasterize(SpatVector p, std::vector<double> values, double background, bool update, SpatOptions &opt);
+		SpatRaster rasterize(SpatVector x, std::string field, std::vector<double> values, double background, bool update, bool touches, bool inverse, SpatOptions &opt);
 
 		SpatRaster reclassify(std::vector<std::vector<double>> rcl, unsigned right, bool lowest, bool othersNA, SpatOptions &opt);
 		SpatRaster reclassify(std::vector<double> rcl, unsigned nc, unsigned right, bool lowest, bool othersNA, SpatOptions &opt);

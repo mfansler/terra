@@ -25,9 +25,17 @@
 	#define useRcpp
 #endif
 
+
 #ifndef nogdal
   #define useGDAL
 #endif
+
+
+/*
+#ifdef useGDAL
+	#include "gdal_priv.h"
+#endif
+*/
 
 #ifndef M_PI
 #define M_PI (3.14159265358979323846)
@@ -153,15 +161,18 @@ class SpatExtent {
 
 
 
-
 class SpatSRS {
 	public:
-		std::string input, proj4, wkt;
-		bool set(std::vector<std::string> txt, std::string &msg);
+		std::string proj4, wkt;
+		bool set(std::string txt, std::string &msg);
 
-		std::vector<std::string> get() {
-			std::vector<std::string> s = {proj4, wkt, input};
-			return s;
+/*
+#ifdef useGDAL	
+		bool set(OGRSpatialReference *poSRS, std::string &msg);
+#endif		
+*/
+		std::string get(std::string x) {
+			return (x == "proj4" ? proj4 : wkt); 
 		}
 
 		std::string get_prj() {

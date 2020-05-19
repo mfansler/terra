@@ -111,17 +111,29 @@ class SpatVector {
 		//void setCRS(std::vector<std::string> _crs);
 
 
-		bool setSRS(std::vector<std::string> _srs) {
+		bool setSRS(std::string _srs) {
 			std::string msg;
 			if (!lyr.srs.set(_srs, msg)){
-				addWarning("Cannot set SRS: "+ msg);
+				addWarning("Cannot set SRS to vector: "+ msg);
 				return false;
 			}
 			return true;	
 		}
 
-		std::vector<std::string> getSRS() {
-			return lyr.srs.get();
+/*
+#ifdef useGDAL	
+		bool setSRS(OGRSpatialReference *poSRS, std::string &msg) {
+			if (!lyr.srs.set(poSRS, msg)){
+				addWarning("Cannot set SRS to vector: "+ msg);
+				return false;
+			}
+			return true;				
+		}
+#endif		
+*/
+
+		std::string getSRS(std::string x) {
+			return lyr.srs.get(x);
 		}
 		//std::string getPRJ();
 		//void setPRJ(std::string PRJ);

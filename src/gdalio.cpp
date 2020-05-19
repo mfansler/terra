@@ -86,7 +86,7 @@ bool SpatRaster::open_gdal(GDALDatasetH &hDS, int src) {
 		if (canProcessInMemory(4)) {
 			fromfile = false;
 		} else {
-			// needs to make VRT
+			// make VRT
 			setError("right now this method can only handle one file source at a time");
 			return false;
 		}
@@ -200,27 +200,34 @@ bool SpatRaster::from_gdalMEM(GDALDatasetH hDS, bool set_geometry, bool get_valu
 
 		s.driver = "memory";
 		s.names = source[0].names;
-		
-		OGRSpatialReferenceH srs = GDALGetSpatialRef( hDS );
-		char *cp;
-		const char *options[3] = { "MULTILINE=YES", "FORMAT=WKT2", NULL };
-		OGRErr err = OSRExportToWktEx(srs, &cp, options);
-		std::string errmsg;
-		if (is_ogr_error(err, errmsg)) {
-			CPLFree(cp);
-			return false;
-		}
-		std::string wkt = std::string(cp);
+		std::string wkt;
 
-		err = OSRExportToProj4(srs, &cp);
+#if GDAL_VERSION_MAJOR >= 3
+		std::string errmsg;
+		OGRSpatialReferenceH srs = GDALGetSpatialRef( hDS );
+		const char *options[3] = { "MULTILINE=YES", "FORMAT=WKT2", NULL };
+		char *cp;
+		OGRErr err = OSRExportToWktEx(srs, &cp, options);
 		if (is_ogr_error(err, errmsg)) {
 			CPLFree(cp);
 			return false;
 		}
-		std::string prj = std::string(cp);
+		wkt = std::string(cp);
 		CPLFree(cp);
+#else
+		const char *pszSrc = GDALGetProjectionRef( hDS );
+		if (pszSrc != NULL) { 
+			wkt = std::string(pszSrc);
+		} else {
+			return false;
+		}
+
+		//OGRSpatialReferenceH srs = GDALGetProjectionRef( hDS );
+		//OGRSpatialReference oSRS(poDataset->GetProjectionRef());
+		//OGRErr err = oSRS.exportToPrettyWkt(&cp);
+#endif
 		std::string msg;
-		if (!s.srs.set({prj, wkt, wkt}, msg)) {
+		if (!s.srs.set({wkt}, msg)) {
 			setError(msg);
 			return false;
 		}
@@ -290,8 +297,7 @@ bool SpatRaster::create_gdalDS(GDALDatasetH &hDS, std::string filename, std::str
 	double adfGeoTransform[6] = { e.xmin, rs[0], 0, e.ymax, 0, -1 * rs[1] };
 	GDALSetGeoTransform( hDS, adfGeoTransform);
 
-	std::vector<std::string> srs = getSRS();
-	std::string wkt = srs[1];
+	std::string wkt = getSRS("wkt");
 	if (wkt != "") {
 		OGRSpatialReferenceH hSRS = OSRNewSpatialReference( NULL );
 		OGRErr erro = OSRSetFromUserInput(hSRS, wkt.c_str());

@@ -97,7 +97,7 @@ SpatDataFrame readAttributes(OGRLayer *poLayer) {
 }
 
 
-
+/*
 std::string getDs_WKT(GDALDataset *poDataset) { 
 	std::string wkt = "";
 	char *cp;
@@ -110,14 +110,20 @@ std::string getDs_WKT(GDALDataset *poDataset) {
 		CPLFree(cp);
 	} 
 #else
-	if (poDataset->GetProjectionRef() != NULL) { 
-		OGRSpatialReference oSRS(poDataset->GetProjectionRef());
-		OGRErr err = oSRS.exportToPrettyWkt(&cp);
-		if (err == OGRERR_NONE) {
-			wkt = std::string(cp);
-			CPLFree(cp);
-		}
+	const char *pszSrc = GDALGetProjectionRef( poDataset );
+	if (pszSrc != NULL) { 
+		wkt = std::string(pszSrc);
 	}
+	
+//	if (poDataset->GetProjectionRef() != NULL) { 
+//		OGRSpatialReference oSRS(poDataset->GetProjectionRef());
+//		OGRErr err = oSRS.exportToPrettyWkt(&cp);
+//		if (err == OGRERR_NONE) {
+//			wkt = std::string(cp);
+//			CPLFree(cp);
+//		}
+//	}
+	
 #endif 	
 	return wkt;
 }
@@ -142,23 +148,55 @@ std::string getDs_PRJ(GDALDataset *poDataset) {
 #endif	
 	return prj;
 }
-
+*/
 
 bool SpatVector::read_ogr(GDALDataset *poDS) {
 
-
+	std::string crs = "";
 	OGRSpatialReference *poSRS = poDS->GetLayer(0)->GetSpatialRef();
-	std::string wkt, errmsg;
-	if (!wkt_from_spatial_reference(poSRS, wkt, errmsg)){
-		setError(errmsg);
-		return false;	
+	if (poSRS) {
+		char *psz = NULL;
+		std::string errmsg;
+		OGRErr err = poSRS->exportToWkt(&psz);
+		if (is_ogr_error(err, errmsg)) {
+			setError(errmsg);
+			CPLFree(psz);
+			return false;
+		}
+		crs = psz;
+		setSRS(crs);
+		CPLFree(psz);
 	}
-	setSRS( {wkt}) ; 
+
+/*
+#if GDAL_VERSION_MAJOR >= 3
+	OGRSpatialReference *poSRS = poDS->GetLayer(0)->GetSpatialRef();
+	std::string wkt="";
+	std::string errmsg;
+	if (!wkt_from_spatial_reference(poSRS, wkt, errmsg)){
+		addWarning(errmsg);
+         }
+	setSRS(wkt) ; 
 	//lyr.prj = prj;
-
-
-//	std::string crs = getDs_WKT(poDS);
-//	std::string prj = getDs_PRJ(poDS);
+#else
+	if( poDS->GetProjectionRef() != NULL ) {
+		OGRSpatialReference oSRS(poDS->GetProjectionRef());
+		char *cp = NULL;
+		OGRErr err = oSRS.exportToPrettyWkt(&cp);
+		std::string errmsg;
+		if (is_ogr_error(err, errmsg)) {
+			setError(errmsg);
+			CPLFree(cp);
+			return false;
+		}
+		std::string wkt = (std::string) cp;
+		setSRS(wkt);
+		CPLFree(cp);
+	} else {
+		addWarning("could not read input SRS");
+        }
+#endif
+*/
 /*
 	OGRSpatialReference *poSRS = poDS->GetLayer(0)->GetSpatialRef();
 
@@ -167,7 +205,7 @@ bool SpatVector::read_ogr(GDALDataset *poDS) {
 		poSRS->exportToProj4(&pszCRS);
 		crs = pszCRS;
 		prj = pszCRS;
-			
+
 		//pszCRS = NULL;
 		//poSRS->exportToWKT(&pszCRS);
 		//crs = pszCRS;
@@ -335,8 +373,9 @@ bool SpatVector::read_ogr(GDALDataset *poDS) {
 		}
 	} else {
         setError("Cannot open file");
-		std::string gt = geomType(poLayer);
+		//std::string gt = geomType(poLayer);
 		//printf("unknown geomtype: %s \n", gt.c_str());
+		return false;
 	}
 
 	OGRFeature::DestroyFeature( poFeature );

@@ -23,16 +23,9 @@
 
 #ifndef useGDAL
 
-bool SpatSRS::set(std::vector<std::string> txt, std::string &msg) {
-	if (txt.size() == 3) {
-		proj4 == txt[0];
-		wkt = txt[1];
-		input = txt[2];
-	} else {
-		input = txt[0];
-		wkt =  "";
-		proj4 = txt[0];
-	}
+bool SpatSRS::set(std::string txt, std::string &msg) {
+	proj4 = txt;
+	wkt = "";
 	return true;
 }
 #else
@@ -69,7 +62,7 @@ bool wkt_from_spatial_reference(const OGRSpatialReference *srs, std::string &wkt
 	const char *options[3] = { "MULTILINE=YES", "FORMAT=WKT2", NULL };
 	OGRErr err = srs->exportToWkt(&cp, options);
 #else
-	OGRErr err = srs->exportToPrettyWkt(&cp);
+	OGRErr err = srs->exportToWkt(&cp);
 #endif
 	if (is_ogr_error(err, msg)) {
 		CPLFree(cp);
@@ -119,45 +112,50 @@ bool string_from_spatial_reference(const OGRSpatialReference *srs, std::vector<s
 	return true;
 }
 
+/*
+bool SpatSRS::set(OGRSpatialReference *poSRS, std::string &msg) {
+	wkt="";
+	proj4="";
+	if (poSRS) {
+		if (! wkt_from_spatial_reference(poSRS, wkt, msg)) {
+			msg = "can't get wkt from srs";
+			return false;
+		};
+		if (! prj_from_spatial_reference(poSRS, proj4, msg)) {
+			msg = "can't get proj4 from srs";
+			return false;
+		};
+	}
+	return true;
+}
+*/
 
-
-bool SpatSRS::set(std::vector<std::string> txt, std::string &msg) {
-	if (txt.size() == 1 && txt[0] == "") { 
-		wkt="";
-		proj4="";
-		input="";
-		return true;
-	} else if (txt.size() == 3) {
-		proj4 == txt[0];
-		wkt = txt[1];
-		input = txt[2];
-		return true;
-	} else if (txt.size() == 2) {
-		proj4 == txt[0];
-		wkt = txt[1];
+bool SpatSRS::set(std::string txt, std::string &msg) {
+	wkt="";
+	proj4="";
+	lrtrim(txt);
+	if (txt == "") {
 		return true;
 	} else {
-		input=txt[0];
-		wkt="";
-		proj4="";
-		if (input != "") {
-			OGRSpatialReference *srs = new OGRSpatialReference;
-			const char* s = input.c_str();
-			if (is_ogr_error(srs->SetFromUserInput(s), msg)) {
-				delete srs;
-				return false;
-			}
-			if (! wkt_from_spatial_reference(srs, wkt, msg)) {
-				delete srs;
-				return false;
-			};
-			if (! prj_from_spatial_reference(srs, proj4, msg)) {
-				delete srs;
-				return false;
-			};
+		OGRSpatialReference *srs = new OGRSpatialReference;
+		const char* s = txt.c_str();
+		if (is_ogr_error(srs->SetFromUserInput(s), msg)) {
 			delete srs;
-			return true;
+			msg = "empty srs";
+			return false;
 		}
+		if (! wkt_from_spatial_reference(srs, wkt, msg)) {
+			delete srs;
+			msg = "can't  get wkt from srs";
+			return false;
+		};
+		if (! prj_from_spatial_reference(srs, proj4, msg)) {
+			delete srs;
+			msg = "can't  get proj4 from srs";
+			return false;
+		};
+		delete srs;
+		return true;
 	}
 	return false;
 }
@@ -274,8 +272,14 @@ SpatVector SpatVector::project(std::string crs) {
 	std::vector<double> x = d.dv[0];
 	std::vector<double> y = d.dv[1];
 
-	std::vector<std::string> srs = getSRS();
-	s.msg = transform_coordinates(x, y, srs[1], crs);
+	std::string srs = getSRS("wkt");
+	std::string outwkt, msg;
+	if (!wkt_from_string(crs, outwkt, msg)) {
+		s.setError(msg);
+		return s;
+	}
+	
+	s.msg = transform_coordinates(x, y, srs, outwkt);
 
 	if (!s.msg.has_error) {
 		unsigned n = d.iv[0].size();
@@ -288,7 +292,7 @@ SpatVector SpatVector::project(std::string crs) {
 		s.setGeometry(type(), a, b, x, y, c);
 		//std::vector<std::string> refs = srefs_from_string(crs);
 		std::string msg;
-		s.setSRS({crs});
+		s.setSRS(crs);
 		//s.setPRJ(refs[1]);
 		s.lyr.df = lyr.df;
 	}
@@ -297,3 +301,4 @@ SpatVector SpatVector::project(std::string crs) {
 }
 
 #endif
+

@@ -5,6 +5,7 @@
 #include "gdal_alg.h"
 #include "ogrsf_frmts.h"
 
+#if GDAL_VERSION_MAJOR >= 3
 
 SpatVector SpatRaster::polygonize(bool trunc) {
 
@@ -27,9 +28,9 @@ SpatVector SpatRaster::polygonize(bool trunc) {
 			return out;			
 		}
 	}
-    GDALDataset *srcDS;
+    GDALDataset *srcDS=NULL;
 	srcDS = srcDS->FromHandle(rstDS);
-
+	
     GDALDataset *poDS = NULL;
     GDALDriver *poDriver = GetGDALDriverManager()->GetDriverByName( "Memory" );
     if( poDriver == NULL )  {
@@ -72,7 +73,8 @@ SpatVector SpatRaster::polygonize(bool trunc) {
 
 	GDALRasterBand  *poBand;
 	poBand = srcDS->GetRasterBand(1);
-
+	int hasNA=1;
+	poBand->GetNoDataValue(&hasNA);
 	//char **papszOptions = NULL;
 	//if (queen) papszOptions = CSLSetNameValue(papszOptions, "8CONNECTED", "-8");
 	
@@ -96,3 +98,12 @@ SpatVector SpatRaster::polygonize(bool trunc) {
 	return out;
 }
 
+#else
+	
+SpatVector SpatRaster::polygonize(bool trunc) {
+	SpatVector out;
+	out.setError("not supported with your version of GDAL");
+	return out;
+}
+
+#endif
