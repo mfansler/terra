@@ -4,6 +4,22 @@
 # License GPL v3
 
 
+
+setMethod("length", signature(x="SpatRaster"), 
+	function(x) {
+		ncell(x)
+	}
+)	
+
+
+setMethod("rectify", signature(x="SpatRaster"), 
+	function(x, method="bilinear", filename="", overwrite=FALSE, wopt=list(), ...) {
+		opt <- .runOptions(filename, overwrite, wopt)
+		x@ptr <- x@ptr$rectify(method, opt)
+		show_messages(x, "rectify")
+	}
+)
+
 setMethod("adjacent", signature(x="SpatRaster"), 
 	function(x, cells, directions="rook", include=FALSE, ...) {
 		v <- x@ptr$adjacent(cells-1, directions, include)
@@ -24,12 +40,27 @@ setMethod("align", signature(x="SpatExtent", y="SpatRaster"),
 
 
 setMethod("area", signature(x="SpatRaster"), 
-	function(x, filename="", overwrite=FALSE, wopt=list(), ...) {
-		opt <- .runOptions(filename, overwrite, wopt)
-		x@ptr <- x@ptr$area(opt)
-		show_messages(x, "area")
+	function(x, sum=TRUE, filename="", overwrite=FALSE, wopt=list(), ...) {
+		if (sum) {
+			byvalue = FALSE
+			if (byvalue) {
+				v <- x@ptr$area_by_value()
+				v <- lapply(1:length(v), function(i) cbind(i, matrix(v[[i]], ncol=2)))
+				v <- do.call(rbind, v)
+				colnames(v) <- c("layer", "value", "area")
+				return(v)
+			} else {
+				x@ptr$sum_area()
+			}
+		} else {
+			opt <- .runOptions(filename, overwrite, wopt)
+			x@ptr <- x@ptr$rst_area(opt)
+			show_messages(x, "area")
+		} 
 	}
 )
+
+
 
 setMethod("atan2", signature(y="SpatRaster", x="SpatRaster"),
 	function(y, x) { 
@@ -49,17 +80,33 @@ setMethod("boundaries", signature(x="SpatRaster"),
 )
 
 
+.collapse <- function(x) {
+	x@ptr <- x@ptr$collapse_sources()
+	show_messages(x, "collapse")
+}
+
 setMethod("c", signature(x="SpatRaster"), 
 	function(x, ...) {
-		dots <- list(...)
-		for (i in dots) {
-			if (class(i) == "SpatRaster") {
-				x@ptr <- x@ptr$combineSources(i@ptr)
-			}
-		}
+		s <- rstk(list(x, ...))
+		x@ptr <- s@ptr$collapse()
+		x <- show_messages(x, "c")		
+		x@ptr <- x@ptr$collapse_sources()
 		show_messages(x, "c")		
 	}
 )
+
+#setMethod("c", signature(x="SpatRaster"), 
+#	function(x, ...) {
+#		dots <- list(...)
+#		for (i in dots) {
+#			if (inherits(i, "SpatRaster")) {
+#				x@ptr <- x@ptr$combineSources(i@ptr)
+#			}
+#		}
+#		show_messages(x, "c")		
+#	}
+#)
+
 
 setMethod("rep", signature(x="SpatRaster"), 
 	function(x, ...) {
@@ -122,11 +169,11 @@ setMethod("crop", signature(x="SpatRaster", y="ANY"),
 
 
 
-setMethod("collapse", signature(x="SpatRaster"), 
-	function(x, y, filename="", overwrite=FALSE, wopt=list(), ...) { 
+setMethod("selectRange", signature(x="SpatRaster"), 
+	function(x, y, z=1, filename="", overwrite=FALSE, wopt=list(), ...) { 
 		opt <- .runOptions(filename, overwrite, wopt)
-		x@ptr <- x@ptr$collapse(y@ptr, opt)
-		show_messages(x, "collapse")		
+		x@ptr <- x@ptr$selRange(y@ptr, z, opt)
+		show_messages(x, "selectRange")		
 	}
 )
 
@@ -152,9 +199,16 @@ setMethod("diff", signature(x="SpatRaster"),
 )
 
 
-setMethod("disaggregate", signature(x="SpatVector"), 
-	function(x, ...) {
-		x@ptr <- x@ptr$disaggregate()
+setMethod("disaggregate", signature(x="SpatRaster"), 
+	function(x, fact, method="near", filename="", overwrite=FALSE, wopt=list(), ...) {
+		stopifnot(method %in% c("near", "bilinear"))
+		if (method == "bilinear") {
+			y <- disaggregate(rast(x), fact)
+			r <- resample(x, y, "bilinear", filename=filename, overwrite=overwrite, wopt=wopt, ...)
+			return(r)
+		}
+		opt <- .runOptions(filename, overwrite, wopt)
+		x@ptr <- x@ptr$disaggregate(fact, opt)
 		show_messages(x, "disaggregate")
 	}
 )
@@ -208,14 +262,14 @@ setMethod("project", signature(x="SpatRaster"),
 		opt <- .runOptions(filename, overwrite, wopt)
 		if (inherits(y, "SpatRaster")) {
 			#x@ptr <- x@ptr$warp(y@ptr, method, opt)
-			x@ptr <- x@ptr$warper(y@ptr, "", method, opt)
+			x@ptr <- x@ptr$warp(y@ptr, "", method, opt)
 		} else {
 			if (!is.character(y)) {
 				warning("crs should be a character value")
 				y <- as.character(crs(y))
 			}
 			#x@ptr <- x@ptr$warpcrs(y, method, opt)
-			x@ptr <- x@ptr$warper(SpatRaster$new(), y, method, opt)
+			x@ptr <- x@ptr$warp(SpatRaster$new(), y, method, opt)
 		}
 		show_messages(x, "project")
 	}
@@ -244,7 +298,6 @@ setMethod("quantile", signature(x="SpatRaster"),
 
 setMethod("rasterize", signature(x="SpatVector", y="SpatRaster"), 
 	function(x, y, field=1:nrow(x), background=NA, update=FALSE, touches=is.lines(x), filename="", overwrite=FALSE, wopt=list(), ...) { 
-		# , update=FALSE, 
 		inverse=FALSE # use "mask" for TRUE
 		opt <- .runOptions(filename, overwrite, wopt)
 		background <- as.numeric(background[1])
@@ -334,7 +387,7 @@ setMethod("resample", signature(x="SpatRaster", y="SpatRaster"),
 	function(x, y, method="bilinear", filename="", overwrite=FALSE, wopt=list(), ...)  {
 		method <- ifelse(method == "ngb", "near", method)
 		opt <- .runOptions(filename, overwrite, wopt)
-		x@ptr <- x@ptr$warper(y@ptr, "", method, opt)
+		x@ptr <- x@ptr$warp(y@ptr, "", method, opt)
 		show_messages(x, "resample")
 	}
 )
@@ -349,7 +402,7 @@ setMethod("summary", signature(object="SpatRaster"),
 #setMethod("warp", signature(x="SpatRaster", y="SpatRaster"), 
 #	function(x, y, method="bilinear", filename="", overwrite=FALSE, wopt=list(), ...)  {
 #		opt <- .runOptions(filename, overwrite, wopt)
-#		x@ptr <- x@ptr$warper(y@ptr, "", method, opt)
+#		x@ptr <- x@ptr$warp(y@ptr, "", method, opt)
 #		show_messages(x, "warp")
 #	}
 #)

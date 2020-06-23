@@ -77,7 +77,8 @@ setMethod ("show" , "SpatRaster",
 			nsr <- nsrc(object)	
 			m <- .inMemory(object)
 			f <- .filenames(object)
-			f <- gsub("\\", "/", f, fixed=TRUE)
+			#f <- gsub("\\", "/", f, fixed=TRUE)
+			f <- gsub("\"", "", basename(f))
 			sources <- rep("memory", length(m))
 			sources[!m] <- f[!m] 
 
@@ -85,7 +86,7 @@ setMethod ("show" , "SpatRaster",
 				lbs <- .nlyrBySource(object)
 				lbsprint <- paste0(" (", lbs, " layers)")
 				lbsprint[lbs == 1] <- ""
-				cat("data sources:", sources[1], lbsprint[1], "\n")
+				cat("source(s)   :", sources[1], lbsprint[1], "\n")
 				for (i in 2:(min(mnr, nsr))) {
 					cat("             ", sources[i], lbsprint[i], "\n")
 				}			
@@ -134,10 +135,46 @@ setMethod ("show" , "SpatRaster",
 			} else {
 				cat("names       :", paste(ln, collapse=", "), "\n")
 			}			
+			if (nsr==1) {
+				if (object@ptr$hasTime) {
+					cat("time        :", paste(range(time(object)), collapse=" to "), "\n")
+				}
+			}
+			
 		} else {
 			cat("data sources:", "no data\n")
 			cat("names       :", paste(ln, collapse=", "), "\n")
 		}
+		
+	}
+)
+
+
+setMethod("show" , "SpatStack", 
+	function(object) {
+		
+		cat("class       :" , class(object), "\n")
+		ns <- nsds(object)
+		cat("subdatasets :", ns, "\n") 
+		if (ns == 0) return()
+		
+		d <- c(object@ptr$nrow(), object@ptr$ncol())
+		cat("dimensions  :", paste(d, collapse=", "), "(nrow, ncol)\n") 
+		nss <- sapply(1:ns, function(i) object@ptr$getsds(i-1)$nlyr())
+		cat("nlyr        :", paste(nss, collapse=", "), "\n") 
+
+		obj <- rast()
+		obj@ptr <- object@ptr$getsds(0)
+		
+		xyres <- res(obj)
+		cat("resolution  : " , xyres[1], ", ", xyres[2], "  (x, y)\n", sep="")
+		e <- as.vector(ext(obj))
+		cat("extent      : " , e[1], ", ", e[2], ", ", e[3], ", ", e[4], "  (xmin, xmax, ymin, ymax)\n", sep="")
+
+		cat("coord. ref. :" , .proj4(obj), "\n")
+		
+		ln <- object@ptr$names
+		cat("names       :", paste(ln, collapse=", "), "\n")
 	}
 )
 

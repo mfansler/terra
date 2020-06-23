@@ -20,6 +20,21 @@ setClass("SpatRaster",
 	}
 )
 
+setClass("SpatStack",
+	representation (
+		ptr = "C++Object"
+	),	
+	prototype (	
+		ptr = NULL
+	),
+	validity = function(object)	{
+		if (is.null(object@ptr) || is(object@ptr, "Rcpp_SpatStack")){
+			return(TRUE)
+		} else {
+			return(FALSE)		
+		}
+	}
+)
 
 setClass("SpatVector",
 	representation (

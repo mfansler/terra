@@ -16,14 +16,14 @@
 // along with spat. If not, see <http://www.gnu.org/licenses/>.
 
 //#include <vector>
-#include "spatRaster.h"
+#include "spatRasterMultiple.h"
 #include "recycle.h"
-#include "vecmath.h"
+#include "vecmathfun.h"
+//#include "vecmath.h"
 #include <cmath>
 
 
 SpatRaster SpatRaster::apply(std::vector<unsigned> ind, std::string fun, bool narm, std::vector<std::string> nms, SpatOptions &opt) {
-
 
 	recycle(ind, nlyr());
 	std::vector<unsigned> ui = vunique(ind);
@@ -40,7 +40,12 @@ SpatRaster SpatRaster::apply(std::vector<unsigned> ind, std::string fun, bool na
 
 	if (!hasValues()) return(out);
  	if (!out.writeStart(opt)) { return out; }
-	BlockSize bs = getBlockSize(8);
+	out.bs = getBlockSize(opt.get_blocksizemp(), opt.get_steps());
+    #ifdef useRcpp
+	out.pbar = new Progress(out.bs.n+2, opt.do_progress(bs.n));
+	out.pbar->increment();
+	#endif
+	
 	readStart();
 	std::vector<std::vector<double>> v(nl);
 	std::vector<unsigned> ird(ind.size());
@@ -55,33 +60,21 @@ SpatRaster SpatRaster::apply(std::vector<unsigned> ind, std::string fun, bool na
 		}
 	}
 
-	for (size_t i=0; i<bs.n; i++) {
-        std::vector<double> a = readBlock(bs, i);
-		unsigned nc = out.bs.nrows[i] * out.ncol();
+	std::function<double(std::vector<double>&, bool)> theFun;
+	theFun = getFun(fun);
+
+	for (size_t i=0; i<out.bs.n; i++) {
+        std::vector<double> a = readBlock(out.bs, i);
+		unsigned nc = out.bs.nrows[i] * ncol();
 		std::vector<double> b(nc * nl);
 		for (size_t j=0; j<nc; j++) {
 			for (size_t k=0; k<ird.size(); k++) {
 				v[ird[k]][jrd[k]] = a[j+k*nc];
 			}
 			for (size_t k=0; k<ui.size(); k++) {
-				size_t off = k * nc;
-				if (fun == "sum") {
-					b[off+j] = vsum(v[k], narm);
-				} else if (fun == "mean") {
-					b[off+j] = vmean(v[k], narm);
-				} else if (fun == "prod") {
-					b[off+j] = vprod(v[k], narm);
-				} else if (fun == "min") {
-					b[off+j] = vmin(v[k], narm);
-				} else if (fun == "max") {
-					b[off+j] = vmax(v[k], narm);
-				} else if (fun == "any") {
-					b[off+j] = vany(v[k], narm);
-				} else if (fun == "all") {
-					b[off+j] = vall(v[k], narm);
-				}
+				size_t off = k * nc + j;
+				b[off] = theFun(v[k], narm);
 			}
-
 		}
 		if (!out.writeValues(b, out.bs.row[i], out.bs.nrows[i], 0, ncol())) return out;
 	}
@@ -338,10 +331,68 @@ SpatRaster SpatRaster::clamp(double low, double high, bool usevalue, SpatOptions
 
 
 
-SpatRaster SpatRaster::collapse(SpatRaster x, SpatOptions &opt) {
+SpatRaster SpatRaster::selRange(SpatRaster x, int z, SpatOptions &opt) {
+
+	int nl = nlyr();
+	z = std::max(1, std::min(z, nl));
+	SpatRaster out = geometry(z);
+	if (!out.compare_geom(x, false, false)) {
+		out.setError("dimensions and/or extent do not match");
+		return(out);
+	}
+	if (!hasValues()) return(out);
+
+	if (x.nlyr() > 1) {
+		out.setError("index raster must have only one layer");
+		return out;
+	}
+	if (!x.hasValues()) {
+		out.setError("index raster has no values");
+		return out;
+	}
+
+ 	if (!out.writeStart(opt)) { return out; }
+	readStart();
+	x.readStart();
+	for (size_t i=0; i<out.bs.n; i++) {
+		std::vector<double> v = readBlock(out.bs, i);
+		std::vector<double> idx = x.readBlock(out.bs, i);
+		size_t is = idx.size();
+		std::vector<double> vv(is*z, NAN);
+		size_t ncell = out.bs.nrows[i] * ncol();
+
+		for (size_t j=0; j<is; j++) {
+			int start = idx[j] - 1;
+			if ((start >= 0) && (start < nl)) {
+				int zz = std::min(nl-start, z);
+				for (int i = 0; i<zz; i++){
+					size_t offin = (start + i) * ncell + j;
+					size_t offout = i * ncell + j;
+					vv[offout] = v[offin];   
+				}
+			}
+		}
+	
+		//for (size_t j=0; j<is; j++) {
+		//	int index = idx[j] - 1;
+		//	if ((index >= 0) && (index < nl)) {
+		//		vv[j] = v[j + index * ncell];
+		//	}
+		//}
+		if (!out.writeValues(vv, out.bs.row[i], out.bs.nrows[i], 0, ncol())) return out;
+	}
+	readStop();
+	x.readStop();
+	out.writeStop();
+	return(out);
+}
+
+
+
+SpatRaster SpatRaster::rapply(SpatRaster x, std::string fun, bool narm, SpatOptions &opt) {
 
 	SpatRaster out = geometry(1);
-	if (!out.compare_geom(x, true, true)) {
+	if (!out.compare_geom(x, false, false)) {
 		out.setError("dimensions and/or extent do not match");
 		return(out);
 	}
@@ -350,12 +401,18 @@ SpatRaster SpatRaster::collapse(SpatRaster x, SpatOptions &opt) {
 		out.setError("index raster has no values");
 		return out;
 	}
-
-	if (x.nlyr() > 1) {
-		SpatOptions ops;
-		std::vector<unsigned> lyr = {0};
-		x = x.subset(lyr, ops);
+	if (x.nlyr() != 2) {
+		out.setError("index raster must have two layers");
+		return out;
 	}
+	
+	std::vector<std::string> f {"sum", "mean", "min", "max", "prod", "any", "all"};
+	if (std::find(f.begin(), f.end(), fun) == f.end()) {
+		out.setError("unknown apply function");
+		return out;
+	}
+	std::function<double(std::vector<double>&, bool)> theFun;
+	theFun = getFun(fun);
 
 	int nl = nlyr();
  	if (!out.writeStart(opt)) { return out; }
@@ -364,13 +421,19 @@ SpatRaster SpatRaster::collapse(SpatRaster x, SpatOptions &opt) {
 	for (size_t i=0; i<out.bs.n; i++) {
 		std::vector<double> v = readBlock(out.bs, i);
 		std::vector<double> idx = x.readBlock(out.bs, i);
-		size_t is = idx.size();
-		std::vector<double> vv(is, NAN);
 		size_t ncell = out.bs.nrows[i] * ncol();
-		for (size_t j=0; j<is; j++) {
-			int index = idx[j] - 1;
-			if ((index >= 0) && (index < nl)) {
-				vv[j] = v[j + index * ncell];
+		std::vector<double> vv(ncell, NAN);
+		for (size_t j=0; j<ncell; j++) {
+			int start = idx[j] - 1;
+			int end   = idx[j+ncell];
+			if ((start >= 0) && (end <= nl) && (end >= start)) {
+				std::vector<double> se;
+				se.reserve(end-start+1);
+				for (int i = start; i<end; i++){
+					size_t off = i * ncell + j;
+					se.push_back(v[off]);   
+				}
+				vv[j] = theFun(se, narm);
 			}
 		}
 		if (!out.writeValues(vv, out.bs.row[i], out.bs.nrows[i], 0, ncol())) return out;
@@ -382,6 +445,44 @@ SpatRaster SpatRaster::collapse(SpatRaster x, SpatOptions &opt) {
 }
 
 
+std::vector<std::vector<double>> SpatRaster::rappvals(SpatRaster x, size_t startrow, size_t nrows) {
+
+	std::vector<std::vector<double>> r;
+	if (!compare_geom(x, false, false)) {
+		return(r);
+	}
+	if (!hasValues()) {
+		return r;
+	}
+	if (!x.hasValues()) {
+		return r;
+	}
+	if (x.nlyr() != 2) {
+		return r;
+	}
+	
+	int nl = nlyr();
+	readStart();
+	x.readStart();
+	std::vector<double> v = readValues(startrow, nrows, 0, ncol());
+	std::vector<double> idx = x.readValues(startrow, nrows, 0, ncol());
+	size_t ncell = nrows * ncol();
+	r.resize(ncell);
+	for (size_t j=0; j<ncell; j++) {
+		int start = idx[j] - 1;
+		int end   = idx[j+ncell];
+		if ((start >= 0) && (end <= nl) && (end >= start)) {
+			r[j].reserve(end-start+1);
+			for (int i = start; i<end; i++){
+				size_t off = i * ncell + j;
+				r[j].push_back(v[off]);   
+			}
+		}
+	}
+	readStop();
+	x.readStop();
+	return(r);
+}
 
 
 bool disaggregate_dims(std::vector<unsigned> &fact, std::string &message ) {
@@ -596,6 +697,23 @@ SpatRaster SpatRaster::isnan(SpatOptions &opt) {
 }
 
 
+SpatRaster SpatRaster::isnotnan(SpatOptions &opt) {
+	SpatRaster out = geometry();
+    if (!hasValues()) return out;
+
+	if (!out.writeStart(opt)) { return out; }
+	readStart();
+	for (size_t i=0; i<out.bs.n; i++) {
+		std::vector<double> v = readBlock(out.bs, i);
+		for (double &d : v) d = ! std::isnan(d);
+		if (!out.writeValues(v, out.bs.row[i], out.bs.nrows[i], 0, ncol())) return out;
+	}
+	readStop();
+	out.writeStop();
+	return(out);
+}
+
+
 SpatRaster SpatRaster::isfinite(SpatOptions &opt) {
 	SpatRaster out = geometry();
     if (!hasValues()) return out;
@@ -708,7 +826,7 @@ SpatRaster SpatRaster::cover(SpatRaster x, double value, SpatOptions &opt) {
 	unsigned nl = std::max(nlyr(), x.nlyr());
 	SpatRaster out = geometry(nl);
 
-	if (!compare_geom(x, true, true)) {
+	if (!compare_geom(x, false, false, true)) {
 		out.setError("dimensions and/or extent do not match");
 		return(out);
 	}
@@ -748,6 +866,10 @@ SpatRaster SpatRaster::crop(SpatExtent e, std::string snap, SpatOptions &opt) {
 
 	SpatRaster out = geometry();
 
+	if ( !e.valid() ) {
+		out.setError("invalid extent");
+		return out;
+	} 
 	e.intersect(out.getExtent());
 	if ( !e.valid() ) {
 		out.setError("extents do not overlap");
@@ -838,8 +960,6 @@ SpatRaster SpatRaster::shift(double x, double y, SpatOptions &opt) {
 	return out;
 
 }
-
-
 
 
 SpatRaster SpatRasterCollection::merge(SpatOptions &opt) {

@@ -88,11 +88,11 @@ std::vector<double> SpatVector::area() {
 		double a = 6378137;
 		double f = 1 / 298.257223563;
 		for (size_t i=0; i<s; i++) {
-			ar.push_back(lyr.geoms[i].area_lonlat(a, f));
+			ar.push_back(geoms[i].area_lonlat(a, f));
 		}
 	} else {
 		for (size_t i=0; i<s; i++) {
-			ar.push_back(lyr.geoms[i].area_plane());
+			ar.push_back(geoms[i].area_plane());
 		}
 	}
 	return ar;
@@ -161,17 +161,17 @@ std::vector<double> SpatVector::length() {
 		double a = 6378137;
 		double f = 1 / 298.257223563;
 		for (size_t i=0; i<s; i++) {
-			r.push_back(lyr.geoms[i].length_lonlat(a, f));
+			r.push_back(geoms[i].length_lonlat(a, f));
 		}
 	} else {
 		for (size_t i=0; i<s; i++) {
-			r.push_back(lyr.geoms[i].length_plane());
+			r.push_back(geoms[i].length_plane());
 		}
 	}
 	return r;
 }
 
-SpatRaster SpatRaster::area(SpatOptions &opt) {
+SpatRaster SpatRaster::rst_area(SpatOptions &opt) {
 
 	SpatRaster out = geometry(1);
   	if (!out.writeStart(opt)) { return out; }
@@ -179,7 +179,8 @@ SpatRaster SpatRaster::area(SpatOptions &opt) {
 		SpatExtent e = {extent.xmin, extent.xmin+xres(), extent.ymin, extent.ymax};
 		SpatOptions optint(opt);
 		SpatRaster onecol = out.crop(e, "near", optint);
-		SpatVector p = onecol.as_polygons(false, false, false, false);
+		SpatOptions popt(opt);
+		SpatVector p = onecol.as_polygons(false, false, false, false, popt);
 		std::vector<double> a = p.area();
 		for (size_t i = 0; i < out.bs.n; i++) {
 			std::vector<double> v;
@@ -199,5 +200,77 @@ SpatRaster SpatRaster::area(SpatOptions &opt) {
 		out.writeStop();
 	}
 	return(out);
+}
+
+
+std::vector<double> SpatRaster::sum_area() {
+
+	std::vector<double> out(nlyr(), 0);
+	BlockSize bs = getBlockSize(2);
+	readStart();
+	if (could_be_lonlat()) {
+		SpatRaster x = geometry(1);
+		SpatExtent e = {extent.xmin, extent.xmin+xres(), extent.ymin, extent.ymax};
+		SpatOptions opt;
+		SpatRaster onecol = x.crop(e, "near", opt);
+		SpatVector p = onecol.as_polygons(false, false, false, false, opt);
+		std::vector<double> ar = p.area();
+		size_t nc = ncol();
+		for (size_t i=0; i<bs.n; i++) {
+			std::vector<double> v = readValues(bs.row[i], bs.nrows[i], 0, ncol());
+			size_t blockoff = bs.nrows[i] * nc;
+			for (size_t lyr=0; lyr<nlyr(); lyr++) {
+				size_t lyroff = lyr * blockoff;
+				for (size_t j=0; j<bs.nrows[i]; j++) {
+					size_t row = bs.row[i] + j;
+					size_t offset = lyroff + row * nc;
+					size_t n = offset + nc;
+					for (size_t k=offset; k<n; k++) {
+						if (!std::isnan(v[k])) out[lyr] += ar[row];
+					}
+				}
+			}
+		}
+	} else {
+		for (size_t i=0; i<bs.n; i++) {
+			std::vector<double> v = readValues(bs.row[i], bs.nrows[i], 0, ncol());
+			unsigned off = bs.nrows[i] * ncol() ;
+			for (size_t lyr=0; lyr<nlyr(); lyr++) {
+				unsigned offset = lyr * off;
+				unsigned n = offset + off;
+				for (size_t j=offset; j<n; j++) {
+					if (!std::isnan(v[j])) out[lyr]++;
+				}
+			}
+		}
+		double ar = xres() * yres();
+		for (size_t lyr=0; lyr<nlyr(); lyr++) {
+			out[lyr] = out[lyr] * ar;
+		}
+	}
+	readStop();
+	return(out);
+}
+
+
+
+//layer<value-area
+std::vector<std::vector<double>> SpatRaster::area_by_value() {
+	if (!could_be_lonlat()) {
+		double ar = xres() * yres();
+		std::vector<std::vector<double>> f = freq(true);
+		for (size_t i=0; i<f.size(); i++) {
+			size_t fs = f[i].size();
+			for (size_t j=fs/2; j<fs; j++) {
+				f[i][j] *= ar;
+			}
+		}
+		return f;
+	} else {
+		// to do
+		// combine freq and area to get area by latitudes
+		std::vector<std::vector<double>> out(nlyr());
+		return out;
+	}
 }
 

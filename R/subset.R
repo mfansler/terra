@@ -4,7 +4,6 @@
 # License GPL v3
 
 
-
 setMethod("subset", signature(x="SpatRaster"), 
 function(x, subset, filename="", overwrite=FALSE, wopt=list(), ...) {
 	if (is.character(subset)) {
@@ -26,16 +25,19 @@ function(x, subset, filename="", overwrite=FALSE, wopt=list(), ...) {
 } )
 
 
-setMethod("$", "SpatRaster",  
-	function(x, name) { subset(x, name) } )
+setMethod("[", c("SpatRaster", "character", "missing"),
+	function(x, i, j, ... ,drop=TRUE) {
+		subset(x, i, ...)
+	}
+)
 
+setMethod("$", "SpatRaster",  
+	function(x, name) { 
+		subset(x, name) 
+	} 
+)
 
 setMethod("[[", c("SpatRaster", "character", "missing"),
-function(x, i, j, ... ,drop=TRUE) {
-	subset(x, i, ...)
-})
-
-setMethod("[", c("SpatRaster", "character", "missing"),
 function(x, i, j, ... ,drop=TRUE) {
 	subset(x, i, ...)
 })
@@ -73,7 +75,7 @@ setMethod("subset", signature(x="SpatVector"),
 		i <- subset[subset > 0 & subset <= ncol(x)]
 	}
 	if (length(i)==0) {
-		i = 0
+		i <- 0
 	} 
 	if (length(i) < length(subset)) {
 		warning("invalid columns omitted")
@@ -89,23 +91,10 @@ setMethod("subset", signature(x="SpatVector"),
 }
 
 
-
-setMethod("[[", c("SpatVector", "numeric", "missing"),
-function(x, i, j, ... ,drop=FALSE) {
-	.subset_cols(x, i, ..., drop=drop)
-})
-
-
-setMethod("[[", c("SpatVector", "character", "missing"),
-function(x, i, j, ... ,drop=FALSE) {
-	.subset_cols(x, i, ..., drop=drop)
-})
-
-
 setMethod("[", c("SpatVector", "numeric", "missing"),
 function(x, i, j, ... , drop=FALSE) {
 	x@ptr <- x@ptr$subset_rows(i-1)
-	x <- show_messages(x)
+	x <- show_messages(x, "[")
 	if (drop) {
 		as.data.frame(x, stringsAsFactors=FALSE)
 	} else {
@@ -117,7 +106,7 @@ setMethod("[", c("SpatVector", "logical", "missing"),
 function(x, i, j, ... , drop=FALSE) {
 	i <- which(i)
 	x@ptr <- x@ptr$subset_rows(i-1)
-	x <- show_messages(x)
+	x <- show_messages(x, "[")
 	if (drop) {
 		as.data.frame(x, stringsAsFactors=FALSE)
 	} else {
@@ -129,7 +118,7 @@ setMethod("[", c("SpatVector", "numeric", "numeric"),
 function(x, i, j, ... , drop=FALSE) {
 	p <- x@ptr$subset_rows(i-1)
 	x@ptr <- p$subset_cols(j-1)	
-	x <- show_messages(x)
+	x <- show_messages(x, "[")
 	if (drop) {
 		as.data.frame(x, stringsAsFactors=FALSE)
 	} else {
@@ -141,7 +130,7 @@ function(x, i, j, ... , drop=FALSE) {
 setMethod("[", c("SpatVector", "missing", "numeric"),
 function(x, i, j, ... , drop=FALSE) {
 	x@ptr <- x@ptr$subset_cols(j-1)	
-	x <- show_messages(x)
+	x <- show_messages(x, "[")
 	if (drop) {
 		as.data.frame(x, stringsAsFactors=FALSE)
 	} else {

@@ -43,14 +43,7 @@ setMethod("rast", signature(x="list"),
 		if (!all(i)) {
 			warning(paste(sum(!i), "out of", length(x), "elements of x are a SpatRaster"))
 		}
-		x <- x[i]
-		r <- x[[1]]
-		if (length(x) > 1) {
-			for (i in seq_along(2:length(x))) {
-				r <- c(r, x[[i]])
-			}
-		}
-		r
+		do.call(c, x[i])
 	}
 )
 
@@ -76,10 +69,17 @@ setMethod("rast", signature(x="SpatVector"),
 
 
 
-.fullFilename <- function(x, expand=FALSE) {
+.fullFilename <- function(x, mustExist=TRUE) {
 	x <- trimws(x)
 	p <- normalizePath(x, winslash = "/", mustWork = FALSE)
-	if (file.exists(p)) {
+	if (mustExist) {
+		i <- file.exists(p)
+		if (all(i)) {
+			return(p)
+		} else {
+			x[i] <- p[i]
+		}
+	} else {
 		return(p)
 	}
 	#if (identical(basename(x), x)) {
@@ -92,13 +92,20 @@ setMethod("rast", signature(x="SpatVector"),
 }
 
 setMethod("rast", signature(x="character"),
-	function(x, ...) {
+	function(x, subds=0, ...) {
+		x <- trimws(x)
+		x <- x[x!=""]
 		if (length(x) == 0) {
-			stop("provide valid file name(s)")
+			stop("provide a valid filename")
 		}
-		f <- .fullFilename(x)
 		r <- methods::new("SpatRaster")
-		r@ptr <- SpatRaster$new(f)
+		f <- .fullFilename(x)
+		subds <- subds[1]
+		if (is.character(subds)) { 
+			r@ptr <- SpatRaster$new(f, -1, subds, "")		
+		} else {
+			r@ptr <- SpatRaster$new(f, subds-1, "", "")
+		}
 		show_messages(r, "rast")
 	}
 )

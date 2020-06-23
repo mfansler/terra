@@ -40,7 +40,7 @@ setMethod("density", signature(x="SpatRaster"),
 				on.exit(graphics::par(old.par))
 				graphics::par(mfrow=c(nr, nc))
 			}
-			for (i in 1:length(x)) {	
+			for (i in 1:nlyr(x)) {	
 				res[[i]] <- .one.density(x[[i]], maxcells=maxcells, main=main[i], plot=plot, ...)
 			}
 		}
@@ -103,6 +103,7 @@ setMethod("as.contour", signature(x="SpatRaster"),
 		y[] <- as.numeric(y)
 		u <- unique(y[,1])
 		y[,1] <- match(y[,1], u)
+		colnames(y)[3:4] <- c("x", "y")
 		vect(y, "lines", atts=data.frame(level=u), crs=crs(x))
 	}
 )

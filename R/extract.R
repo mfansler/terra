@@ -27,24 +27,24 @@
 
 
 setMethod("extract", signature(x="SpatRaster", y="SpatVector"), 
-function(x, y, fun=NULL, ..., touches=is.lines(y), method="simple", drop=FALSE) { 
-    
+function(x, y, fun=NULL, ..., touches=is.lines(y), method="simple", list=FALSE) { 
 	r <- x@ptr$extractVector(y@ptr, touches[1], method[1])
 	x <- show_messages(x, "extract")
-
 	#f <- function(i) if(length(i)==0) { NA } else { i }
 	#r <- rapply(r, f, how="replace")
-
 	if (!is.null(fun)) {
+		fun <- match.fun(fun) 
 	  	r <- rapply(r, fun, ...)
 		r <- matrix(r, nrow=nrow(y), byrow=TRUE)
 		colnames(r) <- names(x)
-	} else if (drop) {
-		r <- unlist(r)
-		r <- matrix(r, nrow=nrow(y), byrow=TRUE)
-		colnames(r) <- names(x)	
+		r <- cbind(ID=1:nrow(r), r)
+	} else if (!list) {
+		r <- lapply(1:length(r), function(i) cbind(ID=i, matrix(unlist(r[[i]]), ncol=length(r[[i]]))))
+		r <- do.call(rbind, r)
+		colnames(r)[-1] <- names(x)	
 	}
 	r
+
 })
 
 
@@ -62,21 +62,22 @@ function(x, i, j, ... , drop=FALSE) {
 setMethod("extract", signature(x="SpatRaster", y="matrix"), 
 function(x, y, ...) { 
 	if (ncol(y) != 2) {
-		stop("extract works with a 2 column matrix of x and y coordinates")
+		stop("extract expects a 2 column matrix of x and y coordinates")
 	}
+	.checkXYnames(colnames(y))	
 	i <- cellFromXY(x, y)
-	x[i]
+	cbind(ID=1:length(i), x[i])
 })
+
 
 setMethod("extract", signature(x="SpatRaster", y="data.frame"), 
 function(x, y, ...) { 
-	y <- as.matrix(y)
 	if (ncol(y) != 2) {
-		stop("extract works with a 2 column matrix or data.frame of x and y coordinates")
+		stop("extract expects a 2 column data.frame of x and y coordinates")
 	}
-	i <- cellFromXY(x, y)
-	x[i]
+	extract(x, as.matrix(y), ...)
 })
+
 
 setMethod("extract", signature(x="SpatRaster", y="numeric"), 
 function(x, y, ...) { 
@@ -89,7 +90,17 @@ function(x, y, ...) {
 
 setMethod("[", c("SpatRaster", "missing", "missing"),
 function(x, i, j, ... , drop=FALSE) {
-	values(x, mat=drop)
+	values(x, mat=!drop)
+})
+
+setMethod("[", c("SpatRaster", "logical", "missing"),
+function(x, i, j, ... , drop=FALSE) {
+	v <- values(x)[as.logical(i), ]
+	if (drop) {
+		as.vector(v)
+	} else {
+		v
+	}
 })
 
 
@@ -102,7 +113,7 @@ function(x, i, j, ... ,drop=FALSE) {
 	} 
 	i[i<1] <- NA
 	r <- x@ptr$extractCell(i-1)
-	show_messages(x)
+	show_messages(x, "[")
 	if (drop) {
 		r
 	} else {
@@ -118,7 +129,7 @@ function(x, i, j, ... ,drop=FALSE) {
 	if (any(stats::na.omit(i) > 2^.Machine$double.digits)) .big_number_warning()
 	
 	r <- x@ptr$extractCell(i-1)
-	show_messages(x)
+	show_messages(x, "[")
 	if (drop) {
 		r
 	} else {
@@ -134,7 +145,7 @@ function(x, i, j, ..., drop=FALSE) {
 	i <- cellFromRowColCombine(x, i, j)
 	if (any(stats::na.omit(i) > 2^.Machine$double.digits)) .big_number_warning()
 	r <- x@ptr$extractCell(i-1)
-	show_messages(x)
+	show_messages(x, "[")
 	if (drop) {
 		r
 	} else {

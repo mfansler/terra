@@ -3,13 +3,20 @@
 # Version 1.0
 # License GPL v3
 
+
+#setMethod("as.list", signature(x="SpatRaster"), 
+#	function(x, ...) {
+#		lapply(1:nlyr(x), function(i) x[[i]])
+#	}
+#)
+
  
 setMethod("as.polygons", signature(x="SpatRaster"), 
 	function(x, trunc=TRUE, dissolve=TRUE, values=TRUE, ...) {
 		p <- methods::new("SpatVector")
-		p@ptr <- x@ptr$as_polygons(trunc[1], dissolve[1], values[1], TRUE)
+		p@ptr <- x@ptr$as_polygons(trunc[1], dissolve[1], values[1], TRUE, .terra_environment$options@ptr)
 		#x <- show_messages(x)
-		show_messages(p)
+		show_messages(p, "as.polygons")
 	}
 )
 
@@ -17,14 +24,14 @@ setMethod("as.polygons", signature(x="SpatExtent"),
 	function(x, crs="", ...) {
 		p <- methods::new("SpatVector")
 		p@ptr <- SpatVector$new(x@ptr, crs)
-		show_messages(p)
+		show_messages(p, "as.polygons")
 	}
 )
 
 setMethod("as.lines", signature(x="SpatVector"), 
 	function(x, ...) {
 		x@ptr <- x@ptr$as_lines()
-		show_messages(x)
+		show_messages(x, "as.lines")
 	}
 )
 
@@ -32,7 +39,7 @@ setMethod("as.lines", signature(x="SpatVector"),
 setMethod("as.points", signature(x="SpatVector"), 
 	function(x, ...) {
 		x@ptr <- x@ptr$as_points()
-		show_messages(x)
+		show_messages(x, "as.points")
 	}
 )
 
@@ -41,8 +48,8 @@ setMethod("as.points", signature(x="SpatRaster"),
 	function(x, values=TRUE, ...) {
 		p <- methods::new("SpatVector")
 		p@ptr <- x@ptr$as_points(values, TRUE)
-		x <- show_messages(x)
-		show_messages(p)
+		x <- show_messages(x, "as.points")
+		show_messages(p, "as.points")
 	}
 )
 
@@ -108,7 +115,6 @@ setMethod("as.data.frame", signature(x="SpatRaster"),
 		data.frame(d)
 	}
 )
-
 
 
 setMethod("as.array", signature(x="SpatRaster"), 
@@ -262,6 +268,13 @@ setAs("SpatRaster", "Raster",
 	}
 )
 
+
+setAs("sf", "SpatVector", 
+	function(from) {
+		from <- methods::as(from, "Spatial")
+		methods::as(from, "SpatVector")
+	}
+)
 
 
 setAs("SpatVector", "Spatial", 

@@ -41,8 +41,9 @@ std::vector<double> SpatRaster::readSample(unsigned src, unsigned srows, unsigne
 	unsigned oldnc = ncell();
 	unsigned nl = source[src].nlyr;
 	std::vector<unsigned> oldcol, oldrow;
-	getSampleRowCol(oldrow, oldcol, nrow(), ncol(), srows, scols);
 	std::vector<double>	out; 
+	getSampleRowCol(oldrow, oldcol, nrow(), ncol(), srows, scols);
+	
 	out.reserve(srows*scols);
     for (size_t lyr=0; lyr<nl; lyr++) {
         unsigned old_offset = lyr * oldnc;
@@ -83,9 +84,10 @@ SpatRaster SpatRaster::sampleRegularRaster(unsigned size) {
 			v = readGDALsample(src, nr, nc);
 			#endif
 		}
+		if (hasError()) return out;
 		out.source[0].values.insert(out.source[0].values.end(), v.begin(), v.end());
 	}
-	out.source[0].driver = "memory";
+	out.source[0].memory = true;
 	out.source[0].hasValues = true;
 	out.source[0].setRange();
 
@@ -109,6 +111,7 @@ std::vector<std::vector<double>> SpatRaster::sampleRegularValues(unsigned size) 
 	std::vector<double> v;
 	if ((size >= ncell()) || ((nc == ncol()) && (nr == nrow()))) {
 		v = getValues() ;
+		if (hasError()) return out;
 		for (size_t i=0; i<nlyr(); i++) {
 			size_t offset = i * nsize;
 			std::vector<double> vv(v.begin()+offset, v.begin()+offset+nsize);
@@ -127,6 +130,7 @@ std::vector<std::vector<double>> SpatRaster::sampleRegularValues(unsigned size) 
 			v = readGDALsample(src, nr, nc);
 			#endif
 		}
+		if (hasError()) return out;
 		for (size_t i=0; i<source[src].nlyr; i++) {
 			size_t offset = i * nsize;
 			std::vector<double> vv(v.begin()+offset, v.begin()+offset+nsize);
@@ -172,7 +176,7 @@ std::vector<double> sample_without_replacement(unsigned size, unsigned N, unsign
     std::shuffle(result.begin(), result.end(), gen);    
 	
     return result;
-};
+}
 
 
 std::vector<double> sample_with_replacement(unsigned size, unsigned N, unsigned seed){
@@ -192,7 +196,7 @@ std::vector<double> sample_with_replacement(unsigned size, unsigned N, unsigned 
     } 
 	
     return result;
-};
+}
 
 
 // need to consider the possibility that ncell() > max_int
@@ -247,7 +251,7 @@ SpatRaster SpatRaster::sampleRandomRaster(unsigned size, bool replace, unsigned 
 	for (size_t i=0; i<vv.size(); i++) {
 		out.source[0].values.insert(out.source[0].values.end(), vv[i].begin(), vv[i].end());
 	}
-	out.source[0].driver = "memory";
+	out.source[0].memory = true;
 	out.source[0].hasValues = true;
 	out.source[0].setRange();
 

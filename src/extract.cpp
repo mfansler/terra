@@ -493,14 +493,28 @@ std::vector<std::vector<std::vector<double>>> SpatRaster::extractVector(SpatVect
 	if (gtype == "points") {
 		if (method != "bilinear") method = "simple";
 		SpatDataFrame vd = v.getGeometryDF();
-		std::vector<double> x = vd.getD(0);
-		std::vector<double> y = vd.getD(1);
-		srcout = extractXY(x, y, method);
-        for (size_t i=0; i<ng; i++) {
-            for (size_t j=0; j<nl; j++) {
-                out[i][j] = srcout[j];
-            }
-        }
+		if (vd.nrow() == ng) {  // single point geometry
+			std::vector<double> x = vd.getD(0);
+			std::vector<double> y = vd.getD(1);
+			srcout = extractXY(x, y, method);
+			for (size_t i=0; i<ng; i++) {
+				for (size_t j=0; j<nl; j++) {
+					out[i][j].push_back( srcout[j][i] );
+				}
+			}
+		} else { // multipoint
+			for (size_t i=0; i<ng; i++) {
+				SpatVector vv = v.subset_rows(i);
+				SpatDataFrame vd = vv.getGeometryDF();
+				std::vector<double> x = vd.getD(0);
+				std::vector<double> y = vd.getD(1);
+				srcout = extractXY(x, y, method);
+				for (size_t j=0; j<nl; j++) {
+					out[i][j] = srcout[j];
+				}
+			}
+		}
+		
 /*
 	} else if (gtype == "lines") {
 	    SpatRaster r = geometry(1);
@@ -524,7 +538,7 @@ std::vector<std::vector<std::vector<double>>> SpatRaster::extractVector(SpatVect
             SpatGeom g = v.getGeom(i);
             SpatRaster rc = r.crop(g.extent, "out", opt);
             SpatVector p(g);
-			p.lyr.srs = v.lyr.srs;
+			p.srs = v.srs;
 #if GDAL_VERSION_MAJOR >= 3			
             SpatRaster rcr = rc.rasterize(p, "", feats, NAN, false, touches, false, opt); 
 #else
@@ -563,7 +577,7 @@ std::vector<std::vector<double>> SpatRaster::extractCell(std::vector<double> &ce
 	for (size_t src=0; src<ns; src++) {
 		unsigned slyrs = source[src].layers.size();
 
-		if (source[src].driver == "memory") {
+		if (source[src].memory) {
 			for (size_t i=0; i<slyrs; i++) {
 				size_t j = i * nc;
 				for (size_t k=0; k<n; k++) {
@@ -583,6 +597,7 @@ std::vector<std::vector<double>> SpatRaster::extractCell(std::vector<double> &ce
 			std::vector<std::vector<unsigned>> rc = rowColFromCell(cell);
 			srcout = readRowColGDAL(src, rc[0], rc[1]);
 			#endif
+			if (hasError()) return out;
 			//}
 			for (size_t i=0; i<slyrs; i++) {
 				out[lyr] = srcout[i];

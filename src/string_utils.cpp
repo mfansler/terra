@@ -35,7 +35,7 @@ std::vector<char *> string_to_charpnt(std::vector<std::string> s) {
 	for (size_t i = 0; i < n; i++) {
 		out[i] = (char *) (s[i].c_str());
 	}
-	out[n] = nullptr;
+	out[n] = NULL;
 	return out;
 }
 
@@ -57,6 +57,17 @@ std::string concatenate(std::vector<std::string> v, std::string delim) {
 	for (const auto &piece : v) s += piece;
 	return s;
 }
+
+
+std::vector<std::string> getlastpart (std::vector<std::string> s, std::string delim) {
+	std::vector<std::string> out(s.size());
+	for (size_t i=0; i<s.size(); i++) {
+		std::size_t pos = s[i].find_last_of(delim);
+		out[i] = s[i].substr(pos+1);
+	}
+	return out;
+}
+
 
 bool in_string(const std::string &x, std::string part) {
 	size_t f = x.find(part);

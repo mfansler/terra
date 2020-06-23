@@ -1,10 +1,10 @@
 
 setMethod("app", signature(x="SpatRaster"), 
-function(x, fun, ..., filename="", overwrite=FALSE, wopt=list())  {
+function(x, fun, ..., nodes=1, filename="", overwrite=FALSE, wopt=list())  {
 
 
 	txtfun <- .makeTextFun(match.fun(fun))
-	if (class(txtfun) == "character") { 
+	if (inherits(txtfun, "character")) { 
 		if (txtfun %in% c("max", "min", "mean", "range", "prod", "sum", "any", "all")) {
 			opt <- .runOptions(filename, overwrite, wopt)
 			na.rm <- isTRUE(list(...)$na.rm)
@@ -45,14 +45,28 @@ function(x, fun, ..., filename="", overwrite=FALSE, wopt=list())  {
 	}
 
 	b <- writeStart(out, filename, overwrite, wopt)
-	for (i in 1:b$n) {
-		v <- readValues(x, b$row[i], b$nrows[i], 1, nc, TRUE)
-		r <- apply(v, 1, fun, ...)
-		if (trans) {
-			r <- t(r)
-			#r <- as.vector(r)
+	if (nodes > 1) {
+		cls <- parallel::makeCluster(nodes)
+		on.exit(parallel::stopCluster(cls))
+		for (i in 1:b$n) {
+			v <- readValues(x, b$row[i], b$nrows[i], 1, nc, TRUE)
+			icsz <- max(min(100, ceiling(b$nrows[i] / nodes)), b$nrows[i])
+			r <- parallel::parRapply(cls, v, fun, ..., chunk.size=icsz)
+			if (trans) {
+				r <- t(r)
+			}
+			writeValues(out, r, b$row[i], b$nrows[i])
+		}	
+	} else {
+		for (i in 1:b$n) {
+			v <- readValues(x, b$row[i], b$nrows[i], 1, nc, TRUE)
+			r <- apply(v, 1, fun, ...)
+			if (trans) {
+				r <- t(r)
+				#r <- as.vector(r)
+			}
+			writeValues(out, r, b$row[i], b$nrows[i])
 		}
-		writeValues(out, r, b$row[i], b$nrows[i])
 	}
 	readStop(x)
 	writeStop(out)

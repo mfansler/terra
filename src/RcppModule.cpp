@@ -1,5 +1,6 @@
 #include <Rcpp.h>
-#include "spatRaster.h"
+//#include "spatRaster.h"
+#include "spatRasterMultiple.h"
 
 #include "gdal_priv.h"
 
@@ -9,6 +10,12 @@
 std::string ginfo(std::string filename, std::vector<std::string> options, std::vector<std::string> oo) {
 	std::string out = gdalinfo(filename, options, oo);
 	return out;
+}
+
+// [[Rcpp::export(name = ".sdinfo")]]
+std::vector<std::vector<std::string>> sd_info(std::string filename) {
+	std::vector<std::vector<std::string>> sd = sdinfo(filename);
+	return sd;
 }
 
 // [[Rcpp::export(name = ".gdalversion")]]
@@ -67,7 +74,7 @@ Rcpp::List getDataFrame(SpatDataFrame* v) {
 
 
 Rcpp::List getVectorAttributes(SpatVector* v) {
-	SpatDataFrame df = v->lyr.df;
+	SpatDataFrame df = v->df;
 	Rcpp::List lst = getDataFrame(&df);
 	return lst;
 }
@@ -106,6 +113,7 @@ RCPP_EXPOSED_CLASS(SpatDataFrame)
 RCPP_EXPOSED_CLASS(RasterSource)
 RCPP_EXPOSED_CLASS(SpatRaster)
 RCPP_EXPOSED_CLASS(SpatRasterCollection)
+RCPP_EXPOSED_CLASS(SpatRasterStack)
 RCPP_EXPOSED_CLASS(SpatVector)
 
 
@@ -242,28 +250,27 @@ RCPP_MODULE(spat){
 	;
 
     class_<RasterSource>("RasterSource")	
-		.field_readonly("memory", &RasterSource::memory)
+		//.field_readonly("memory", &RasterSource::memory)
 		.field_readonly("filename", &RasterSource::filename)
 		//.field_readonly("driver", &RasterSource::driver)
 		//.field_readonly("nrow", &RasterSource::nrow)
 		//.field_readonly("ncol", &RasterSource::ncol)
-		.field_readonly("nlyr", &RasterSource::nlyr)
-		//.field_readonly("crs", &RasterSource::srs)
-		//.field_readonly("prj", &RasterSource::prj)
+		//.field_readonly("nlyr", &RasterSource::nlyr)
 		//.field_readonly("extent", &RasterSource::extent)
-		//.field_readonly("datatype", &RasterSource::datatype)
-		//.field_readonly("bandorder", &RasterSource::bandorder)
-		//.field_readonly("NAflag", &RasterSource::NAflag)
-		.field_readonly("layers", &RasterSource::layers)
-		.field_readonly("nlyrfile", &RasterSource::nlyrfile)
+		//.field_readonly("layers", &RasterSource::layers)
+		//.field_readonly("nlyrfile", &RasterSource::nlyrfile)
+		//.field_readonly("flipped", &RasterSource::flipped)
+		//.field_readonly("rotated", &RasterSource::rotated)
 	;	
 
     class_<SpatRaster>("SpatRaster")
 		.constructor()
-	    //.constructor<std::string>()
-	    .constructor<std::vector<std::string> >()
+	 // .constructor<std::string, int>()
+	    .constructor<std::vector<std::string>, int, std::string, std::string>()
 		.constructor<std::vector<unsigned>, std::vector<double>, std::string>()
 
+
+		.field("name", &SpatRaster::name)
 
 		.method("copy", &SpatRaster::deepCopy, "deepCopy")
 		.method("sources_to_disk", &SpatRaster::sources_to_disk, "sources_to_disk")
@@ -301,6 +308,12 @@ RCPP_MODULE(spat){
 		.method("isGlobalLonLat", &SpatRaster::is_global_lonlat, "isGlobalLonLat") 
 
 		.property("names", &SpatRaster::getNames)
+		.property("time", &SpatRaster::getTime)
+		.property("hasTime", &SpatRaster::hasTime)
+
+		.property("depth", &SpatRaster::getDepth)
+		.property("unit", &SpatRaster::getUnit)
+
 		.method("nrow", &SpatRaster::nrow, "nrow")		
 		.method("ncol", &SpatRaster::ncol, "ncol")		
 		.method("nsrc", &SpatRaster::nsrc, "nsrc" )	
@@ -315,7 +328,12 @@ RCPP_MODULE(spat){
 // only if RasterSource is exposed
 		.field_readonly("source", &SpatRaster::source )
 
+		.method("collapse_sources", &SpatRaster::collapse_sources, "collapse_sources" )
+
 		.method("setNames", &SpatRaster::setNames, "setNames" )
+		.method("setTime", &SpatRaster::setTime, "setTime" )
+		.method("setDepth", &SpatRaster::setDepth, "setDepth" )
+		.method("setUnit", &SpatRaster::setUnit, "setUnit" )
 		.method("set_resolution", &SpatRaster::setResolution, "set resolution")
 		.method("subset", &SpatRaster::subset, "subset")
 				
@@ -346,9 +364,14 @@ RCPP_MODULE(spat){
 		.method("aggregate", &SpatRaster::aggregate, "aggregate")
 		.method("align", &SpatRaster::align, "align")
 		.method("apply", &SpatRaster::apply, "apply")
+		.method("rapply", &SpatRaster::rapply, "rapply")
+		.method("rappvals", &SpatRaster::rappvals, "rappvals")
 		.method("arith_rast", ( SpatRaster (SpatRaster::*)(SpatRaster, std::string, SpatOptions&) )( &SpatRaster::arith ))
 		.method("arith_numb", ( SpatRaster (SpatRaster::*)(std::vector<double>, std::string, bool, SpatOptions&) )( &SpatRaster::arith ))
-		.method("area", &SpatRaster::area, "area")
+		.method("rst_area", &SpatRaster::rst_area, "rst_area")
+		.method("sum_area", &SpatRaster::sum_area, "sum_area")
+		.method("area_by_value", &SpatRaster::area_by_value, "area_by_value")
+		
 		.method("as_points", &SpatRaster::as_points, "as_points")
 		.method("as_polygons", &SpatRaster::as_polygons, "as_polygons")
 		.method("polygonize", &SpatRaster::polygonize, "polygonize")
@@ -364,7 +387,8 @@ RCPP_MODULE(spat){
 		.method("vectDistance", ( SpatRaster (SpatRaster::*)(SpatVector, SpatOptions&) )( &SpatRaster::distance), "vectDistance")		
 		.method("clamp", &SpatRaster::clamp, "clamp")
 		.method("classify", ( SpatRaster (SpatRaster::*)(std::vector<double>, unsigned, unsigned, bool, bool, SpatOptions&) )( &SpatRaster::reclassify), "reclassify")		
-		.method("collapse", &SpatRaster::collapse, "collapse")
+		//.method("source_collapse", &SpatRaster::collapse, "collapse")
+		.method("selRange", &SpatRaster::selRange, "selRange")
 		.method("cover", &SpatRaster::cover, "cover")
 		.method("crop", &SpatRaster::crop, "crop")
 		.method("cum", &SpatRaster::cum, "cum")
@@ -410,21 +434,15 @@ RCPP_MODULE(spat){
 		.method("trim", &SpatRaster::trim, "trim")
 		.method("unique", &SpatRaster::unique, "unique")
 
-//		.method("project1", &SpatRaster::project1, "project1")
-//		.method("project2", &SpatRaster::project2, "project2")
-		//.method("warp", &SpatRaster::warp, "warp")
-		//.method("warpcrs", &SpatRaster::warpcrs, "warpcrs")
-		//.method("tester", &SpatRaster::tester, "terter")
-		//.method("warp_crs", &SpatRaster::warp_crs, "warp_crs")
-		//.method("warp_rst", &SpatRaster::warp_rst, "warp_rst")
-
-		.method("resample", &SpatRaster::resample1, "resample")
-		.method("warper", &SpatRaster::warper, "warper")
+		.method("rectify", &SpatRaster::rectify, "rectify")
+		//.method("resample", &SpatRaster::resample1, "resample")
+		.method("warp", &SpatRaster::warper, "warper")
 		.method("zonal", &SpatRaster::zonal, "zonal")			
 	;
 
     class_<SpatRasterCollection>("SpatRasterCollection")
 		.constructor()
+		.field("messages", &SpatRasterCollection::msg, "messages")		
 		.field_readonly("x", &SpatRasterCollection::x)
 		.method("length", &SpatRasterCollection::size, "size")
 		.method("resize", &SpatRasterCollection::resize, "resize")
@@ -432,5 +450,26 @@ RCPP_MODULE(spat){
 		.method("merge", &SpatRasterCollection::merge, "merge")
 	;
 	
+    class_<SpatRasterStack>("SpatStack")
+		.constructor()
+	    .constructor<std::string, std::vector<int>, bool>()
+	    .constructor<SpatRaster, std::string>()
+		.field("messages", &SpatRasterStack::msg, "messages")
+		//.field_readonly("oneRes", &SpatRasterStack::oneRes, "do all sds have the same resolution?")
+
+		.method("nsds", &SpatRasterStack::nsds, "")
+		.method("ncol", &SpatRasterStack::ncol, "")
+		.method("nrow", &SpatRasterStack::nrow, "")
+		.method("getSRS", &SpatRasterStack::getSRS, "")
+		.property("names", &SpatRasterStack::getnames, &SpatRasterStack::setnames)
+		.method("add", &SpatRasterStack::push_back, "")
+		.method("resize", &SpatRasterStack::resize, "")
+		.method("summary", &SpatRasterStack::summary, "summary")
+		.method("summary_numb", &SpatRasterStack::summary_numb, "summary_numb")
+		.method("getsds", &SpatRasterStack::getsds, "")
+		.method("replace", &SpatRasterStack::replace, "")
+		.method("subset", &SpatRasterStack::subset, "")
+		.method("collapse", &SpatRasterStack::collapse , "")
+	;
 }
 

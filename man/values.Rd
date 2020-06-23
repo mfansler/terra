@@ -7,10 +7,16 @@
 \alias{values<-}
 \alias{values,SpatRaster-method}
 \alias{values<-,SpatRaster,ANY-method}
+
+\alias{setValues}
+\alias{setValues,SpatRaster-method}
+\alias{setValues,SpatRaster,ANY-method}
+
 \alias{values,SpatVector-method}
 \alias{values<-,SpatVector,data.frame-method}
+
   
-\title{Get cell values}
+\title{Get or set cell values}
 
 \description{
 values returns all cell values of a SpatRaster (a matrix), or all the attributes of a SpatVector (a data.frame).
@@ -21,6 +27,8 @@ values returns all cell values of a SpatRaster (a matrix), or all the attributes
 
 \S4method{values}{SpatRaster,ANY}(x, ...)<-value
 
+\S4method{setValues}{SpatRaster,ANY}(x, values, ...)
+
 \S4method{values}{SpatVector}(x, ...)
 
 \S4method{values}{SpatVector,data.frame}(x, ...)<-value
@@ -30,6 +38,7 @@ values returns all cell values of a SpatRaster (a matrix), or all the attributes
  \item{x}{SpatRaster or SpatVector}
  \item{mat}{logical. If \code{TRUE}, values are returned as a matrix instead of as a vector}
  \item{value}{For SpatRaster: matrix or numeric, the length must match the total number of cells (ncell(x) * nlyr(x)), or be a single value. For SpatVector: data.frame}
+ \item{values}{Same as for \code{value}}
  \item{...}{additional arguments. none implemented}
 }
 
@@ -46,7 +55,7 @@ If \code{x} is a \code{SpatVector}: a \code{data.frame}
 
 
 \value{
-matrix or vector
+matrix, vector, SpatRaster, or nothing
 }
 
 

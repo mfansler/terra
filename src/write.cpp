@@ -60,14 +60,16 @@ bool SpatRaster::writeValuesMem(std::vector<double> &vals, unsigned startrow, un
 
 
 void SpatRaster::fill(double x) {
- 	if (source[0].driver == "gdal") {
+	if (source[0].driver == "gdal") {	
 		#ifdef useGDAL
 		fillValuesGDAL(x);
 		#endif
-	} else if (source[0].driver == "memory") {
+	} else {
 		source[0].values.resize(size(), x);
 	}
+		
 }
+
 
 
 bool SpatRaster::isSource(std::string filename) {
@@ -167,7 +169,8 @@ bool SpatRaster::writeValues(std::vector<double> &vals, unsigned startrow, unsig
 		return false;
 	}
 
-	if (source[0].driver == "gdal") {
+	
+	if (source[0].driver == "gdal") {	
 		#ifdef useGDAL
 		success = writeValuesGDAL(vals, startrow, nrows, startcol, ncols);
 		#else
@@ -216,7 +219,7 @@ bool SpatRaster::writeStop(){
 	source[0].open_write = false;
 	bool success = true;
 	source[0].memory = false;
-	if (source[0].driver == "gdal") {
+	if (source[0].driver=="gdal") {
 		#ifdef useGDAL
 		success = writeStopGDAL();
 		//source[0].hasValues = true;
@@ -226,7 +229,7 @@ bool SpatRaster::writeStop(){
 		#endif
 	} else {
    		source[0].setRange();
-		source[0].driver = "memory";
+		//source[0].driver = "memory";
 		source[0].memory = true;
 		if (source[0].values.size() > 0) {
 			source[0].hasValues = true;

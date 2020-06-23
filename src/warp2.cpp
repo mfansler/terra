@@ -169,6 +169,8 @@ bool gdal_warper(GDALDatasetH &hSrcDS, GDALDatasetH &hDstDS, std::vector<unsigne
 
 	psWarpOptions->papszWarpOptions =	
       CSLSetNameValue( psWarpOptions->papszWarpOptions, "INIT_DEST", "NO_DATA");
+	psWarpOptions->papszWarpOptions =	
+      CSLSetNameValue( psWarpOptions->papszWarpOptions, "WRITE_FLUSH", "YES");
 
     // Establish reprojection transformer.
     psWarpOptions->pTransformerArg =
@@ -302,7 +304,7 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 			GDALSetRasterStatistics(hBand, adfMinMax[0], adfMinMax[1], NAN, NAN);		
 		}
 		GDALClose( hDstDS );
-		out = SpatRaster(filename);
+		out = SpatRaster(filename, -1, "");
 	}
 	return out;
 }

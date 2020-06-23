@@ -25,20 +25,22 @@
 #endif
 
 
-SpatRaster::SpatRaster(std::string fname) {
+SpatRaster::SpatRaster(std::string fname, int subds, std::string subdsname) {
 #ifdef useGDAL
-	constructFromFile(fname);
+	constructFromFile(fname, subds, subdsname);
 #endif
 }
 
-SpatRaster::SpatRaster(std::vector<std::string> fname) {
+
+SpatRaster::SpatRaster(std::vector<std::string> fname, int subds, std::string subdsname, std::string x) {
+// argument "x" is ignored. It is only there to have four arguments such that the Rcpp module
+// can distinguish this constructor from another with three arguments. 	
 #ifdef useGDAL
-	constructFromFile(fname[0]);
-	SpatRaster r;
-	bool success;
+	constructFromFile(fname[0], subds, subdsname);
 	for (size_t i=1; i<fname.size(); i++) {
-		success = r.constructFromFile(fname[i]);
-		if (success) {
+		SpatRaster r;
+		bool ok = r.constructFromFile(fname[i], subds, subdsname);
+		if (ok) {
 			addSource(r);
 			if (r.msg.has_error) {
 				setError(r.msg.error);
@@ -83,7 +85,7 @@ SpatRaster::SpatRaster() {
 	s.extent = SpatExtent();
 	s.memory = true;
 	s.filename = "";
-	s.driver = "";
+	//s.driver = "";
 	s.nlyr = 1; // or 0?
 	s.resize(1);
 
@@ -113,7 +115,7 @@ SpatRaster::SpatRaster(std::vector<unsigned> rcl, std::vector<double> ext, std::
 
 	s.memory = true;
 	s.filename = "";
-	s.driver = "";
+	//s.driver = "";
 	s.nlyr = rcl[2];
 	s.layers.resize(1, 0);
 	//s.layers.resize(1, s.nlyr);
@@ -149,7 +151,7 @@ SpatRaster::SpatRaster(unsigned nr, unsigned nc, unsigned nl, SpatExtent ext, st
 	s.hasValues = false;
 	s.memory = true;
 	s.filename = "";
-	s.driver = "";
+	//s.driver = "";
 	s.nlyr = nl;
 	s.hasRange = { false };
 	s.layers.resize(1, 0);
@@ -189,6 +191,8 @@ SpatRaster::SpatRaster(const SpatRaster &r) {
 	// would still need "setSource" to set
 }
 */
+
+
 
 SpatRaster SpatRaster::geometry(long nlyrs) {
 	RasterSource s;
@@ -316,23 +320,23 @@ std::vector<double> SpatRaster::range_max() {
 
 bool SpatRaster::is_lonlat() {
 	return srs.is_lonlat();
-};
+}
 
 bool SpatRaster::could_be_lonlat() {
 	SpatExtent e = getExtent();
 	return srs.could_be_lonlat(e);
-};
+}
 
 
 bool SpatRaster::is_global_lonlat() {
 	SpatExtent e = getExtent();
 	return srs.is_global_lonlat(e);
-};
+}
 
 
 bool SpatRaster::sources_from_file() {
 	for (size_t i=0; i<source.size(); i++) {
-		if (source[i].driver != "memory") {
+		if (!source[i].memory) {
 			return true;
 		}
 	}
@@ -353,7 +357,7 @@ SpatRaster SpatRaster::sources_to_disk(std::vector<std::string> &tmpfs, bool uni
 
 	for (size_t i=0; i<nsrc; i++) {
 		bool write = false;
-		if (!source[i].in_order() || (source[i].driver == "memory")) {
+		if (!source[i].in_order() || source[i].memory) {
 			write = true;
 		} else if (unique) {
 			ufs.insert(source[i].filename);
@@ -409,4 +413,142 @@ bool SpatRaster::setSRS(OGRSpatialReference *poSRS, std::string &msg) {
 std::string  SpatRaster::getSRS(std::string x) {
 	return srs.get(x);
 }
+
+
+
+std::vector<std::string> SpatRaster::getNames() {
+	std::vector<std::string> x;
+	for (size_t i=0; i<source.size(); i++) {
+		x.insert(x.end(), source[i].names.begin(), source[i].names.end());
+	}
+	return(x);
+}
+
+
+bool SpatRaster::setNames(std::vector<std::string> names) {
+	if (names.size() != nlyr()) {
+		return false;
+	} else {
+        make_valid_names(names);
+        make_unique_names(names);
+        size_t begin=0;
+        size_t end;
+        for (size_t i=0; i<source.size(); i++)	{
+            end = begin + source[i].nlyr;
+            source[i].names = std::vector<std::string> (names.begin() + begin, names.begin() + end);
+            begin = end;
+        }
+        return true;
+	}
+}
+
+
+std::vector<bool> SpatRaster::hasTime() {
+	std::vector<bool> x(source.size());
+	for (size_t i=0; i<source.size(); i++) {
+		x[i] = source[i].hasTime; 
+	}
+	return(x);
+}
+
+
+std::vector<double> SpatRaster::getTime() {
+	std::vector<double> x;
+	for (size_t i=0; i<source.size(); i++) {
+		if (source[i].time.size() != source[i].nlyr) {
+			std::vector<double> nas(source[i].nlyr, NAN);
+			x.insert(x.end(), nas.begin(), nas.end());			
+		} else {
+			x.insert(x.end(), source[i].time.begin(), source[i].time.end());
+		}
+	}
+	return(x);
+}
+
+
+bool SpatRaster::setTime(std::vector<double> times) {
+	if (times.size() != nlyr()) {
+		return false;
+	} else {
+        size_t begin=0;
+        size_t end;
+        for (size_t i=0; i<source.size(); i++)	{
+            end = begin + source[i].nlyr;
+            source[i].time = std::vector<double> (times.begin() + begin, times.begin() + end);
+            begin = end;
+        }
+        return true;
+	}
+}
+
+std::vector<double> SpatRaster::getDepth() {
+	std::vector<double> x;
+	for (size_t i=0; i<source.size(); i++) {
+		if (source[i].depth.size() != source[i].nlyr) {
+			std::vector<double> nas(source[i].nlyr, NAN);
+			x.insert(x.end(), nas.begin(), nas.end());			
+		} else {
+			x.insert(x.end(), source[i].depth.begin(), source[i].depth.end());
+		}
+	}
+	return(x);
+}
+
+
+
+bool SpatRaster::setDepth(std::vector<double> depths) {
+	if (depths.size() != nlyr()) {
+		return false;
+	} else {
+        size_t begin=0;
+        size_t end;
+        for (size_t i=0; i<source.size(); i++)	{
+            end = begin + source[i].nlyr;
+            source[i].depth = std::vector<double> (depths.begin() + begin, depths.begin() + end);
+            begin = end;
+        }
+        return true;
+	}
+}
+
+
+
+bool SpatRaster::setUnit(std::vector<std::string> units) {
+	if (units.size() == 1) {
+        size_t begin=0;
+        for (size_t i=0; i<source.size(); i++)	{
+            size_t end = begin + source[i].nlyr;
+			size_t sz =  end - begin + 1;
+            source[i].unit = std::vector<std::string> (sz, units[0]);
+            begin = end;
+        }
+        return true;
+	} else if (units.size() != nlyr()) {
+		return false;
+	} else {
+        size_t begin=0;
+        size_t end;
+        for (size_t i=0; i<source.size(); i++)	{
+            end = begin + source[i].nlyr;
+            source[i].unit = std::vector<std::string> (units.begin() + begin, units.begin() + end);
+            begin = end;
+        }
+        return true;
+	}
+}
+
+
+std::vector<std::string> SpatRaster::getUnit() {
+	std::vector<std::string> x;
+	for (size_t i=0; i<source.size(); i++) {
+		if (source[i].unit.size() != source[i].nlyr) {
+			std::vector<std::string> nas(source[i].nlyr, "");
+			x.insert(x.end(), nas.begin(), nas.end());			
+		} else {
+			x.insert(x.end(), source[i].unit.begin(), source[i].unit.end());
+		}
+	}
+	return(x);
+}
+
 
