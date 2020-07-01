@@ -12,6 +12,12 @@ setMethod("length", signature(x="SpatRaster"),
 )	
 
 
+setMethod("origin", signature(x="SpatRaster"), 
+	function(x, ...) {
+		x@ptr$origin
+	}
+)	
+
 setMethod("rectify", signature(x="SpatRaster"), 
 	function(x, method="bilinear", filename="", overwrite=FALSE, wopt=list(), ...) {
 		opt <- .runOptions(filename, overwrite, wopt)
@@ -87,7 +93,7 @@ setMethod("boundaries", signature(x="SpatRaster"),
 
 setMethod("c", signature(x="SpatRaster"), 
 	function(x, ...) {
-		s <- rstk(list(x, ...))
+		s <- sds(list(x, ...))
 		x@ptr <- s@ptr$collapse()
 		x <- show_messages(x, "c")		
 		x@ptr <- x@ptr$collapse_sources()
@@ -256,20 +262,20 @@ setMethod("mask", signature(x="SpatRaster", mask="SpatVector"),
 
 
 setMethod("project", signature(x="SpatRaster"), 
-	function(x, y, method="bilinear", filename="", overwrite=FALSE, wopt=list(), ...)  {
+	function(x, y, method="bilinear", mask=FALSE, filename="", overwrite=FALSE, wopt=list(), ...)  {
 		
 		method <- ifelse(method == "ngb", "near", method)
 		opt <- .runOptions(filename, overwrite, wopt)
 		if (inherits(y, "SpatRaster")) {
 			#x@ptr <- x@ptr$warp(y@ptr, method, opt)
-			x@ptr <- x@ptr$warp(y@ptr, "", method, opt)
+			x@ptr <- x@ptr$warp(y@ptr, "", method, mask, opt)
 		} else {
 			if (!is.character(y)) {
 				warning("crs should be a character value")
 				y <- as.character(crs(y))
 			}
 			#x@ptr <- x@ptr$warpcrs(y, method, opt)
-			x@ptr <- x@ptr$warp(SpatRaster$new(), y, method, opt)
+			x@ptr <- x@ptr$warp(SpatRaster$new(), y, method, mask, opt)
 		}
 		show_messages(x, "project")
 	}
@@ -387,7 +393,7 @@ setMethod("resample", signature(x="SpatRaster", y="SpatRaster"),
 	function(x, y, method="bilinear", filename="", overwrite=FALSE, wopt=list(), ...)  {
 		method <- ifelse(method == "ngb", "near", method)
 		opt <- .runOptions(filename, overwrite, wopt)
-		x@ptr <- x@ptr$warp(y@ptr, "", method, opt)
+		x@ptr <- x@ptr$warp(y@ptr, "", method, FALSE, opt)
 		show_messages(x, "resample")
 	}
 )

@@ -57,8 +57,10 @@ class SpatOptions {
 		unsigned blocksizemp = 4;
 		size_t steps = 0;
 
+		bool def_verbose = false;
+		bool verbose = false;
 		std::string datatype = "";
-		std::string bandorder = "";
+		//std::string bandorder = "";
 		std::string filetype = "";
 		std::string filename = "";
 		std::vector<std::string> gdal_options;
@@ -79,22 +81,26 @@ class SpatOptions {
 		std::string get_def_datatype();
 		std::string get_def_bandorder();
 		std::string get_def_filetype();
+		bool get_def_verbose();
 		void set_def_datatype(std::string d);
-		void set_def_bandorder(std::string d);
+		//void set_def_bandorder(std::string d);
 		void set_def_filetype(std::string d);
 
 		// single use
+		void set_verbose(bool v);
+		void set_def_verbose(bool v);
 		void set_filename(std::string d);
 		void set_filetype(std::string d);
 		void set_datatype(std::string d);
-		void set_bandorder(std::string d);
+		//void set_bandorder(std::string d);
 		void set_overwrite(bool b);
 		void set_progress(unsigned p);
 		void set_blocksizemp(unsigned x);
 		std::string get_filename();
 		std::string get_filetype();
 		std::string get_datatype();
-		std::string get_bandorder();
+		//std::string get_bandorder();
+		bool get_verbose();
 		bool get_overwrite();
 		unsigned get_progress();
 		bool do_progress(unsigned n);

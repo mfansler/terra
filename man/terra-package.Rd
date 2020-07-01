@@ -14,6 +14,8 @@ The 'terra' package implements two main classes for spatial data handling: \code
 
 The 'terra' package is conceived as a replacement of the 'raster' package. 'terra' has a very similar, but simpler, interface, and it is faster than 'raster'. A major simplification is that 'terra' has a single class "SpatRaster" for which 'raster' has three (RasterLayer, RasterStack, RasterBrick). Likewise there is a single class for vector data ("SpatVector"). Like "raster" this package should be particularly useful when using very large datasets that can not be loaded into the computer's memory. Functions will work correctly, because they they process large files in chunks, i.e., they read, compute, and write blocks of data, without loading all values into memory at once. 
 
+Furthermore, 'terra' has a "SpatDataSet" class that represents different sub-datasets for the same area. Each subdataset is a SpatRaster with possibly many layers, and may, for example, represent different weather variables.
+
 Note the following important differences in methods names with the 'raster' package
 
 \tabular{ll}{
@@ -35,18 +37,19 @@ Note the following important differences in methods names with the 'raster' pack
 \code{nlayers}\tab\code{\link{nlyr}}\cr
 \code{stackSelect}\tab\code{\link{selectRange}}\cr
 \code{compareRaster}\tab\code{\link{compareGeom}}\cr
-\code{sampleRegular}\tab\code{\link{spatSample}}\cr
-\code{sampleRandom}\tab\code{\link{spatSample}}\cr
+\code{sampleRandom, sampleRegular}\tab\code{\link{spatSample}}\cr
 \code{rasterToPoints}\tab\code{\link{as.points}}\cr
 \code{rasterToPolygons}\tab\code{\link{as.polygons}}\cr
+\code{cellFromLine, cellFromPolygon, cellsFromExtent}\tab\code{\link{cells}}\cr
+\code{clump}\tab\code{patch}\cr
 }
 
-Also note that even if function names are the same in \code{terra} and \code{raster}, their output can be different. In most cases to get more consistency in the returned values (and thus fewer errors in the downstream code that uses them). Here are some examples:
+Also note that even if function names are the same in \code{terra} and \code{raster}, their output can be different. In most cases to get more consistency in the returned values (and thus fewer errors in the downstream code that uses them). It other cases it simply seemed better. Here are some examples:
 
 \tabular{ll}{
 \code{\link{area}}\tab By default, \code{terra} returns the summed area of the raster cells that are not \code{NA}. \code{raster} returns a \code{RasterLayer}. Use \code{sum=FALSE} in \code{terra} for that behavior\cr
 - \tab \cr
-\code{\link{as.polygons}}\tab By default, \code{terra} returns dissolved vectors\cr
+\code{\link{as.polygons}}\tab By default, \code{terra} returns dissolved polygons\cr
 - \tab \cr
 \code{\link{extract}}\tab By default, \code{terra} returns a matrix, with the first column the sequential ID of the vectors. \code{raster} returns a list (for lines or polygons) or a matrix (for points, but without the ID column. You can use \code{list=TRUE} to get the results as a list\cr
 - \tab \cr
@@ -147,7 +150,7 @@ Also see the methods in section XI
     \code{\link{distance}} \tab Shortest distance to a cell that is not \code{NA} or to or from a vector object\cr
     \code{direction} \tab Direction (azimuth) to or from cells that are not \code{NA}\cr
     \code{localFun} \tab Local association (using neighborhoods) functions \cr
-    \code{clump} \tab Find clumps (patches) \cr
+    \code{patches} \tab Find patches \cr
     \code{terrain} \tab Compute slope, aspect and other terrain characteristics from elevation data \cr	
     \code{autocor} \tab Compute global or local Moran or Geary indices of spatial autocorrelation  \cr	
   --------------------------- \tab ------------------------------------------------------------------------------------------ \cr
@@ -165,7 +168,7 @@ Also see the methods in section XI
 
 \section{VIII. Data type conversion}{
 
-You can coerce SpatRasters to Raster* objects after loading the \code{raster} package, using \code{as}, as in \code{as(object, "RasterBrick")}, or \code{raster(object)} or \code{brick(object)} or \code{stack(object)}
+You can coerce SpatRasters to Raster* objects after loading the \code{raster} package with \code{as(object, "Raster")}, or \code{raster(object)} or \code{brick(object)} or \code{stack(object)}
   
   \tabular{ll}{
     \code{\link{rast}} \tab SpatRaster from matrix and other objects\cr
@@ -269,7 +272,8 @@ Cell numbers start at 1 in the upper-left corner. They increase within rows, fro
     \code{\link{rowColFromCell}} \tab Row and column numbers from cell numbers\cr
     \code{\link{cellFromXY}} \tab Cell numbers from x and y coordinates \cr
     \code{\link{cellFromRowCol}} \tab Cell numbers from row and column numbers \cr
-    \code{\link{cellFromRowColCombine}} \tab Cell numbers from all combinations of row and column numbers \cr    \code{cellsFromExtent} \tab Cell numbers from extent object \cr
+    \code{\link{cellFromRowColCombine}} \tab Cell numbers from all combinations of row and column numbers \cr    
+	\code{\link{cells}}\tab Cell numbers from an SpatVector or SpatExtent\cr
   --------------------------- \tab ------------------------------------------------------------------------------------------ \cr
   }
 }
@@ -291,12 +295,12 @@ Cell numbers start at 1 in the upper-left corner. They increase within rows, fro
 }	
 
 
-\section{XIV. SpatStack objects}{
+\section{XIV. SpatDataSet objects}{
 
-A SpatStack contains SpatRaster objects that are sub-datasets for the same area.
+A SpatDataSet contains SpatRaster objects that are sub-datasets for the same area. They all have the same extent and resolution.
 
 \tabular{ll}{
-  \code{\link{rstk}} \tab Create a SpatStack \cr
+  \code{\link{sds}} \tab Create a SpatDataSet \cr
   \code{[[} or \code{$} \tab Extract a SpatRaster \cr
   \code{names} \tab Get the names of the sub-datasets \cr
   --------------------------- \tab ------------------------------------------------------------------------------------------ \cr  
@@ -344,6 +348,7 @@ The name in \bold{bold} is the equivalent command in ArcGIS.
 
 \tabular{ll}{
     \code{\link{terraOptions}} \tab Show, set, save or get session options \cr
+    \code{\link{sources}} \tab Show the data sources of a SpatRaster \cr
     \code{\link{tmpFiles}} \tab Show or remove temporary files \cr
     \code{\link{canProcessInMemory}} \tab Test whether a file can be created in memory \cr
     \code{\link{readStart}} \tab Open file connections for efficient multi-chunck reading \cr
@@ -357,7 +362,7 @@ The name in \bold{bold} is the equivalent command in ArcGIS.
 \author{Except where indicated otherwise, the methods and functions in this package were written by Robert Hijmans}
 
 \section{Acknowledgments}{
-This package stands on the shoulders of giants (GDAL, PROJ, GEOS, GeographicLib, Rcpp, R)
+This package is an attempt to stand on the shoulders of giants (GDAL, PROJ, GEOS, GeographicLib, Rcpp, R)
 }
 
 \keyword{ package }

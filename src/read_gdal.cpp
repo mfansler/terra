@@ -25,7 +25,7 @@
 
 #include "file_utils.h"
 #include "string_utils.h"
-#include "NA.h"
+//#include "NA.h"
 #include "date.h"
 
 
@@ -345,7 +345,7 @@ SpatRasterStack::SpatRasterStack(std::string fname, std::vector<int> ids, bool u
 }
 
 
-/*
+
 bool ncdf_time(std::string filename, int &startdate, std::string &calendar) {
     GDALDataset *poDataset;
 	std::string ftime = "NETCDF:\"" + filename + "\":time_bnds" ;
@@ -356,37 +356,39 @@ bool ncdf_time(std::string filename, int &startdate, std::string &calendar) {
 	GDALRasterBand *poBand;
 	poBand = poDataset->GetRasterBand(1);
 	const char *pszv = nullptr;
-	if (( pszv = poBand->GetMetadataItem("units")) != nullptr ) {			
-		std::string s = pszv;
-		std::string delim = "days since ";
-		size_t pos = s.find(delim);
-		if (pos == std::string::npos) {
+	if (( pszv = poBand->GetMetadataItem("units")) == nullptr ) {
+		GDALClose( (GDALDatasetH) poDataset );
+		return false;
+	}
+		
+	std::string s = pszv;
+	std::string delim = "days since ";
+	size_t pos = s.find(delim);
+	if (pos == std::string::npos) {
+		return false;
+	}
+	s.erase(0, delim.length());
+	if (s.size() > 9) {
+		try {
+			int y = std::stoi(s.substr(0,4));
+			int m = std::stoi(s.substr(5,2));
+			int d = std::stoi(s.substr(8,2));
+			std::vector<int> ymd = {y, m, d};
+			startdate = date_from_ymd(ymd);
+		} catch (...) {
 			return false;
 		}
-		s.erase(0, delim.length());
-		if (s.size() > 9) {
-			try {
-				int y = std::stoi(s.substr(0,4));
-				int m = std::stoi(s.substr(5,2));
-				int d = std::stoi(s.substr(8,2));
-				std::vector<int> ymd = {y, m, d};
-				startdate = date_from_ymd(ymd);
-			} catch (...) {
-				return false;
-			}
-		}
-		const char *calpt = nullptr;
-		if (( calpt = poBand->GetMetadataItem("calendar")) != nullptr ) {			
-			calendar = calpt;
-		}
+	}
+	const char *calpt = nullptr;
+	if (( calpt = poBand->GetMetadataItem("calendar")) != nullptr ) {			
+		calendar = calpt;
 	}
 	GDALClose( (GDALDatasetH) poDataset );
-
 	return true;
 }
 
 bool fixTime(std::vector<double> &time, int &startdate, std::string &calendar) {
-	int nday = 0;
+	int nday = 366;
 	if (calendar =="gregorian" || calendar =="proleptic_gregorian" || calendar=="standard") {
 		nday = 366;
 	} else if ((calendar == "365 day") || (calendar == "365_day")) {
@@ -414,7 +416,7 @@ bool fixTime(std::vector<double> &time, int &startdate, std::string &calendar) {
 
 //#include <iostream>
 //#include "Rcpp.h"
-*/
+
 
 bool SpatRaster::constructFromFile(std::string fname, int subds, std::string subdsname) {
 
@@ -657,7 +659,7 @@ bool SpatRaster::readStartGDAL(unsigned src) {
     //GDALAllRegister();
 	const char* pszFilename = source[src].filename.c_str();
 	poDataset = (GDALDataset *) GDALOpen( pszFilename, GA_ReadOnly );
-    if( poDataset == NULL )  {
+	if( poDataset == NULL )  {
 		setError("cannot read from " + source[src].filename );
 		return false;
 	}
@@ -722,7 +724,7 @@ void vflip(std::vector<double> &v, const size_t &ncell, const size_t &nrows, con
 }
 
 
-std::vector<double> SpatRaster::readChunkGDAL(unsigned src, unsigned row, unsigned nrows, unsigned col, unsigned ncols) {
+std::vector<double> SpatRaster::readChunkGDAL(unsigned src, long row, unsigned nrows, long col, unsigned ncols) {
 
 	std::vector<double> errout;
 	if (source[src].rotated) {
@@ -730,7 +732,11 @@ std::vector<double> SpatRaster::readChunkGDAL(unsigned src, unsigned row, unsign
 		return errout;
 	}
 
-	GDALRasterBand  *poBand;
+	if (!source[src].open_read) {
+		setError("the file is not open for reading");
+		return errout;
+	}
+
 	unsigned ncell = ncols * nrows;
 	unsigned nl = source[src].nlyr;
 	std::vector<double> out(ncell * nl);
@@ -745,9 +751,14 @@ std::vector<double> SpatRaster::readChunkGDAL(unsigned src, unsigned row, unsign
 			panBandMap.push_back(source[src].layers[i]+1);
 		}
 	}
+	
 
-		
-	err = source[src].gdalconnection->RasterIO(GF_Read, col, row, ncols, nrows, &out[0], ncols, nrows, GDT_Float64, nl, &panBandMap[0], 0, 0, 0, NULL);
+	if (panBandMap.size() > 0) {	
+		err = source[src].gdalconnection->RasterIO(GF_Read, col, row, ncols, nrows, &out[0], ncols, nrows, GDT_Float64, nl, &panBandMap[0], 0, 0, 0, NULL);
+	} else {
+		err = source[src].gdalconnection->RasterIO(GF_Read, col, row, ncols, nrows, &out[0], ncols, nrows, GDT_Float64, nl, NULL, 0, 0, 0, NULL);		
+	}
+	GDALRasterBand  *poBand;
 	if (err == CE_None ) { 
 		for (size_t i=0; i<nl; i++) {
 			poBand = source[src].gdalconnection->GetRasterBand(source[src].layers[i]+1);
@@ -787,7 +798,7 @@ std::vector<double> SpatRaster::readChunkGDAL(unsigned src, unsigned row, unsign
 
 
 
-std::vector<double> SpatRaster::readValuesGDAL(unsigned src, unsigned row, unsigned nrows, unsigned col, unsigned ncols) {
+std::vector<double> SpatRaster::readValuesGDAL(unsigned src, int row, int nrows, int col, int ncols) {
 
 	std::vector<double> errout;
 	if (source[src].rotated) {
@@ -807,14 +818,6 @@ std::vector<double> SpatRaster::readValuesGDAL(unsigned src, unsigned row, unsig
 	unsigned nl = source[src].nlyr;
 	std::vector<double> out(ncell*nl);
 
-/*	int* panBandMap = NULL;
-	if (!source[src].in_order()) {
-		panBandMap = (int *) CPLMalloc(sizeof(int) * nl);
-		for (size_t i=0; i < nl; i++) {
-			panBandMap[i] = source[src].layers[i] + 1;
-		}
-	}
-*/
 	std::vector<int> panBandMap;
 	if (!source[src].in_order()) {
 		panBandMap.reserve(nl);
@@ -826,7 +829,11 @@ std::vector<double> SpatRaster::readValuesGDAL(unsigned src, unsigned row, unsig
 	int hasNA;
 	std::vector<double> naflags(nl, NAN);
 	CPLErr err = CE_None;
-	err = poDataset->RasterIO(GF_Read, col, row, ncols, nrows, &out[0], ncols, nrows, GDT_Float64, nl, &panBandMap[0], 0, 0, 0, NULL);
+	if (panBandMap.size() > 0) {
+		err = poDataset->RasterIO(GF_Read, col, row, ncols, nrows, &out[0], ncols, nrows, GDT_Float64, nl, &panBandMap[0], 0, 0, 0, NULL);
+	} else {
+		err = poDataset->RasterIO(GF_Read, col, row, ncols, nrows, &out[0], ncols, nrows, GDT_Float64, nl, NULL, 0, 0, 0, NULL);
+	}
 
 	if (err == CE_None ) { 
 		for (size_t i=0; i<nl; i++) {
@@ -851,7 +858,7 @@ std::vector<double> SpatRaster::readValuesGDAL(unsigned src, unsigned row, unsig
 
 
 
-std::vector<double> SpatRaster::readGDALsample(unsigned src, unsigned srows, unsigned scols) {
+std::vector<double> SpatRaster::readGDALsample(unsigned src, int srows, int scols) {
 
 	std::vector<double> errout;
 	if (source[src].rotated) {
@@ -884,7 +891,11 @@ std::vector<double> SpatRaster::readGDALsample(unsigned src, unsigned srows, uns
 		}
 	}
 		
-	err = poDataset->RasterIO(GF_Read, 0, 0, ncol(), nrow(), &out[0], scols, srows, GDT_Float64, nl, &panBandMap[0], 0, 0, 0, NULL);
+	if (panBandMap.size() > 0) {
+		err = poDataset->RasterIO(GF_Read, 0, 0, ncol(), nrow(), &out[0], scols, srows, GDT_Float64, nl, &panBandMap[0], 0, 0, 0, NULL);
+	} else {
+		err = poDataset->RasterIO(GF_Read, 0, 0, ncol(), nrow(), &out[0], scols, srows, GDT_Float64, nl, NULL, 0, 0, 0, NULL);	
+	}
 	if (err == CE_None ) { 
 		for (size_t i=0; i<nl; i++) {
 			poBand = poDataset->GetRasterBand(source[src].layers[i]+1);
@@ -921,7 +932,7 @@ std::vector<double> SpatRaster::readGDALsample(unsigned src, unsigned srows, uns
 
 
 
-std::vector<std::vector<double>> SpatRaster::readRowColGDAL(unsigned src, std::vector<unsigned> &rows, const std::vector<unsigned> &cols) {
+std::vector<std::vector<double>> SpatRaster::readRowColGDAL(unsigned src, std::vector<long> &rows, const std::vector<long> &cols) {
 
 	std::vector<std::vector<double>> errout;
 	if (source[src].rotated) {
@@ -960,8 +971,12 @@ std::vector<std::vector<double>> SpatRaster::readRowColGDAL(unsigned src, std::v
 	std::vector<double> out(n * nl, NAN);
 	CPLErr err = CE_None;
 	for (size_t j=0; j < n; j++) {
-		if (is_NA(cols[j]) | is_NA(rows[j])) continue;
-		err = poDataset->RasterIO(GF_Read, cols[j], rows[j], 1, 1, &out[j*nl], 1, 1, GDT_Float64, nl, &panBandMap[0], 0, 0, 0, NULL);
+		if ((cols[j] < 0) || (rows[j] < 0)) continue;
+		if (panBandMap.size() > 0) {
+			err = poDataset->RasterIO(GF_Read, cols[j], rows[j], 1, 1, &out[j*nl], 1, 1, GDT_Float64, nl, &panBandMap[0], 0, 0, 0, NULL);
+		} else {
+			err = poDataset->RasterIO(GF_Read, cols[j], rows[j], 1, 1, &out[j*nl], 1, 1, GDT_Float64, nl, NULL, 0, 0, 0, NULL);
+		}
 		if (err != CE_None ) { 
 			break;
 		}

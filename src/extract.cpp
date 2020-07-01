@@ -536,26 +536,12 @@ std::vector<std::vector<std::vector<double>>> SpatRaster::extractVector(SpatVect
 		std::vector<double> feats(1, 1) ;			
         for (size_t i=0; i<ng; i++) {
             SpatGeom g = v.getGeom(i);
-            SpatRaster rc = r.crop(g.extent, "out", opt);
             SpatVector p(g);
 			p.srs = v.srs;
-#if GDAL_VERSION_MAJOR >= 3			
-            SpatRaster rcr = rc.rasterize(p, "", feats, NAN, false, touches, false, opt); 
-#else
-			std::vector<double> feats2(p.size(), 1) ;			
-            SpatRaster rcr = rc.rasterize(p, "", feats2, NAN, false, touches, false, opt); 
-			// rather have a method that returns the cell numbers directly?	
-#endif
-       	    SpatVector pts = rcr.as_points(false, true);
-            SpatDataFrame vd = pts.getGeometryDF();
-            std::vector<double> x = vd.getD(0);
-            std::vector<double> y = vd.getD(1);
-            srcout = extractXY(x, y, "simple");
-            //unsigned np = x.size();
+			std::vector<double> cells = rasterizeCells(p, touches);
+            srcout = extractCell(cells);
             for (size_t j=0; j<nl; j++) {
-               // unsigned off = j * np;
                 out[i][j] = srcout[j];
-//                std::copy(srcout.begin()+off, srcout.begin()+off+np-1, out[i][j].begin());
             }
         }
 	}
@@ -594,7 +580,7 @@ std::vector<std::vector<double>> SpatRaster::extractCell(std::vector<double> &ce
 			//	srcout = readCellsBinary(src, cell);
 			//} else {
 			#ifdef useGDAL
-			std::vector<std::vector<unsigned>> rc = rowColFromCell(cell);
+			std::vector<std::vector<long>> rc = rowColFromCell(cell);
 			srcout = readRowColGDAL(src, rc[0], rc[1]);
 			#endif
 			if (hasError()) return out;
@@ -608,4 +594,37 @@ std::vector<std::vector<double>> SpatRaster::extractCell(std::vector<double> &ce
 	return out;
 }
 
+
+
+std::vector<double> SpatRaster::getCells(SpatVector v, bool touches, std::string method) {
+
+	std::string gtype = v.type();
+	std::vector<double> out, cells;	
+	if (gtype == "points") {
+		if (method != "bilinear") method = "simple";
+		SpatDataFrame vd = v.getGeometryDF();
+		cells = cellFromXY(vd.getD(0), vd.getD(1));
+		std::vector<long> id = vd.getI(0);
+		out.insert(out.end(), id.begin(), id.end());
+		out.insert(out.end(), cells.begin(), cells.end());
+		return out;
+	} else {
+		unsigned ng = v.size();
+	    SpatOptions opt;
+		SpatRaster r = geometry(1);
+		std::vector<double> feats(1, 1) ;			
+        for (size_t i=0; i<ng; i++) {
+            SpatGeom g = v.getGeom(i);
+            SpatVector p(g);
+			p.srs = v.srs;
+			std::vector<double> geomc = rasterizeCells(p, touches);
+			std::vector<double> id(geomc.size(), i);
+			out.insert(out.end(), id.begin(), id.end());
+			cells.insert(cells.end(), geomc.begin(), geomc.end());
+        }
+		out.insert(out.end(), cells.begin(), cells.end());
+		return out;
+	}
+	return out;
+}
 

@@ -9,6 +9,10 @@
 	.terra_environment$options <- opt
 }
  
+.options_names <- function() {
+	c("progress", "tempdir", "memfrac", "datatype", "filetype", "filename", "overwrite", "todisk", "names", "verbose") 
+}
+
  
 .setOptions <- function(x, opt) {
 	nms <- names(opt)
@@ -24,7 +28,7 @@
 		x$gdal_options <- gopt
 	}
 	
-	s <- nms %in% c("progress", "tempdir", "memfrac", "datatype", "filetype", "filename", "overwrite", "todisk", "names")
+	s <- nms %in% .options_names()
 	
 	if (any(!s)) {
 		bad <- paste(nms[!s], collapse=",")
@@ -53,7 +57,7 @@
 		stop("wopt must be a list")
 	}
 	ptr <- .terra_environment$options@ptr
-	opt <- ptr$copy(ptr)
+	opt <- ptr$deepcopy(ptr)
 	
 	filename <- .fullFilename(filename[1], mustExist=FALSE)
 	if (!is.null(unlist(wopt))) {
@@ -76,6 +80,7 @@
 	cat("datatype    :" , opt$def_datatype, "\n")
 	cat("filetype    :" , opt$def_filetype, "\n")
 	cat("progress    :" , opt$progress, "\n")
+	cat("verbose     :" , opt$verbose, "\n")
 }
 
 

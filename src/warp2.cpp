@@ -1,7 +1,23 @@
+// Copyright (c) 2018-2020  Robert J. Hijmans
+//
+// This file is part of the "spat" library.
+//
+// spat is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 2 of the License, or
+// (at your option) any later version.
+//
+// spat is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with spat. If not, see <http://www.gnu.org/licenses/>.
+
 
 #include "gdalwarper.h"
 #include "ogr_spatialref.h"
-
 
 #include "spatRaster.h"
 #include "string_utils.h"
@@ -11,6 +27,41 @@
 
 //#include <vector>
 //#include "vecmath.h"
+
+
+SpatVector SpatRaster::dense_extent() {
+		
+	std::vector<long> rows(nrow());
+	std::iota(rows.begin(), rows.end(), 0);
+	std::vector<long> cols(ncol());
+	std::iota(cols.begin(), cols.end(), 0);
+
+	std::vector<double> xcol = xFromCol(cols) ;
+	std::vector<double> yrow = yFromRow(rows) ;
+
+	std::vector<double> y0(ncol(), yFromRow(nrow()-1));
+	std::vector<double> y1(ncol(), yFromRow(0));
+	std::vector<double> x0(nrow(), xFromCol(0));
+	std::vector<double> x1(nrow(), xFromCol(ncol()-1));
+
+	std::vector<double> x = x0;
+	std::vector<double> y = yrow;
+	x.insert(x.end(), xcol.begin(), xcol.end());
+	y.insert(y.end(), y0.begin(), y0.end());
+	
+	std::reverse(yrow.begin(), yrow.end());
+	std::reverse(xcol.begin(), xcol.end());
+
+	x.insert(x.end(), x1.begin(), x1.end());
+	y.insert(y.end(), yrow.begin(), yrow.end() );
+	x.insert(x.end(), xcol.begin(), xcol.end());
+	y.insert(y.end(), y1.begin(), y1.end());
+	
+	SpatVector v(x, y, polygons, getSRS("wkt"));
+
+	return v;
+}
+
 
 #if GDAL_VERSION_MAJOR >= 3
 
@@ -152,16 +203,27 @@ bool gdal_warper(GDALDatasetH &hSrcDS, GDALDatasetH &hDstDS, std::vector<unsigne
 	
     psWarpOptions->nBandCount = nbands;
     psWarpOptions->panSrcBands =
-        (int *) CPLMalloc(sizeof(int) * psWarpOptions->nBandCount );
+        (int *) CPLMalloc(sizeof(int) * nbands );
     psWarpOptions->panDstBands =
-        (int *) CPLMalloc(sizeof(int) * psWarpOptions->nBandCount );
+        (int *) CPLMalloc(sizeof(int) * nbands );
+	psWarpOptions->padfSrcNoDataReal =
+	    (double *) CPLMalloc(sizeof(double) * nbands );
 	psWarpOptions->padfDstNoDataReal =
-	    (double *) CPLMalloc(sizeof(double) * psWarpOptions->nBandCount );
+	    (double *) CPLMalloc(sizeof(double) * nbands );
 	
+	GDALRasterBandH hBand;
+	int hasNA;
 	for (int i=0; i<nbands; i++) {
 		psWarpOptions->panSrcBands[i] = (int) srcbands[i]+1;
 		psWarpOptions->panDstBands[i] = (int) dstbands[i]+1;
-		//psWarpOptions->padfSrcNoDataReal[0] = -3.4e+38;
+
+		hBand = GDALGetRasterBand(hSrcDS, srcbands[i]+1);
+		double naflag = GDALGetRasterNoDataValue(hBand, &hasNA);
+		if (hasNA) {
+			psWarpOptions->padfSrcNoDataReal[i] = naflag;
+		} else {
+			psWarpOptions->padfSrcNoDataReal[i] = NAN;			
+		}
 		psWarpOptions->padfDstNoDataReal[i] = NAN;
     }
 	
@@ -171,6 +233,9 @@ bool gdal_warper(GDALDatasetH &hSrcDS, GDALDatasetH &hDstDS, std::vector<unsigne
       CSLSetNameValue( psWarpOptions->papszWarpOptions, "INIT_DEST", "NO_DATA");
 	psWarpOptions->papszWarpOptions =	
       CSLSetNameValue( psWarpOptions->papszWarpOptions, "WRITE_FLUSH", "YES");
+
+//GDALWarpInitSrcNoDataReal(GDALWarpOptions *psOptionsIn, double dNoDataReal)
+//void GDALWarpInitDstNoDataReal(GDALWarpOptions *psOptionsIn, double dNoDataReal)
 
     // Establish reprojection transformer.
     psWarpOptions->pTransformerArg =
@@ -197,7 +262,7 @@ bool is_valid_warp_method(const std::string &method) {
 }
 
 
-SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method, SpatOptions &opt) {
+SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method, bool mask, SpatOptions &opt) {
 
 	SpatRaster out = x.geometry(nlyr());
 
@@ -207,6 +272,11 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 	}
 	lrtrim(crs);
 	std::string errmsg;
+	SpatOptions mopt;
+	if (mask) {
+		mopt = opt;
+		opt = SpatOptions(opt);
+	}
 	std::string filename = opt.filename;
 
 	bool use_crs = crs != "";  
@@ -220,7 +290,7 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 	}
 
 	if (filename == "") {
-		if (!canProcessInMemory(4) || opt.get_todisk()) {
+		if (!canProcessInMemory(4, opt.get_memfrac()) || opt.get_todisk()) {
 			filename = tempFile(opt.get_tempdir(), ".tif");
 		} 
 	} else {
@@ -278,6 +348,7 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 		std::vector<unsigned> dstbands(srcbands.size()); 
 		std::iota (dstbands.begin(), dstbands.end(), bandstart); 
 		bandstart += dstbands.size();
+		
 		bool success = gdal_warper(hSrcDS, hDstDS, srcbands, dstbands, method, errmsg);
 	
 		GDALClose( hSrcDS );
@@ -306,6 +377,13 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 		GDALClose( hDstDS );
 		out = SpatRaster(filename, -1, "");
 	}
+	
+	if (mask) {
+		SpatVector v = dense_extent();
+		v = v.project(out.getSRS("wkt"));
+		out = out.mask(v, false, NAN, mopt);
+	}
+	
 	return out;
 }
 
@@ -313,12 +391,13 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 #else 
 	
 
-SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method, SpatOptions &opt) {
+SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method, bool mask, SpatOptions &opt) {
+
 	unsigned nl = nlyr();
 	SpatRaster out = x.geometry(nl);
 
 	if (crs != "") {
-		out.setError("This does not work with your version of GDAL");
+		out.setError("You cannot project by specifying a crs with your version of GDAL");
 		return out;
 	}
 

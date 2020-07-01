@@ -38,15 +38,15 @@ function(x, row=1, nrows=nrow(x), col=1, ncols=ncol(x), mat=FALSE, dataframe=FAL
 
 setMethod("values", signature(x="SpatRaster"), 
 function(x, mat=TRUE, ...) {
-	if (.hasValues(x)) {
+	if (hasValues(x)) {
 		v <- x@ptr$getValues()
 		show_messages(x, "values")
-		if (mat) {
-			v <- matrix(v, ncol=nlyr(x))
-			colnames(v) <- names(x)
-		}
 	} else {
-		v <- NULL
+		v <- matrix(NA, nrow=ncell(x), ncol=nlyr(x))
+	}
+	if (mat) {
+		v <- matrix(v, ncol=nlyr(x))
+		colnames(v) <- names(x)
 	}
 	return(v)	
 }
@@ -82,7 +82,7 @@ setMethod("setValues", signature("SpatRaster", "ANY"),
 		if (lv == 1) {	
 			values <- rep(values, nl * nc)
 		} else {
-			if (!((nc %% lv) == 0)) {
+			if (!((lv %% nc) == 0)) {
 				warning("the length of the values does not match the size of the SpatRaster")
 			}
 			if (lv > (nc * nl)) {
@@ -98,9 +98,9 @@ setMethod("setValues", signature("SpatRaster", "ANY"),
 )
 	
 
-.hasValues <- function(x) {
-	x@ptr$hasValues
-}
+#.hasValues <- function(x) {
+#	x@ptr$hasValues
+#}
 
 .inMemory <- function(x) {
 	x@ptr$inMemory

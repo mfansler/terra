@@ -37,8 +37,8 @@ bool gwarp(std::string src, std::string dst, std::vector<std::string> options, s
 */
 
 
-Rcpp::List getBlockSizeR(SpatRaster* r, unsigned n) { 
-    BlockSize bs = r->getBlockSize(n);
+Rcpp::List getBlockSizeR(SpatRaster* r, unsigned n, double frac) { 
+    BlockSize bs = r->getBlockSize(n, frac);
 	Rcpp::List L = Rcpp::List::create(Rcpp::Named("row") = bs.row, Rcpp::Named("nrows") = bs.nrows, Rcpp::Named("n") = bs.n);
 	return(L);
 }
@@ -110,7 +110,7 @@ RCPP_EXPOSED_CLASS(SpatOptions)
 RCPP_EXPOSED_CLASS(SpatExtent)
 RCPP_EXPOSED_CLASS(SpatCategories)
 RCPP_EXPOSED_CLASS(SpatDataFrame)
-RCPP_EXPOSED_CLASS(RasterSource)
+//RCPP_EXPOSED_CLASS(RasterSource)
 RCPP_EXPOSED_CLASS(SpatRaster)
 RCPP_EXPOSED_CLASS(SpatRasterCollection)
 RCPP_EXPOSED_CLASS(SpatRasterStack)
@@ -148,18 +148,21 @@ RCPP_MODULE(spat){
 	
     class_<SpatOptions>("SpatOptions")
 		.constructor()
-		.method("copy", &SpatOptions::deepCopy, "deepCopy")
+		.method("deepcopy", &SpatOptions::deepCopy, "deepCopy")
 		.property("tempdir", &SpatOptions::get_tempdir, &SpatOptions::set_tempdir )
 		.property("memfrac", &SpatOptions::get_memfrac, &SpatOptions::set_memfrac )
 		.property("filename", &SpatOptions::get_filename, &SpatOptions::set_filename )
 		.property("filetype", &SpatOptions::get_filetype, &SpatOptions::set_filetype )
 		.property("datatype", &SpatOptions::get_datatype, &SpatOptions::set_datatype )
+		.property("verbose", &SpatOptions::get_verbose, &SpatOptions::set_verbose )
 		//.property("bandorder", &SpatOptions::get_bandorder, &SpatOptions::set_bandorder )
 		.property("overwrite", &SpatOptions::get_overwrite, &SpatOptions::set_overwrite )
 		.property("progress", &SpatOptions::get_progress, &SpatOptions::set_progress)
 
 		.property("def_filetype", &SpatOptions::get_def_filetype, &SpatOptions::set_def_filetype )
 		.property("def_datatype", &SpatOptions::get_def_datatype, &SpatOptions::set_def_datatype )
+		.property("def_verbose", &SpatOptions::get_def_verbose, &SpatOptions::set_def_verbose )
+
 		//.property("def_bandorder", &SpatOptions::get_def_bandorder, &SpatOptions::set_def_bandorder )
 
 		.property("todisk", &SpatOptions::get_todisk, &SpatOptions::set_todisk)
@@ -249,9 +252,9 @@ RCPP_MODULE(spat){
 #endif
 	;
 
-    class_<RasterSource>("RasterSource")	
+//    class_<RasterSource>("RasterSource")	
 		//.field_readonly("memory", &RasterSource::memory)
-		.field_readonly("filename", &RasterSource::filename)
+	//	.field_readonly("filename", &RasterSource::filename)
 		//.field_readonly("driver", &RasterSource::driver)
 		//.field_readonly("nrow", &RasterSource::nrow)
 		//.field_readonly("ncol", &RasterSource::ncol)
@@ -261,7 +264,7 @@ RCPP_MODULE(spat){
 		//.field_readonly("nlyrfile", &RasterSource::nlyrfile)
 		//.field_readonly("flipped", &RasterSource::flipped)
 		//.field_readonly("rotated", &RasterSource::rotated)
-	;	
+//	;	
 
     class_<SpatRaster>("SpatRaster")
 		.constructor()
@@ -272,15 +275,15 @@ RCPP_MODULE(spat){
 
 		.field("name", &SpatRaster::name)
 
-		.method("copy", &SpatRaster::deepCopy, "deepCopy")
 		.method("sources_to_disk", &SpatRaster::sources_to_disk, "sources_to_disk")
+		.method("mem_needs", &SpatRaster::mem_needs, "mem_needs")
 
 		.method("spatinit", &SpatRaster::gdalogrproj_init, "init")
 		
 		.method("combineSources", &SpatRaster::combineSources, "combineSources")
 		.method("compare_geom", &SpatRaster::compare_geom, "compare_geom")
 		.method("couldBeLonLat", &SpatRaster::could_be_lonlat, "couldBeLonLat") 
-		.method("copy", &SpatRaster::deepCopy, "deepCopy")
+		.method("deepcopy", &SpatRaster::deepCopy, "deepCopy")
 		.method("get_crs", &SpatRaster::getSRS)
 
 		.method("set_crs", (bool (SpatRaster::*)(std::string crs))( &SpatRaster::setSRS))
@@ -326,10 +329,11 @@ RCPP_MODULE(spat){
 		.property("res", &SpatRaster::resolution)
 				
 // only if RasterSource is exposed
-		.field_readonly("source", &SpatRaster::source )
+//		.field_readonly("source", &SpatRaster::source )
 
 		.method("collapse_sources", &SpatRaster::collapse_sources, "collapse_sources" )
-
+		
+		.method("dense_extent", &SpatRaster::dense_extent, "dense_extent")
 		.method("setNames", &SpatRaster::setNames, "setNames" )
 		.method("setTime", &SpatRaster::setTime, "setTime" )
 		.method("setDepth", &SpatRaster::setDepth, "setDepth" )
@@ -338,14 +342,16 @@ RCPP_MODULE(spat){
 		.method("subset", &SpatRaster::subset, "subset")
 				
 		.method("cellFromXY", ( std::vector<double> (SpatRaster::*)(std::vector<double>,std::vector<double>) )( &SpatRaster::cellFromXY ))
-		.method("cellFromRowCol", ( std::vector<double> (SpatRaster::*)(std::vector<unsigned>,std::vector<unsigned>) )( &SpatRaster::cellFromRowCol ))
-		.method("cellFromRowColCombine", ( std::vector<double> (SpatRaster::*)(std::vector<unsigned>,std::vector<unsigned>) )( &SpatRaster::cellFromRowColCombine ))
-		.method("yFromRow", ( std::vector<double> (SpatRaster::*)(std::vector<unsigned>&) )( &SpatRaster::yFromRow ))
-		.method("xFromCol", ( std::vector<double> (SpatRaster::*)(std::vector<unsigned>&) )( &SpatRaster::xFromCol ))
-		.method("colFromX", ( std::vector<unsigned> (SpatRaster::*)(std::vector<double>&) )( &SpatRaster::colFromX ))
-		.method("rowFromY", ( std::vector<unsigned> (SpatRaster::*)(std::vector<double>&) )( &SpatRaster::rowFromY ))
+		.method("getCells", &SpatRaster::getCells, "getCells")
+		
+		.method("cellFromRowCol", ( std::vector<double> (SpatRaster::*)(std::vector<long>,std::vector<long>) )( &SpatRaster::cellFromRowCol ))
+		.method("cellFromRowColCombine", ( std::vector<double> (SpatRaster::*)(std::vector<long>,std::vector<long>) )( &SpatRaster::cellFromRowColCombine ))
+		.method("yFromRow", ( std::vector<double> (SpatRaster::*)(std::vector<long>&) )( &SpatRaster::yFromRow ))
+		.method("xFromCol", ( std::vector<double> (SpatRaster::*)(std::vector<long>&) )( &SpatRaster::xFromCol ))
+		.method("colFromX", ( std::vector<long> (SpatRaster::*)(std::vector<double>&) )( &SpatRaster::colFromX ))
+		.method("rowFromY", ( std::vector<long> (SpatRaster::*)(std::vector<double>&) )( &SpatRaster::rowFromY ))
 		.method("xyFromCell", ( std::vector< std::vector<double> > (SpatRaster::*)(std::vector<double>&) )( &SpatRaster::xyFromCell ))
-		.method("rowColFromCell", ( std::vector< std::vector<unsigned> > (SpatRaster::*)(std::vector<double>) )( &SpatRaster::rowColFromCell ))
+		.method("rowColFromCell", ( std::vector< std::vector<long> > (SpatRaster::*)(std::vector<double>) )( &SpatRaster::rowColFromCell ))
 		.method("readStart", &SpatRaster::readStart, "readStart") 
 		.method("readStop", &SpatRaster::readStop, "readStop") 
 		.method("readValues", &SpatRaster::readValues, "readValues")	
@@ -450,13 +456,14 @@ RCPP_MODULE(spat){
 		.method("merge", &SpatRasterCollection::merge, "merge")
 	;
 	
-    class_<SpatRasterStack>("SpatStack")
+    class_<SpatRasterStack>("SpatDataSet")
 		.constructor()
 	    .constructor<std::string, std::vector<int>, bool>()
 	    .constructor<SpatRaster, std::string>()
 		.field("messages", &SpatRasterStack::msg, "messages")
-		//.field_readonly("oneRes", &SpatRasterStack::oneRes, "do all sds have the same resolution?")
 
+		.method("readStart", &SpatRasterStack::readStart, "readStart")
+		.method("readStop", &SpatRasterStack::readStop, "readStop")
 		.method("nsds", &SpatRasterStack::nsds, "")
 		.method("ncol", &SpatRasterStack::ncol, "")
 		.method("nrow", &SpatRasterStack::nrow, "")
