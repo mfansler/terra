@@ -20,11 +20,11 @@
 
 
 
-SpatVector SpatRaster::as_points(bool values, bool narm) {
+SpatVector SpatRaster::as_points(bool values, bool narm, SpatOptions &opt) {
 
 // for now assuming one layer
 
-	BlockSize bs = getBlockSize(4, 0.5);
+	BlockSize bs = getBlockSize(opt);
 	std::vector<double> v, vout;
 	vout.reserve(v.size());
 	SpatVector pv;
@@ -188,7 +188,7 @@ SpatVector SpatRaster::as_polygons(bool trunc, bool dissolve, bool values, bool 
 	}
 
 	SpatVector vect;
-	if (!canProcessInMemory(12, opt.get_memfrac())) {
+	if (!canProcessInMemory(12, opt)) {
 		vect.setError("the raster is too large");
 		return vect;
 	}
@@ -250,7 +250,7 @@ SpatVector SpatRaster::as_polygons(bool trunc, bool dissolve, bool values, bool 
 	if (remove_values) {
 		vect.df = SpatDataFrame();		
 	}
-	vect.srs = srs;
+	vect.srs = source[0].srs;
 	return(vect);
 }
 

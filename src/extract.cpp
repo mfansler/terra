@@ -189,6 +189,7 @@ std::vector<std::vector<double>> SpatRaster::bilinearValues(std::vector<double> 
 
     bool glob = is_global_lonlat();
 //    bool lonlat = could_be_lonlat();
+	SpatExtent extent = getExtent();
 	std::vector<double> four = fourCellsFromXY(ncol(), nrow(), extent.xmin, extent.xmax, extent.ymin, extent.ymax, x, y, false, glob);
 	std::vector<std::vector<double>> xy = xyFromCell(four);
 	std::vector<std::vector<double>> v = extractCell(four);
@@ -253,6 +254,8 @@ std::vector<double> SpatRaster::line_cells(SpatGeom& g) {
 
 	unsigned nrows = nrow();
 	unsigned ncols = ncol();
+	SpatExtent extent = getExtent();
+	
 	double xmin = extent.xmin;
 	double ymax = extent.ymax;
 	double rx = xres();
@@ -301,6 +304,8 @@ std::vector<double> SpatRaster::polygon_cells(SpatGeom& g) {
 
 	unsigned nrows = nrow();
 	unsigned ncols = ncol();
+	SpatExtent extent = getExtent();
+	
 	double xmin = extent.xmin;
 	double ymax = extent.ymax;
 	double rx = xres();
@@ -407,6 +412,7 @@ std::vector<std::vector<double>> SpatRaster::extractXY(std::vector<double> &x, s
         } else if (method == "oldbilinear") {
 
 // this is much too slow
+			SpatExtent extent = getExtent();
 
 			double ymax = extent.ymax;
             double xmin = extent.xmin;
@@ -532,8 +538,8 @@ std::vector<std::vector<std::vector<double>>> SpatRaster::extractVector(SpatVect
 
 	} else {
 	    SpatRaster r = geometry(1);
-	    SpatOptions opt;
-		std::vector<double> feats(1, 1) ;			
+	    //SpatOptions opt;
+		//std::vector<double> feats(1, 1) ;			
         for (size_t i=0; i<ng; i++) {
             SpatGeom g = v.getGeom(i);
             SpatVector p(g);
@@ -580,7 +586,7 @@ std::vector<std::vector<double>> SpatRaster::extractCell(std::vector<double> &ce
 			//	srcout = readCellsBinary(src, cell);
 			//} else {
 			#ifdef useGDAL
-			std::vector<std::vector<long>> rc = rowColFromCell(cell);
+			std::vector<std::vector<int_64>> rc = rowColFromCell(cell);
 			srcout = readRowColGDAL(src, rc[0], rc[1]);
 			#endif
 			if (hasError()) return out;
@@ -594,6 +600,51 @@ std::vector<std::vector<double>> SpatRaster::extractCell(std::vector<double> &ce
 	return out;
 }
 
+
+/*
+std::vector<double> SpatRaster::extractCell(std::vector<double> &cell) {
+
+	unsigned n  = cell.size();
+	unsigned nc = ncell();
+
+	std::vector<double> out;
+	if (!hasValues()) {
+		out = std::vector<double>(n * nlyr(), NAN)
+		return out;
+	}
+
+	unsigned ns = nsrc();
+	for (size_t src=0; src<ns; src++) {
+		unsigned slyrs = source[src].layers.size();
+		std::vector<double> srcout;
+		if (source[src].memory) {
+			srcout = std::vector<double>(n * slyrs, NAN)
+			std::vector<size_t> off1(slyrs);
+			std::vector<size_t> off2(slyrs);
+			for (size_t i=0; i<slyrs; i++) {
+				off1[i] = i * n;
+				off2[i] = i * nc;
+			}
+			for (size_t i=0; i<n; i++) {
+				if (!is_NA(cell[i]) && cell[i] >= 0 && cell[i] < nc) {
+					for (size_t j=0; j<slyrs; j++) {
+						out[off1[j]+i] = source[src].values[off2[j] + cell[i]];
+					}
+				}
+			}
+		} else {
+			#ifdef useGDAL
+			std::vector<std::vector<int_64>> rc = rowColFromCell(cell);
+			srcout = readRowColGDAL(src, rc[0], rc[1]);
+			#endif
+			if (hasError()) return out;
+			//}
+		}
+		out.insert(out.end(), srcout.begin(), srcout.end());		
+	}
+	return out;
+}
+*/
 
 
 std::vector<double> SpatRaster::getCells(SpatVector v, bool touches, std::string method) {

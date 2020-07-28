@@ -43,6 +43,7 @@ setMethod("rast", signature(x="list"),
 		if (!all(i)) {
 			warning(paste(sum(!i), "out of", length(x), "elements of x are a SpatRaster"))
 		}
+		names(x) <- NULL
 		do.call(c, x[i])
 	}
 )
@@ -87,6 +88,9 @@ setMethod("rast", signature(x="SpatVector"),
 
 setMethod("rast", signature(x="character"),
 	function(x, subds=0, ...) {
+		## work around onLoad problem
+		#if (is.null(.terra_environment$options)) .init()
+
 		x <- trimws(x)
 		x <- x[x!=""]
 		if (length(x) == 0) {
@@ -100,7 +104,14 @@ setMethod("rast", signature(x="character"),
 		} else {
 			r@ptr <- SpatRaster$new(f, subds-1, "", "")
 		}
-		show_messages(r, "rast")
+		r <- show_messages(r, "rast")
+		
+		if (crs(r) == "") {
+			if (isLonLat(r, perhaps=TRUE, warn=FALSE)) {
+				crs(r) <- "+proj=longlat +datum=WGS84"
+			}
+		}
+		r
 	}
 )
 
@@ -110,7 +121,7 @@ setMethod("rast", signature(x="SpatRaster"),
 		r <- methods::new("SpatRaster")
 		r@ptr <- x@ptr$geometry(nlyrs)
 		if (length(list(...)) > 0) {
-			warning("additional arguments ignored when x is a SpatRaster")
+			warning("additional arguments are ignored")
 		}
 		show_messages(r, "rast")
 	}
@@ -118,14 +129,8 @@ setMethod("rast", signature(x="SpatRaster"),
 
 
 setMethod("rast", signature(x="SpatDataSet"),
-	function(x, nlyrs=nlyr(x), ...) {
-		r <- methods::new("SpatRaster")
-		x <- x[1]
-		r@ptr <- x@ptr$geometry(nlyrs)
-		if (length(list(...)) > 0) {
-			warning("additional arguments ignored when x is a SpatDataSet")
-		}
-		show_messages(r, "rast")
+	function(x, ...) {
+		rast(x[1], ...)
 	}
 )
 
@@ -218,12 +223,11 @@ setMethod("rast", signature(x="Raster"),
 
 
 setMethod("rast", signature(x="matrix"),
-	function(x, type="", ...) {
+	function(x, type="", crs="", ...) {
 		if (type == "xyz") {
 			r <- .rastFromXYZ(x, ...)
 		} else {
-			r <- methods::new("SpatRaster")
-			r@ptr <- SpatRaster$new(c(dim(x), 1), c(0, ncol(x), 0, nrow(x)), crs)
+			r <- rast(nrows=nrow(x), ncols=ncol(x), extent=ext(c(0, ncol(x), 0, nrow(x))), ...)
 			values(r) <- t(x)
 		}
 		show_messages(r, "rast")

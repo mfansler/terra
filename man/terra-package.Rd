@@ -14,34 +14,36 @@ The 'terra' package implements two main classes for spatial data handling: \code
 
 The 'terra' package is conceived as a replacement of the 'raster' package. 'terra' has a very similar, but simpler, interface, and it is faster than 'raster'. A major simplification is that 'terra' has a single class "SpatRaster" for which 'raster' has three (RasterLayer, RasterStack, RasterBrick). Likewise there is a single class for vector data ("SpatVector"). Like "raster" this package should be particularly useful when using very large datasets that can not be loaded into the computer's memory. Functions will work correctly, because they they process large files in chunks, i.e., they read, compute, and write blocks of data, without loading all values into memory at once. 
 
-Furthermore, 'terra' has a "SpatDataSet" class that represents different sub-datasets for the same area. Each subdataset is a SpatRaster with possibly many layers, and may, for example, represent different weather variables.
+Furthermore, 'terra' has a "SpatDataSet" class that represents a collection of sub-datasets for the same area. Each subdataset is a SpatRaster with possibly many layers, and may, for example, represent different weather variables.
 
 Note the following important differences in methods names with the 'raster' package
 
 \tabular{ll}{
 \bold{raster package} \tab \bold{terra package}\cr
 \code{raster, brick, stack}\tab\code{\link{rast}}\cr
-\code{stack} (for combining Raster* objects)\tab\code{\link{c}}\cr
 \code{rasterFromXYZ}\tab\code{\link{rast}( , type="xyz")}\cr
-\code{dropLayer}\tab\code{\link{subset}}\cr
+\code{stack} (for combining Raster* objects)\tab\code{\link{c}}\cr
 \code{extent}\tab\code{\link{ext}}\cr
 \code{calc}\tab\code{\link{app}}\cr
 \code{overlay}\tab\code{\link{lapp}}\cr
 \code{stackApply}\tab\code{\link{tapp}}\cr
+\code{extend}\tab\code{\link{expand}}\cr
+\code{nlayers}\tab\code{\link{nlyr}}\cr
+\code{stackSelect}\tab\code{\link{selectRange}}\cr
 \code{reclassify, subs, cut}\tab\code{\link{classify}}\cr
 \code{cellStats}\tab\code{\link{global}}\cr
 \code{projectRaster}\tab\code{\link{project}}\cr
+\code{dropLayer}\tab\code{\link{subset}}\cr
+\code{isLonLat, isGlobalLonLat, couldBeLonLat}\tab\code{\link{isLonLat}}\cr
 \code{shapefile}\tab\code{\link{vect}}\cr
 \code{gridDistance, distanceFromPoints} \tab \code{\link{distance}}\cr
 \code{drawExtent, drawPoly, drawLine} \tab \code{\link{draw}}\cr
-\code{nlayers}\tab\code{\link{nlyr}}\cr
-\code{stackSelect}\tab\code{\link{selectRange}}\cr
 \code{compareRaster}\tab\code{\link{compareGeom}}\cr
 \code{sampleRandom, sampleRegular}\tab\code{\link{spatSample}}\cr
 \code{rasterToPoints}\tab\code{\link{as.points}}\cr
 \code{rasterToPolygons}\tab\code{\link{as.polygons}}\cr
 \code{cellFromLine, cellFromPolygon, cellsFromExtent}\tab\code{\link{cells}}\cr
-\code{clump}\tab\code{patch}\cr
+\code{clump}\tab\code{patches}\cr
 }
 
 Also note that even if function names are the same in \code{terra} and \code{raster}, their output can be different. In most cases to get more consistency in the returned values (and thus fewer errors in the downstream code that uses them). It other cases it simply seemed better. Here are some examples:
@@ -90,7 +92,7 @@ Also see the methods in section XI
     \code{\link{merge}} \tab Combine SpatRasters with different extents (but same origin and resolution) \cr
     \code{mosaic} \tab Combine SpatRasters with different extents and a function for the values in overlapping areas \cr
     \code{\link{crop}} \tab Select a geographic subset of a SpatRaster \cr
-    \code{\link{extend}} \tab Enlarge a SpatRaster \cr
+    \code{\link{expand}} \tab Enlarge a SpatRaster \cr
     \code{\link{trim}} \tab Trim a SpatRaster by removing exterior rows and/or columns that only have NAs\cr
     \code{\link{aggregate}} \tab Combine cells of a SpatRaster to create larger cells \cr
     \code{\link{disaggregate}} \tab Subdivide cells \cr
@@ -136,6 +138,7 @@ Also see the methods in section XI
     \code{\link{quantile}} \tab Quantiles \cr
     \code{\link[terra]{summary}} \tab Summary of the values of a SpatRaster (quartiles and mean) \cr
     \code{\link{area}} \tab Compute the total area covered by cells \cr
+    \code{stretch} \tab Stretch values \cr
   --------------------------- \tab ------------------------------------------------------------------------------------------ \cr
   }
 }
@@ -248,7 +251,7 @@ Get or set basic parameters of SpatRasters. If there are values associated with 
 	\code{\link{ext}} \tab Get or set the extent (minimum and maximum x and y coordinates (a.k.a. "bounding box") \cr
 	\code{\link{origin}} \tab The origin of a SpatRaster\cr
     \code{\link{crs}} \tab The coordinate reference system (map projection) \cr	
-    \code{\link{isLonLat}} \tab Test if an object has a longitude/latitude coordinate reference system \cr
+    \code{\link{isLonLat}} \tab Test if an object has (or may have) a longitude/latitude coordinate reference system; and if it has global coverage \cr
     \code{\link{filename}} \tab Filename(s) to which a SpatRaster is linked \cr	
     \code{\link{compareGeom}} \tab Compare the geometry of SpatRasters \cr		
     \code{NAvalue} \tab Get or set the \code{NA} value (for reading from a file) \cr
@@ -301,8 +304,8 @@ A SpatDataSet contains SpatRaster objects that are sub-datasets for the same are
 
 \tabular{ll}{
   \code{\link{sds}} \tab Create a SpatDataSet \cr
-  \code{[[} or \code{$} \tab Extract a SpatRaster \cr
-  \code{names} \tab Get the names of the sub-datasets \cr
+  \code{[} or \code{$} \tab Extract a SpatRaster \cr
+  \code{\link{names}} \tab Get the names of the sub-datasets \cr
   --------------------------- \tab ------------------------------------------------------------------------------------------ \cr  
 }
 }
@@ -312,7 +315,7 @@ A SpatDataSet contains SpatRaster objects that are sub-datasets for the same are
 The name in \bold{bold} is the equivalent command in ArcGIS. 
 
 \tabular{ll}{
-  \code{c} \tab \bold{append} combine "rbind" vector data of the same (vector) type \cr
+  \code{c} \tab \bold{append} vector data of the same (vector) type ("rbind") \cr
   \code{erase} or "-" \tab \bold{erase} parts of a polygons\cr
   \code{intersect} or "*"  \tab \bold{intersect} polygons\cr
   \code{union} or "+" \tab \bold{union} polygons\cr
@@ -324,6 +327,7 @@ The name in \bold{bold} is the equivalent command in ArcGIS.
   \code{\link{select}} \tab \bold{select} - interactively select spatial features\cr
   \code{\link{click}} \tab \bold{identify} attributes by clicking on a map\cr
   \code{\link{merge}} \tab \bold{Join table} \cr
+  \code{\link{fill}}\tab remove holes from polygons\cr
   \code{\link{extract}} \tab spatial queries between SpatVector and SpatRaster objects \cr
   \code{\link{as.data.frame}} \tab get attributes as a data.frame\cr
   --------------------------- \tab ------------------------------------------------------------------------------------------ \cr  

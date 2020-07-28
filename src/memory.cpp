@@ -19,38 +19,58 @@
 #include "ram.h"
 
 
-bool SpatRaster::canProcessInMemory(unsigned n, double frac) {
-	return (n * size()) < (availableRAM() * frac);
+bool SpatRaster::canProcessInMemory(unsigned n, SpatOptions &opt) {
+	if (opt.get_todisk()) return false;
+	double demand = size() * n;
+	double supply = availableRAM() * opt.get_memfrac();
+	std::vector<double> v;
+	double maxsup = v.max_size(); //for 32 bit systems
+	supply = std::min(supply, maxsup);
+	return (demand < supply);
 }
 
 
-unsigned SpatRaster::chunkSize(unsigned n, double frac) {
+uint_64 SpatRaster::chunkSize(unsigned n, double frac) {
 	double cells_in_row = n * ncol() * nlyr();
 	double rows = availableRAM() * frac / cells_in_row;
-	double maxrows = 1500;
-	rows = std::min(rows, maxrows);
-	unsigned urows = floor(rows);
-	return rows == 0 ? 1 : std::min(urows, nrow());	
+	//double maxrows = 10000;
+	//rows = std::min(rows, maxrows);
+	uint_64 urows = floor(rows);
+	if (rows < 1) return (1);
+	if (urows < nrow()){
+		return(urows);
+	} else {
+		return (nrow());
+	}
 }
 
 
 std::vector<double> SpatRaster::mem_needs(unsigned n, SpatOptions &opt) {
 	//returning bytes
-	double memneed  = ncell() * nlyr() * n;
+	//unsigned n = opt.get_blocksizemp(); 
+	double memneed  = ncell() * (nlyr() * n * 8);
 	double memavail = availableRAM() * 8; 
 	double frac = opt.get_memfrac();
 	double csize = chunkSize(n, frac);
-	std::vector<double> out = {memneed, memavail, frac, csize} ;
+	double inmem = canProcessInMemory(n, opt); 
+	std::vector<double> out = {memneed, memavail, frac, csize, inmem} ;
 	return out;
 }
 
+//BlockSize SpatRaster::getBlockSize(unsigned n, double frac, unsigned steps) {
+BlockSize SpatRaster::getBlockSize( SpatOptions &opt) {
 
-BlockSize SpatRaster::getBlockSize(unsigned n, double frac, unsigned steps) {
+	unsigned n = opt.get_blocksizemp();
+	double frac = opt.get_memfrac();
+	unsigned steps = opt.get_steps();
+	
 	BlockSize bs;
-	unsigned cs;
+	uint_64 cs;
 	
 	if (steps > 0) {
-		steps = std::min(steps, nrow());
+		if (steps > nrow()) {
+			steps = nrow();
+		}
 		bs.n = steps;
 		cs = nrow() / steps;
 	} else {
@@ -58,9 +78,9 @@ BlockSize SpatRaster::getBlockSize(unsigned n, double frac, unsigned steps) {
 		bs.n = std::ceil(nrow() / double(cs));
 	}
 
-	bs.row = std::vector<unsigned>(bs.n);
-	bs.nrows = std::vector<unsigned>(bs.n, cs);
-	unsigned r = 0;
+	bs.row = std::vector<uint_64>(bs.n);
+	bs.nrows = std::vector<uint_64>(bs.n, cs);
+	uint_64 r = 0;
 	for (size_t i =0; i<bs.n; i++) {
 		bs.row[i] = r;
 		r += cs;

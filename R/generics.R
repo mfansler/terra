@@ -3,14 +3,12 @@
 # Version 1.0
 # License GPL v3
 
-
-
-setMethod("length", signature(x="SpatRaster"), 
-	function(x) {
-		ncell(x)
-	}
-)	
-
+#setMethod("length", signature(x="SpatRaster"), 
+#	function(x) {
+#		warning("do not use")
+#		ncell(x)
+#	}
+#)	
 
 setMethod("origin", signature(x="SpatRaster"), 
 	function(x, ...) {
@@ -56,7 +54,8 @@ setMethod("area", signature(x="SpatRaster"),
 				colnames(v) <- c("layer", "value", "area")
 				return(v)
 			} else {
-				x@ptr$sum_area()
+				opt <- .getOptions()
+				x@ptr$sum_area(opt)
 			}
 		} else {
 			opt <- .runOptions(filename, overwrite, wopt)
@@ -86,7 +85,7 @@ setMethod("boundaries", signature(x="SpatRaster"),
 )
 
 
-.collapse <- function(x) {
+.collapseSources <- function(x) {
 	x@ptr <- x@ptr$collapse_sources()
 	show_messages(x, "collapse")
 }
@@ -96,7 +95,7 @@ setMethod("c", signature(x="SpatRaster"),
 		s <- sds(list(x, ...))
 		x@ptr <- s@ptr$collapse()
 		x <- show_messages(x, "c")		
-		x@ptr <- x@ptr$collapse_sources()
+		try( x@ptr <- x@ptr$collapse_sources() )
 		show_messages(x, "c")		
 	}
 )
@@ -176,9 +175,9 @@ setMethod("crop", signature(x="SpatRaster", y="ANY"),
 
 
 setMethod("selectRange", signature(x="SpatRaster"), 
-	function(x, y, z=1, filename="", overwrite=FALSE, wopt=list(), ...) { 
+	function(x, y, z=1, repint=0, filename="", overwrite=FALSE, wopt=list(), ...) { 
 		opt <- .runOptions(filename, overwrite, wopt)
-		x@ptr <- x@ptr$selRange(y@ptr, z, opt)
+		x@ptr <- x@ptr$selRange(y@ptr, z, repint, opt)
 		show_messages(x, "selectRange")		
 	}
 )
@@ -230,14 +229,35 @@ setMethod("flip", signature(x="SpatRaster"),
 
 
 setMethod("freq", signature(x="SpatRaster"), 
-	function(x, bylayer=TRUE, ...) {
-		v <- x@ptr$freq(bylayer[1])
-		if (bylayer) {
-			v <- lapply(1:length(v), function(i) cbind(i, matrix(v[[i]], ncol=2)))
-			v <- do.call(rbind, v)
-			colnames(v) <- c("layer", "value", "count")
+	function(x, digits=0, value=NULL, bylayer=TRUE, ...) {
+
+		opt <- .runOptions("", TRUE, list())
+
+		if (!is.null(value)) {
+			if (is.na(digits)) {
+				v <- x@ptr$count(value, bylayer[1], FALSE, 0, opt)		
+			} else {
+				v <- x@ptr$count(value, bylayer[1], TRUE, digits, opt)	
+				value <- round(value, digits)
+			}
+			if (bylayer) {
+				v <- cbind(layer=1:nlyr(x), value=value, count=v)
+			} else {
+				v <- cbind(value=value, count=v)
+			}
 		} else {
-			v <- matrix(v[[1]], ncol=2, dimnames=list(NULL, c("value", "count")))
+			if (is.na(digits)) {
+				v <- x@ptr$freq(bylayer[1], FALSE, 0, opt)
+			} else {
+				v <- x@ptr$freq(bylayer[1], TRUE, digits, opt)
+			}
+			if (bylayer) {
+				v <- lapply(1:length(v), function(i) cbind(i, matrix(v[[i]], ncol=2)))
+				v <- do.call(rbind, v)
+				colnames(v) <- c("layer", "value", "count")
+			} else {
+				v <- matrix(v[[1]], ncol=2, dimnames=list(NULL, c("value", "count")))
+			}
 		}
 		v
 	}
@@ -378,7 +398,8 @@ setMethod("transpose", signature(x="SpatRaster"),
 
 setMethod("unique", signature(x="SpatRaster", incomparables="ANY"), 
 	function(x, incomparables=FALSE, ...) {
-		u <- x@ptr$unique(incomparables)
+		opt <- .getOptions()
+		u <- x@ptr$unique(incomparables, opt)
 		if (!incomparables) {
 			if (!length(u)) return(u)
 			u <- do.call(cbind, u)
@@ -405,6 +426,16 @@ setMethod("summary", signature(object="SpatRaster"),
 )
 
 
+setMethod("stretch", signature(x="SpatRaster"), 
+	function(x, minv=0, maxv=255, minq=0, maxq=1, smin=NA, smax=NA, filename="", overwrite=FALSE, wopt=list(), ...) {
+		opt <- .runOptions(filename, overwrite, wopt)
+		x@ptr <- x@ptr$stretch(minv, maxv, minq, maxq, smin, smax, opt)
+		show_messages(x, "stretch")
+	}
+)
+
+
+
 #setMethod("warp", signature(x="SpatRaster", y="SpatRaster"), 
 #	function(x, y, method="bilinear", filename="", overwrite=FALSE, wopt=list(), ...)  {
 #		opt <- .runOptions(filename, overwrite, wopt)
@@ -413,7 +444,3 @@ setMethod("summary", signature(object="SpatRaster"),
 #	}
 #)
 
-
-
-
-if (!isGeneric("Which")) {setGeneric("Which", function(x) standardGeneric("Which"))}	

@@ -24,6 +24,7 @@
 #include "file_utils.h"
 
 #include "crs.h"
+#include "gdalio.h"
 
 //#include <vector>
 //#include "vecmath.h"
@@ -31,9 +32,9 @@
 
 SpatVector SpatRaster::dense_extent() {
 		
-	std::vector<long> rows(nrow());
+	std::vector<int_64> rows(nrow());
 	std::iota(rows.begin(), rows.end(), 0);
-	std::vector<long> cols(ncol());
+	std::vector<int_64> cols(ncol());
 	std::iota(cols.begin(), cols.end(), 0);
 
 	std::vector<double> xcol = xFromCol(cols) ;
@@ -65,7 +66,7 @@ SpatVector SpatRaster::dense_extent() {
 
 #if GDAL_VERSION_MAJOR >= 3
 
-bool find_oputput_bounds(const GDALDatasetH &hSrcDS, GDALDatasetH &hDstDS, const std::string crs, std::string filename, std::string driver, int nlyrs, std::string &msg) {
+bool find_oputput_bounds(const GDALDatasetH &hSrcDS, GDALDatasetH &hDstDS, const std::string crs, std::string filename, std::string driver, int nlyrs, std::string datatype, std::string &msg) {
 
 	msg = "";
 	if ( hSrcDS == NULL ) {
@@ -74,7 +75,9 @@ bool find_oputput_bounds(const GDALDatasetH &hSrcDS, GDALDatasetH &hDstDS, const
 	}
 
 	// Create output with same datatype as first input band.
-	GDALDataType eDT = GDALGetRasterDataType(GDALGetRasterBand(hSrcDS,1));
+	//GDALDataType eDT = GDALGetRasterDataType(GDALGetRasterBand(hSrcDS,1));
+	GDALDataType eDT;
+	getGDALDataType(datatype, eDT);
 
 	// Get output driver (GeoTIFF format)
 
@@ -184,7 +187,7 @@ GDALResampleAlg getAlgo(std::string m) {
 }
 
 
-bool gdal_warper(GDALDatasetH &hSrcDS, GDALDatasetH &hDstDS, std::vector<unsigned> srcbands, std::vector<unsigned> dstbands, std::string method, std::string msg) {
+bool gdal_warper(GDALDatasetH &hSrcDS, GDALDatasetH &hDstDS, std::vector<unsigned> srcbands, std::vector<unsigned> dstbands, std::string method, std::string msg, bool verbose) {
 
 	if (srcbands.size() != dstbands.size()) {
 		msg = "number of source bands must match number of dest bands";
@@ -193,7 +196,7 @@ bool gdal_warper(GDALDatasetH &hSrcDS, GDALDatasetH &hDstDS, std::vector<unsigne
 	int nbands = srcbands.size();
 
 	GDALResampleAlg a = getAlgo(method);
-	
+
     // Setup warp options.
     GDALWarpOptions *psWarpOptions = GDALCreateWarpOptions();
     psWarpOptions->hSrcDS = hSrcDS;
@@ -219,18 +222,27 @@ bool gdal_warper(GDALDatasetH &hSrcDS, GDALDatasetH &hDstDS, std::vector<unsigne
 
 		hBand = GDALGetRasterBand(hSrcDS, srcbands[i]+1);
 		double naflag = GDALGetRasterNoDataValue(hBand, &hasNA);
+		if (verbose && i == 0) {
+			std::string hna = hasNA ? "true" : "false";
+			Rcpp::Rcout << "hasNA         : " << hna << std::endl;
+			Rcpp::Rcout << "NA flag       : " << naflag << std::endl;
+		}
 		if (hasNA) {
 			psWarpOptions->padfSrcNoDataReal[i] = naflag;
+			psWarpOptions->padfDstNoDataReal[i] = naflag;
+			hBand = GDALGetRasterBand(hDstDS, dstbands[i]+1);
+			GDALSetRasterNoDataValue(hBand, naflag);
 		} else {
 			psWarpOptions->padfSrcNoDataReal[i] = NAN;			
+			psWarpOptions->padfDstNoDataReal[i] = NAN;
 		}
-		psWarpOptions->padfDstNoDataReal[i] = NAN;
+		//psWarpOptions->padfDstNoDataReal[i] = NAN;
     }
 	
 	//psWarpOptions->pfnProgress = GDALTermProgress;
 
 	psWarpOptions->papszWarpOptions =	
-      CSLSetNameValue( psWarpOptions->papszWarpOptions, "INIT_DEST", "NO_DATA");
+     CSLSetNameValue( psWarpOptions->papszWarpOptions, "INIT_DEST", "NO_DATA");
 	psWarpOptions->papszWarpOptions =	
       CSLSetNameValue( psWarpOptions->papszWarpOptions, "WRITE_FLUSH", "YES");
 
@@ -265,6 +277,7 @@ bool is_valid_warp_method(const std::string &method) {
 SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method, bool mask, SpatOptions &opt) {
 
 	SpatRaster out = x.geometry(nlyr());
+	out.setNames(getNames());
 
 	if (!is_valid_warp_method(method)) {
 		out.setError("not a valid warp method");
@@ -277,7 +290,7 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 		mopt = opt;
 		opt = SpatOptions(opt);
 	}
-	std::string filename = opt.filename;
+	std::string filename = opt.get_filename();
 
 	bool use_crs = crs != "";  
 	// should not be needed (need to fix)
@@ -290,7 +303,7 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 	}
 
 	if (filename == "") {
-		if (!canProcessInMemory(4, opt.get_memfrac()) || opt.get_todisk()) {
+		if (!canProcessInMemory(4, opt)) {
 			filename = tempFile(opt.get_tempdir(), ".tif");
 		} 
 	} else {
@@ -313,7 +326,7 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 	
 	for (size_t i=0; i<ns; i++) {
 		
-		if (!open_gdal(hSrcDS, i)) {
+		if (!open_gdal(hSrcDS, i, opt)) {
 			out.setError("cannot create dataset from source");
 			return out;
 		}
@@ -322,7 +335,7 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 		if (i==0) {
 			 // use the crs, ignore argument "x"
 			if (use_crs) {
-				if (! find_oputput_bounds(hSrcDS, hDstDS, crs, filename, driver, nlyr(), errmsg)) {
+				if (! find_oputput_bounds(hSrcDS, hDstDS, crs, filename, driver, nlyr(), opt.get_datatype(), errmsg)) {
 					out.setError(errmsg);
 					GDALClose( hSrcDS );
 					return out;
@@ -337,7 +350,7 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 					return out;
 				}
 			} else {
-				if (!out.create_gdalDS(hDstDS, filename, driver, false, NAN, opt.gdal_options)) {
+				if (!out.create_gdalDS(hDstDS, filename, driver, false, NAN, opt)) {
 					GDALClose( hSrcDS );
 					//GDALClose( hDstDS );
 					return out;
@@ -349,7 +362,7 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 		std::iota (dstbands.begin(), dstbands.end(), bandstart); 
 		bandstart += dstbands.size();
 		
-		bool success = gdal_warper(hSrcDS, hDstDS, srcbands, dstbands, method, errmsg);
+		bool success = gdal_warper(hSrcDS, hDstDS, srcbands, dstbands, method, errmsg, opt.get_verbose());
 	
 		GDALClose( hSrcDS );
 		if (!success) {
@@ -367,12 +380,14 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 			return out;
 		}
 	} else {
+		std::vector<std::string> nms = getNames();
 		for (size_t i=0; i < nlyr(); i++) {
 			GDALRasterBandH hBand = GDALGetRasterBand(hDstDS, i+1);
 			double adfMinMax[2];
 			bool approx = ncell() > 10e+8;
 			GDALComputeRasterMinMax(hBand, approx, adfMinMax);
-			GDALSetRasterStatistics(hBand, adfMinMax[0], adfMinMax[1], NAN, NAN);		
+			GDALSetRasterStatistics(hBand, adfMinMax[0], adfMinMax[1], NAN, NAN);
+			GDALSetDescription(hBand, nms[i].c_str());
 		}
 		GDALClose( hDstDS );
 		out = SpatRaster(filename, -1, "");
@@ -395,6 +410,7 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 
 	unsigned nl = nlyr();
 	SpatRaster out = x.geometry(nl);
+	out.setNames(getNames());
 
 	if (crs != "") {
 		out.setError("You cannot project by specifying a crs with your version of GDAL");
@@ -411,16 +427,16 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 		return out;
 	}
 
-	std::string crsin = srs.wkt;
-	std::string crsout = out.srs.wkt;
+	std::string crsin = source[0].srs.wkt;
+	std::string crsout = out.source[0].srs.wkt;
 	bool do_prj = true;
 	if ((crsin == crsout) || (crsin == "") || (crsout == "")) {
 		do_prj = false;
 	}
 
 	if (!do_prj) {
-		SpatExtent e = out.extent;
-		e.intersect(extent);
+		SpatExtent e = out.getExtent();
+		e.intersect(getExtent());
 		if (!e.valid()) {
 			out.addWarning("No spatial overlap");
 			return out;

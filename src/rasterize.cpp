@@ -34,11 +34,11 @@ SpatRaster SpatRaster::rasterize(SpatVector x, std::string field, std::vector<do
 	std::string filename = opt.get_filename();
 	std::string driver = filename == "" ? "MEM" : "GTiff";
 
-	bool canRAM = canProcessInMemory(4, opt.get_memfrac());
+	bool canRAM = canProcessInMemory(4, opt);
 	if (filename == "") {
-		if (!canRAM || opt.get_todisk()) {
+		if (!canRAM) {
 			filename = tempFile(opt.get_tempdir(), ".tif");
-			opt.set_filename(filename);
+			opt.set_filenames({filename});
 			driver = "GTiff";
 		} 
 	} else {
@@ -88,7 +88,7 @@ SpatRaster SpatRaster::rasterize(SpatVector x, std::string field, std::vector<do
 		if (driver == "MEM") {
 			// force into single source
 			out.setValues(getValues());
-			if (!out.open_gdal(rstDS, 0)) {
+			if (!out.open_gdal(rstDS, 0, opt)) {
 				out.setError("cannot open dataset");
 				return out;
 			}
@@ -122,7 +122,7 @@ SpatRaster SpatRaster::rasterize(SpatVector x, std::string field, std::vector<do
 		}
 		
 	} else {
-		if (!out.create_gdalDS(rstDS, filename, driver, true, background, opt.gdal_options)) {
+		if (!out.create_gdalDS(rstDS, filename, driver, true, background, opt)) {
 			out.setError("cannot create dataset");
 			return out;
 		}
@@ -382,7 +382,7 @@ std::vector<double> SpatRaster::rasterizeCells(SpatVector &v, bool touches) {
 	std::vector<double> feats(v.size(), 1) ;			
     SpatRaster rcr = rc.rasterize(v, "", feats, NAN, false, touches, false, opt); 
 #endif
-	SpatVector pts = rcr.as_points(false, true);
+	SpatVector pts = rcr.as_points(false, true, opt);
     SpatDataFrame vd = pts.getGeometryDF();
     std::vector<double> x = vd.getD(0);
     std::vector<double> y = vd.getD(1);

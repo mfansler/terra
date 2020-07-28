@@ -10,7 +10,7 @@ setMethod("dim", signature(x="SpatRaster"),
 
 setMethod("dim", signature(x="SpatDataSet"), 
 	function(x) {
-		dim(x[1])
+		dim(x[1])[1:2]
 	}
 )
 
@@ -79,7 +79,7 @@ setMethod("ncell", signature(x="ANY"),
 
 setMethod("size", signature(x="SpatRaster"), 
 	function(x) {
-		ncell(x) * nlyr(x)
+		x@ptr$size()
 	}
 )
 

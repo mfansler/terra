@@ -15,7 +15,8 @@ The number of arguments in function \code{fun} must match the number of layers i
 
 Before you use the function, test it to make sure that it works for vectors (not only for single numbers). That is, it must return the same number of elements as its input vectors, or multiples of that. Make sure it also returns the same number of values when some or all input values are \code{NA}. Also, the function must return a vector or matrix, not a \code{data.frame}.
 
-Use \code{\link{app}} for summarize functions such as \code{sum}, that take any number of arguments.
+Use \code{\link{app}} for summarize functions such as \code{sum}, that take any number of arguments; and \code{\link{tapp}} to so for groups of layers. 
+
 }
 
 \usage{
@@ -63,8 +64,8 @@ fvi2 <- function(red, green){ (red - green ) / (red + green) }
 names(s)
 x1 <- lapp(s[[1:2]], fvi2, usenames=TRUE)
 x2 <- lapp(s[[2:1]], fvi2, usenames=TRUE)
-# x2 is different from x1 as the order of the layers has changed
-# but x3 and x4 are the same as x1 
+# x1 and x2 are the same, despite the change in the order of the layers
+# x4 is also the same, but x3 is not
 x3 <- lapp(s[[2:1]], fvi2, usenames=FALSE)
 x4 <- lapp(s, fvi2, usenames=TRUE)
 

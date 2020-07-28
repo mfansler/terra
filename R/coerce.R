@@ -12,10 +12,14 @@
 
  
 setMethod("as.polygons", signature(x="SpatRaster"), 
-	function(x, trunc=TRUE, dissolve=TRUE, values=TRUE, ...) {
+	function(x, trunc=TRUE, dissolve=TRUE, values=TRUE, extent=FALSE, ...) {
 		p <- methods::new("SpatVector")
-		p@ptr <- x@ptr$as_polygons(trunc[1], dissolve[1], values[1], TRUE, .terra_environment$options@ptr)
-		#x <- show_messages(x)
+		if (extent) {
+			p@ptr <- x@ptr$dense_extent()
+		} else {
+			p@ptr <- x@ptr$as_polygons(trunc[1], dissolve[1], values[1], TRUE, .terra_environment$options@ptr)
+			#x <- show_messages(x)
+		}
 		show_messages(p, "as.polygons")
 	}
 )
@@ -38,6 +42,7 @@ setMethod("as.lines", signature(x="SpatVector"),
 
 setMethod("as.points", signature(x="SpatVector"), 
 	function(x, ...) {
+		opt <- .getOptions()
 		x@ptr <- x@ptr$as_points()
 		show_messages(x, "as.points")
 	}
@@ -47,7 +52,8 @@ setMethod("as.points", signature(x="SpatVector"),
 setMethod("as.points", signature(x="SpatRaster"), 
 	function(x, values=TRUE, ...) {
 		p <- methods::new("SpatVector")
-		p@ptr <- x@ptr$as_points(values, TRUE)
+		opt <- .getOptions()		
+		p@ptr <- x@ptr$as_points(values, TRUE, opt)
 		x <- show_messages(x, "as.points")
 		show_messages(p, "as.points")
 	}
@@ -65,12 +71,13 @@ setMethod("as.vector", signature(x="SpatExtent"),
 	}
 )
 
+
 setMethod("as.character", signature(x="SpatExtent"), 
 	function(x, ...) {
-		paste( x@ptr$vector, collapse=", ")
+		e <- as.vector(x)
+		paste0("ext(", paste(e, collapse=", "), ")")
 	}
 )
-
 
 setMethod("as.vector", signature(x="SpatRaster"), 
 	function(x, mode="any") {
@@ -159,12 +166,21 @@ setMethod("as.array", signature(x="SpatRaster"),
 		}
 		return(r)
 	} else {
-		crs <- crs(from)
-		crs <- ifelse(is.na(crs), "", crs)
+		crsobj <- crs(from)
+		if (is.na(crsobj)) {
+			prj <- ""
+		} else {
+			crscom <- comment(crsobj)
+			if (is.null(crscom)) {
+				prj <- crsobj@projargs
+			} else {
+				prj <- crscom
+			}
+		}
 		r <- rast(	nrows=nrow(from), 
 					ncols=ncol(from),
 					nlyrs=nlayers(from),
-					crs=crs,
+					crs=prj,
 					extent=extent(from))
 		if (hasValues(from)) {
 			values(r) <- values(from)			
@@ -261,7 +277,6 @@ setAs("sf", "SpatVector",
 setAs("SpatVector", "Spatial", 
 	function(from) {
 		g <- geom(from)
-		colnames(g)[1] <- "object"
 		raster::geom(g, values(from), geomtype(from), .proj4(from))
 	}
 )

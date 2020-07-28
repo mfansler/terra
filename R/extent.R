@@ -38,6 +38,16 @@ setMethod("ext", signature(x="SpatRaster"),
 	}
 )	
 
+
+setMethod("ext", signature(x="SpatDataSet"), 
+	function(x, ...){ 
+		e <- methods::new("SpatExtent")
+		e@ptr <- x[1]@ptr$extent
+		return(e)
+	}
+)	
+
+
 setMethod("ext<-", signature("SpatRaster", "SpatExtent"), 
 	function(x, value) {
 		x@ptr$extent <- value@ptr
@@ -46,13 +56,47 @@ setMethod("ext<-", signature("SpatRaster", "SpatExtent"),
 )
 
 
+setMethod("ext<-", signature("SpatRaster", "numeric"), 
+	function(x, value) {
+		stopifnot(length(value) == 4)
+		e <- ext(value[1], value[2], value[3], value[4])
+		if (!e@ptr$valid) {
+			stop("not a valid extent specification")
+		}
+		x@ptr$extent <- e@ptr
+		show_messages(x)
+	}
+)
+
+
+
 setMethod("ext", signature(x="SpatVector"), 
-	function(x, ...){ 
+	function(x, ...) { 
 		e <- methods::new("SpatExtent")
 		e@ptr <- x@ptr$extent()
 		return(e)
 	}
 )	
+
+
+setMethod("ext", signature(x="Extent"), 
+	function(x, ...) {
+		ext(as.vector(x))
+	}
+)	
+
+setMethod("ext", signature(x="Raster"), 
+	function(x, ...) { 	
+		ext(x@extent)
+	}
+)	
+
+setMethod("ext", signature(x="Spatial"), 
+	function(x, ...) { 	
+		ext(as.vector(t(x@bbox)))
+	}
+)	
+
 
 
 setMethod("xmin", signature(x="SpatExtent"), 

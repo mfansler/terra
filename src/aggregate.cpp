@@ -75,8 +75,10 @@ bool SpatRaster::get_aggregate_dims(std::vector<unsigned> &fact, std::string &me
 		fact[2] = 1;
 	}
 	// int dy = dim[0], dx = dim[1], dz = dim[2];
-	fact[0] = std::max(unsigned(1), std::min(fact[0], nrow()));
-	fact[1] = std::max(unsigned(1), std::min(fact[1], ncol()));
+	fact[0] = fact[0] < 1 ? 1 : fact[0];
+	fact[0] = fact[0] > nrow() ? nrow() : fact[0];
+	fact[1] = fact[1] < 1 ? 1 : fact[1];
+	fact[1] = fact[1] > ncol() ? ncol() : fact[1];
 	fact[2] = std::max(unsigned(1), std::min(fact[2], nlyr()));
 	// new dimensions: rows, cols, lays
 	fact[3] = std::ceil(double(nrow()) / fact[0]);
@@ -218,18 +220,21 @@ SpatRaster SpatRaster::aggregate(std::vector<unsigned> fact, std::string fun, bo
 	std::string message = "";
 	bool success = get_aggregate_dims(fact, message);
 
-// fact 1, 2, 3, are the aggregations factors dy, dx, dz
-// and 4, 5, 6 are the new nrow, ncol, nlyr
+// fact 0, 1, 2, are the aggregation factors dy, dx, dz
+// and  3, 4, 5 are the new nrow, ncol, nlyr
 	if (!success) {
 		out.setError(message);
 		return out;
 	}
-
+	
+	SpatExtent extent = getExtent();
 	double xmax = extent.xmin + fact[4] * fact[1] * xres();
 	double ymin = extent.ymax - fact[3] * fact[0] * yres();
 	SpatExtent e = SpatExtent(extent.xmin, xmax, ymin, extent.ymax);
 	out = SpatRaster(fact[3], fact[4], fact[5], e, "");
-	out.srs = srs;
+	out.source[0].srs = source[0].srs;
+	// there is much more. categories, time. should use geometry and then
+	// set extent and row col
 	if (fact[5] == nlyr()) {
 		out.setNames(getNames());
 	}
@@ -267,16 +272,17 @@ SpatRaster SpatRaster::aggregate(std::vector<unsigned> fact, std::string fun, bo
 
 	unsigned outnc = out.ncol();
 
-	BlockSize bs = getBlockSize(4, opt.get_memfrac());
+	//BlockSize bs = getBlockSize(4, opt.get_memfrac());
+	BlockSize bs = getBlockSize(opt);	
 	//bs.n = floor(nrow() / fact[0]); # ambiguous on solaris
 	bs.n = std::floor(static_cast <double> (nrow() / fact[0]));
 	
-	bs.nrows.resize(bs.n, fact[0]);
+	bs.nrows = std::vector<uint_64>(bs.n, fact[0]);
 	bs.row.resize(bs.n);
 	for (size_t i =0; i<bs.n; i++) {
 		bs.row[i] = i * fact[0];
 	}
-	unsigned lastrow = bs.row[bs.n - 1] + bs.nrows[bs.n - 1] + 1;
+	uint_64 lastrow = bs.row[bs.n - 1] + bs.nrows[bs.n - 1] + 1;
 	if (lastrow < nrow()) {
 		bs.row.push_back(lastrow);
 		bs.nrows.push_back(std::min(bs.nrows[bs.n-1], nrow()-lastrow));

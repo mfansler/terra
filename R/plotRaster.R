@@ -1,7 +1,8 @@
 
 
-setMethod("plot", signature(x="SpatRaster", y="numeric"), 
-	function (x, y, col, maxcell = 100000, leg.mar=NULL, leg.levels=5, leg.shrink=c(0,0), leg.main=NULL, leg.main.cex=1, leg.ext=NULL, digits, useRaster = TRUE, zlim, xlab="", ylab="", axes=TRUE, add=FALSE, ...) {
+#setMethod("plot", signature(x="SpatRaster", y="numeric"), 
+
+oldplot <- function (x, y, col, maxcell = 100000, mar=c(5.1, 4.1, 4.1, 6.6), leg.levels=5, leg.shrink=c(0,0), leg.main=NULL, leg.main.cex=1, leg.ext=NULL, digits, useRaster = TRUE, zlim, xlab="", ylab="", axes=TRUE, add=FALSE, ...) {
 
 		x <- x[[y[1]]]
 		if (!hasValues(x)) {
@@ -16,7 +17,7 @@ setMethod("plot", signature(x="SpatRaster", y="numeric"),
 			return(invisible(NULL))
 		}
 
-		if (couldBeLonLat(x, warn=FALSE)) {
+		if (isLonLat(x, perhaps=TRUE, warn=FALSE)) {
 			asp <- 1/cos((mean(as.vector(ext(x))[3:4]) * pi)/180)
 		} else {
 			asp <- 1
@@ -61,21 +62,7 @@ setMethod("plot", signature(x="SpatRaster", y="numeric"),
 #			}
 #		}
 
-		if (is.null(leg.mar)) {
-			if (is.null(leg.ext)) {
-				leg.mar=3
-			} else {
-				leg.mar=0
-			}
-		}
-		old.mar <- graphics::par()$mar 
-		on.exit(graphics::par(mar=old.mar))
-		leg.hor <- FALSE
-		if (leg.hor) {
-			graphics::par(mar=.getMar(c(leg.mar, 0, 0, 0)))
-		} else {
-			graphics::par(mar=.getMar(c(0, 0, 0, leg.mar)))
-		}		
+		graphics::par(mar=mar)
 		graphics::image(X, Y, Z, col=col, useRaster=useRaster, asp=asp, xlab=xlab, ylab=ylab, axes=axes, ...)
 
 		if (missing(digits)) {
@@ -130,20 +117,14 @@ setMethod("plot", signature(x="SpatRaster", y="numeric"),
 #				setHook("before.plot.new", NULL, action="replace")
 #			}, action="replace")		
 	}
-)
+#)
 
 
 
 setMethod("plot", signature(x="SpatRaster", y="missing"), 
-	function(x, y, maxcell=100000, nc, nr, main, maxnl=16, add=FALSE, ...)  {
-		nl <- min(nlyr(x), maxnl)
-		if (nl == 0) {
-			stop("SpatRaster has no cell values")
-		}
-		if (add) {
-			plot(x, 1, maxcell=maxcell, add=TRUE, ...) 
-			return(invisible(NULL))
-		}
+	function(x, y, maxcell=50000, nc, nr, main, maxnl=16, ...)  {
+
+		nl <- max(1, min(nlyr(x), maxnl))
 
 		if (nl==1) {
 			if (missing(main)) {

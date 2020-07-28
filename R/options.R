@@ -10,7 +10,7 @@
 }
  
 .options_names <- function() {
-	c("progress", "tempdir", "memfrac", "datatype", "filetype", "filename", "overwrite", "todisk", "names", "verbose") 
+	c("progress", "tempdir", "memfrac", "datatype", "filetype", "filenames", "overwrite", "todisk", "names", "verbose", "NAflag") 
 }
 
  
@@ -32,11 +32,12 @@
 	
 	if (any(!s)) {
 		bad <- paste(nms[!s], collapse=",")
-		warning(paste("unknown options:", bad))
+		warning(paste("unknown write option(s):", bad), call. = FALSE)
 	}
 		
 	if (any(s)) {
 		nms <- nms[s]
+		opt <- opt[s]
 		i <- which(nms == "names")	
 		if (length(i) > 0) {
 			namevs <- trimws(unlist(strsplit(opt[[i]], ",")))
@@ -56,16 +57,20 @@
 	if (!is.list(wopt)) {
 		stop("wopt must be a list")
 	}
+	
+	## work around onLoad problem
+	if (is.null(.terra_environment$options)) .create_options()
+	
 	ptr <- .terra_environment$options@ptr
 	opt <- ptr$deepcopy(ptr)
 	
-	filename <- .fullFilename(filename[1], mustExist=FALSE)
+	filename <- .fullFilename(filename, mustExist=FALSE)
 	if (!is.null(unlist(wopt))) {
-		wopt$filename <- filename
+		wopt$filenames <- filename
 		wopt$overwrite <- overwrite[1]
 		opt <- .setOptions(opt, wopt)
 	} else {
-		opt$filename <- filename
+		opt$filenames <- filename
 		opt$overwrite <- overwrite[1]
 	}
 	#show_messages(opt)
@@ -73,7 +78,11 @@
 	opt
 }
 
-.showOptions <- function(opt) {
+.getOptions <- function() {
+	.runOptions("", TRUE, list())
+}
+
+..showOptions <- function(opt) {
 	cat("Options for package 'terra'\n")
 	cat("memfrac     :" , opt$memfrac, "\n")
 	cat("tempdir     :" , opt$tempdir, "\n")
@@ -81,9 +90,18 @@
 	cat("filetype    :" , opt$def_filetype, "\n")
 	cat("progress    :" , opt$progress, "\n")
 	cat("verbose     :" , opt$verbose, "\n")
+	if (opt$todisk) {
+		cat("todisk      :" , opt$todisk, "\n")
+	}
 }
 
-
+.showOptions <- function(opt) {
+	nms <- c("memfrac", "tempdir", "datatype", "progress", "todisk", "verbose") 
+	for (n in nms) {
+		v <- eval(parse(text=paste0("opt$", n)))
+		cat(paste0(substr(paste(n, "         "), 1, 10), ": ", v, "\n"))
+	}
+}
  
 terraOptions <- function(...) {
 	dots <- list(...)
@@ -95,21 +113,4 @@ terraOptions <- function(...) {
 		.terra_environment$options@ptr <- opt
 	}
 }
-
-
-tmpFiles <- function(old=FALSE, remove=FALSE) {
-	d <- .terra_environment$options@ptr$tempdir
-	if (old) {
-		f <- list.files(dirname(d), recursive=TRUE, pattern="^spat_", full.names=TRUE)
-	} else {
-		f <- list.files(d, pattern="^spat", full.names=TRUE)
-	}
-	if (remove) {
-		file.remove(f) 
-		return(invisible(f))
-	} else {
-		return(f)
-	}
-}
-
 

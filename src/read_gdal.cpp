@@ -362,12 +362,17 @@ bool ncdf_time(std::string filename, int &startdate, std::string &calendar) {
 	}
 		
 	std::string s = pszv;
+
+//	Rcpp::Rcout << "s1: " << s << std::endl;
+
 	std::string delim = "days since ";
 	size_t pos = s.find(delim);
 	if (pos == std::string::npos) {
 		return false;
 	}
 	s.erase(0, delim.length());
+//	Rcpp::Rcout << "s2: " << s << std::endl;
+
 	if (s.size() > 9) {
 		try {
 			int y = std::stoi(s.substr(0,4));
@@ -413,9 +418,6 @@ bool fixTime(std::vector<double> &time, int &startdate, std::string &calendar) {
 	}
 }
 
-
-//#include <iostream>
-//#include "Rcpp.h"
 
 
 bool SpatRaster::constructFromFile(std::string fname, int subds, std::string subdsname) {
@@ -523,13 +525,13 @@ bool SpatRaster::constructFromFile(std::string fname, int subds, std::string sub
 
 //	s.layers.resize(1);
 
-
-	/*
 	std::string gdrv = poDataset->GetDriver()->GetDescription();
-	Rcpp::Rcout << "driver: " << gdrv << std::endl;
+	//Rcpp::Rcout << "driver: " << gdrv << std::endl;
+/*
 	int startdate=0;
 	std::string calendar = "";
 	std::string unit = "";
+
 	if (gdrv == "netCDF") {
 		poBand = poDataset->GetRasterBand(1);
 
@@ -543,23 +545,21 @@ bool SpatRaster::constructFromFile(std::string fname, int subds, std::string sub
 			s.time.resize(s.nlyr, NAN);
 			s.time[0] = CPLAtofM(pmeta);
 			s.hasTime = true;
-
+			//Rcpp::Rcout << "start date: " << startdate << std::endl;
 			ncdf_time(fname, startdate, calendar);
 		}
 	}
-	*/
+*/
 
 	for (size_t i = 0; i < s.nlyr; i++) {
 		poBand = poDataset->GetRasterBand(i+1);
 
-		/*
 		if (s.hasTime) {
 			const char *pszValue = nullptr;
 			if( (pszValue = poBand->GetMetadataItem("NETCDF_DIM_time")) != nullptr ) {
 				s.time[i] = CPLAtofM(pszValue);
 			}
 		}
-		*/
 
 		int success;
 	//	double naflag = poBand->GetNoDataValue(&success);
@@ -724,7 +724,7 @@ void vflip(std::vector<double> &v, const size_t &ncell, const size_t &nrows, con
 }
 
 
-std::vector<double> SpatRaster::readChunkGDAL(unsigned src, long row, unsigned nrows, long col, unsigned ncols) {
+std::vector<double> SpatRaster::readChunkGDAL(unsigned src, uint_64 row, unsigned nrows, uint_64 col, unsigned ncols) {
 
 	std::vector<double> errout;
 	if (source[src].rotated) {
@@ -798,7 +798,7 @@ std::vector<double> SpatRaster::readChunkGDAL(unsigned src, long row, unsigned n
 
 
 
-std::vector<double> SpatRaster::readValuesGDAL(unsigned src, int row, int nrows, int col, int ncols) {
+std::vector<double> SpatRaster::readValuesGDAL(unsigned src, uint_64 row, uint_64 nrows, uint_64 col, uint_64 ncols, int lyr) {
 
 	std::vector<double> errout;
 	if (source[src].rotated) {
@@ -815,17 +815,22 @@ std::vector<double> SpatRaster::readValuesGDAL(unsigned src, int row, int nrows,
 		return errout;
 	}
 	unsigned ncell = ncols * nrows;
-	unsigned nl = source[src].nlyr;
-	std::vector<double> out(ncell*nl);
-
+	unsigned nl;
 	std::vector<int> panBandMap;
-	if (!source[src].in_order()) {
-		panBandMap.reserve(nl);
-		for (size_t i=0; i < nl; i++) {
-			panBandMap.push_back(source[src].layers[i]+1);
+	if (lyr < 0) {
+		nl = source[src].nlyr;
+		if (!source[src].in_order()) {
+			panBandMap.reserve(nl);
+			for (size_t i=0; i < nl; i++) {
+				panBandMap.push_back(source[src].layers[i]+1);
+			}
 		}
+	} else {
+		nl = 1;
+		panBandMap.push_back(lyr+1);
 	}
-		
+	
+	std::vector<double> out(ncell*nl);
 	int hasNA;
 	std::vector<double> naflags(nl, NAN);
 	CPLErr err = CE_None;
@@ -932,7 +937,7 @@ std::vector<double> SpatRaster::readGDALsample(unsigned src, int srows, int scol
 
 
 
-std::vector<std::vector<double>> SpatRaster::readRowColGDAL(unsigned src, std::vector<long> &rows, const std::vector<long> &cols) {
+std::vector<std::vector<double>> SpatRaster::readRowColGDAL(unsigned src, std::vector<int_64> &rows, const std::vector<int_64> &cols) {
 
 	std::vector<std::vector<double>> errout;
 	if (source[src].rotated) {
@@ -1000,10 +1005,13 @@ std::vector<std::vector<double>> SpatRaster::readRowColGDAL(unsigned src, std::v
 	}
 
 	
-	std::vector<std::vector<double>> r(nl);
-	for (size_t i=0; i<nl; i++) {
-		size_t off = n * i;
-		r[i] = std::vector<double>(out.begin()+off, out.begin()+off+n);  
+	size_t nr = rows.size();
+	std::vector<std::vector<double>> r(nl, std::vector<double> (nr));
+	for (size_t i=0; i<nr; i++) {
+		for (size_t j=0; j<nl; j++) {
+			size_t k = (i*nl) + j;
+			r[j][i] = out[k];  
+		}
 	}
 	return r;
 }

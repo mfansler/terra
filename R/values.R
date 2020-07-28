@@ -11,8 +11,8 @@ setMethod("hasValues", signature(x="SpatRaster"),
 
 setMethod("readValues", signature(x="SpatRaster"), 
 function(x, row=1, nrows=nrow(x), col=1, ncols=ncol(x), mat=FALSE, dataframe=FALSE, ...) {
-	stopifnot(col > 0)
 	stopifnot(row > 0)
+	stopifnot(col > 0)
 	v <- x@ptr$readValues(row-1, nrows, col-1, ncols)
 	if (dataframe || mat) {
 		v <- matrix(v, ncol = nlyr(x))
@@ -39,7 +39,7 @@ function(x, row=1, nrows=nrow(x), col=1, ncols=ncol(x), mat=FALSE, dataframe=FAL
 setMethod("values", signature(x="SpatRaster"), 
 function(x, mat=TRUE, ...) {
 	if (hasValues(x)) {
-		v <- x@ptr$getValues()
+		v <- x@ptr$getValues(-1)
 		show_messages(x, "values")
 	} else {
 		v <- matrix(NA, nrow=ncell(x), ncol=nlyr(x))
@@ -129,7 +129,9 @@ setMethod("minmax", signature(x="SpatRaster"),
 	function(x) {
 		rmin <- x@ptr$range_min
 		rmax <- x@ptr$range_max
-		rbind(rmin, rmax)
+		r <- rbind(rmin, rmax)
+		colnames(r) <- names(x)
+		r
 	}
 )
 

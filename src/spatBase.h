@@ -19,7 +19,7 @@
 #include <algorithm>
 #include <string>
 #include <cmath>
-#include "spatMessages.h"
+//#include "spatMessages.h"
 
 #ifndef standalone
 	#define useRcpp
@@ -42,6 +42,49 @@
 #endif
 
 
+
+
+class SpatMessages {
+	public:
+		bool has_error = false;
+		bool has_warning = false;
+		std::string error;
+		std::vector<std::string> warnings;
+
+		void setError(std::string s) {
+			has_error = true;
+			error = s;
+		}
+
+		std::string getError() {
+			has_error = false;
+			return error;
+		}
+		
+		void addWarning(std::string s) {
+			has_warning = true;
+			warnings.push_back(s);
+		}
+
+		std::string getWarnings() {
+			std::string w = "";
+			for (size_t i = 0; i<warnings.size(); i++) {
+				w += warnings[i] + "\n" ;
+			}
+			warnings.resize(0);
+			has_warning = false;
+			return w;
+		}
+		
+		std::vector<std::string> getMessages() {
+			std::string warns = getWarnings();
+			std::string error = getError();
+			std::vector<std::string> msg = { error, warns};
+			return msg;
+		}
+};
+
+
 class SpatOptions {
 	private:
 		std::string tempdir = "";
@@ -56,13 +99,13 @@ class SpatOptions {
 		unsigned progress = 3;
 		unsigned blocksizemp = 4;
 		size_t steps = 0;
-
+		double NAflag = NAN;
 		bool def_verbose = false;
 		bool verbose = false;
 		std::string datatype = "";
 		//std::string bandorder = "";
 		std::string filetype = "";
-		std::string filename = "";
+		std::vector<std::string> filenames = {""};
 		std::vector<std::string> gdal_options;
 		std::vector<std::string> names;
 
@@ -89,7 +132,9 @@ class SpatOptions {
 		// single use
 		void set_verbose(bool v);
 		void set_def_verbose(bool v);
-		void set_filename(std::string d);
+		void set_NAflag(double flag);
+		//void set_filename(std::string f);
+		void set_filenames(std::vector<std::string> f);
 		void set_filetype(std::string d);
 		void set_datatype(std::string d);
 		//void set_bandorder(std::string d);
@@ -97,10 +142,12 @@ class SpatOptions {
 		void set_progress(unsigned p);
 		void set_blocksizemp(unsigned x);
 		std::string get_filename();
+		std::vector<std::string> get_filenames();
 		std::string get_filetype();
 		std::string get_datatype();
 		//std::string get_bandorder();
 		bool get_verbose();
+		double get_NAflag();
 		bool get_overwrite();
 		unsigned get_progress();
 		bool do_progress(unsigned n);
@@ -221,6 +268,5 @@ class SpatSRS {
 			}
 			return false;
 		}
-
-
 };
+

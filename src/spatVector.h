@@ -15,9 +15,9 @@
 // You should have received a copy of the GNU General Public License
 // along with spat. If not, see <http://www.gnu.org/licenses/>.
 
-#include "spatBase.h"
+//#include "spatBase.h"
 #include "spatDataframe.h"
-#include "spatMessages.h"
+//#include "spatMessages.h"
 
 #ifdef useGDAL
 #include "gdal_priv.h"
@@ -158,6 +158,7 @@ class SpatVector {
 		size_t size();
 		SpatVector as_lines();
 		SpatVector as_points();
+		SpatVector remove_holes();
 
 		bool read(std::string fname);
 		

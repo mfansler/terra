@@ -4,7 +4,7 @@
 # Licence GPL v3
 
 
-.scatterPlotRaster <- function(x, y, maxcell=100000, cex, xlab, ylab, nc, nr, maxnl=16, main, add=FALSE, gridded=FALSE, ncol=25, nrow=25, ...) {
+.scatterPlotRaster <- function(x, y, maxcell=100000, warn=TRUE, cex, xlab, ylab, nc, nr, maxnl=16, main, add=FALSE, gridded=FALSE, ncol=25, nrow=25, ...) {
 
 	compareGeom(x, y, lyrs=TRUE, crs=FALSE, warncrs=FALSE, ext=TRUE, rowcol=TRUE, res=FALSE) 
 	nlx <- nlyr(x)
@@ -58,7 +58,7 @@
 	x <- spatSample(x, size=maxcell, method="regular", as.raster=FALSE)
 	y <- spatSample(y, size=maxcell, method="regular", as.raster=FALSE)
 
-	if (NROW(x) < cells) {
+	if (warn & (NROW(x) < cells)) {
 		warning(paste('plot used a sample of ', round(100*NROW(x)/cells, 1), '% of the cells. You can use "maxcell" to increase the sample)', sep=""))
 	}
 
@@ -121,7 +121,7 @@
 
 
 setMethod("plot", signature(x="SpatRaster", y="SpatRaster"), 
-	function(x, y, maxcell=100000, nc, nr, maxnl=16, gridded=FALSE, ncol=25, nrow=25, ...) {
+	function(x, y, maxcell=100000, warn=TRUE, nc, nr, maxnl=16, gridded=FALSE, ncol=25, nrow=25, ...) {
 
 		nl <- max(nlyr(x), nlyr(y))
 		if (missing(nc)) {
@@ -137,13 +137,13 @@ setMethod("plot", signature(x="SpatRaster", y="SpatRaster"),
 		}
 
 		
-		.scatterPlotRaster(x, y, maxcell=maxcell, nc=nc, nr=nr, maxnl=maxnl, gridded=gridded, ncol=ncol, nrow=nrow, ...)
+		.scatterPlotRaster(x, y, maxcell=maxcell, warn=warn, nc=nc, nr=nr, maxnl=maxnl, gridded=gridded, ncol=ncol, nrow=nrow, ...)
 	}
 )
 
 
 
-.plotdens <- function(x, y, nc, nr, asp=NULL, xlim=NULL, ylim=NULL, ...) {
+.plotdens <- function(x, y, nc, nr, xlim=NULL, ylim=NULL, asp=NULL, ...) {
 	xy <- stats::na.omit(cbind(x,y))
 	if (nrow(xy) == 0) {
 		stop("only NA values (in this sample?)")
@@ -160,13 +160,14 @@ setMethod("plot", signature(x="SpatRaster", y="SpatRaster"),
 		ry[2] <- ry[2] + 0.5
 	}
 	
-	out <- rast(xmn=rx[1], xmx=rx[2], ymn=ry[1], ymx=ry[2], ncol=nc, nrow=nr)
-	out <- rasterize(xy, out, fun=function(x, ...) length(x), background=0)
+	out <- rast(xmin=rx[1], xmax=rx[2], ymin=ry[1], ymax=ry[2], ncol=nc, nrow=nr, crs="+proj=utm +zone=1 +datum=WGS84")
+	colnames(xy) <- c("x", "y")
+	out <- rasterize(vect(xy), out, fun=function(x, ...) length(x), background=0)
 	if (!is.null(xlim) | !is.null(ylim)) {
 		if (is.null(xlim)) xlim <- c(xmin(x), xmax(x))
 		if (is.null(ylim)) ylim <- c(ymin(x), ymax(x))
 		e <- extent(xlim, ylim)
-		out <- extend(crop(out, e), e, value=0)
+		out <- expand(crop(out, e), e, value=0)
 	}
 	plot(out, maxcell=nc*nr, asp=asp, ...) 	
 }

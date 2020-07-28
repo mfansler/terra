@@ -50,8 +50,7 @@ bool SpatRaster::readStop() {
 
 // BSQ
 std::vector<double> SpatRaster::readBlock(BlockSize bs, unsigned i){
-	std::vector<double> x = readValues(bs.row[i], bs.nrows[i], 0, ncol());
-	return(x);
+	return readValues(bs.row[i], bs.nrows[i], 0, ncol());
 }
 
 
@@ -84,15 +83,15 @@ std::vector<double> SpatRaster::readBlockIP(BlockSize bs, unsigned i) {
 
 
 
-std::vector<double> SpatRaster::readValues(unsigned row, unsigned nrows, unsigned col, unsigned ncols){
+std::vector<double> SpatRaster::readValues(uint_64 row, uint_64 nrows, uint_64 col, uint_64 ncols){
 
 	std::vector<double> out;
 	if (!hasValues()) return out; // or NAs?
 	
-	row = std::min(std::max(unsigned(0), row), nrow()-1);
-	col = std::min(std::max(unsigned(0), col), ncol()-1);
-	nrows = std::max(unsigned(1), std::min(nrows, nrow()-row));
-	ncols = std::max(unsigned(1), std::min(ncols, ncol()-col));
+	row = std::min(std::max(uint_64(0), row), nrow()-1);
+	col = std::min(std::max(uint_64(0), col), ncol()-1);
+	nrows = std::max(uint_64(1), std::min(nrows, nrow()-row));
+	ncols = std::max(uint_64(1), std::min(ncols, ncol()-col));
 	if ((nrows==0) | (ncols==0)) {
 		return out;
 	}
@@ -136,16 +135,29 @@ std::vector<double> SpatRaster::readValues(unsigned row, unsigned nrows, unsigne
 }
 
 
-std::vector<double> SpatRaster::getValues() {
+std::vector<double> SpatRaster::getValues(long lyr) {
 	std::vector<double> out;
-	unsigned n = nsrc();
-	for (size_t src=0; src<n; src++) {
+	if (lyr < 0) { // default; read all
+		unsigned n = nsrc();
+		for (size_t src=0; src<n; src++) {
+			if (source[src].memory) {
+				out.insert(out.end(), source[src].values.begin(), source[src].values.end());
+			} else {
+				#ifdef useGDAL
+				std::vector<double> fvals = readValuesGDAL(src, 0, nrow(), 0, ncol());
+				out.insert(out.end(), fvals.begin(), fvals.end());
+				#endif // useGDAL
+			}
+		}
+	} else { // read one lyr
+		std::vector<unsigned> sl = findLyr(lyr);
+		unsigned src=sl[0];
 		if (source[src].memory) {
-			out.insert(out.end(), source[src].values.begin(), source[src].values.end());
+			size_t start = sl[1] * ncell();
+			out = std::vector<double>(source[src].values.begin()+start, source[src].values.begin()+start+ncell());
 		} else {
 			#ifdef useGDAL
-			std::vector<double> fvals = readValuesGDAL(src, 0, nrow(), 0, ncol());
-			out.insert(out.end(), fvals.begin(), fvals.end());
+			out = readValuesGDAL(src, 0, nrow(), 0, ncol(), sl[1]);
 			#endif // useGDAL
 		}
 	}

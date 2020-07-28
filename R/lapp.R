@@ -31,7 +31,13 @@
 setMethod("lapp", signature(x="SpatRaster"), 
 function(x, fun, ..., usenames=FALSE, filename="", overwrite=FALSE, wopt=list())  {
 	
-	stopifnot(!missing(fun))
+	fun <- match.fun(fun)
+	dots <- list(...)
+	if (any(sapply(dots, function(i) inherits(i, "SpatRaster")))) {
+		stop("Only 'x' can be a SpatRaster" )
+		# otherwise .lapp_test may crash! 
+	}
+	
 	if (usenames) {
 		fnames <- names(formals(fun))
 		x <- x[[names(x) %in% fnames]]
@@ -90,7 +96,12 @@ function(x, fun, ..., usenames=FALSE, filename="", overwrite=FALSE, wopt=list())
 setMethod("lapp", signature(x="SpatDataSet"), 
 function(x, fun, ..., recycle=FALSE, filename="", overwrite=FALSE, wopt=list())  {
 	
-	stopifnot(!missing(fun))
+	fun <- match.fun(fun)
+	dots <- list(...)
+	if (any(sapply(dots, function(i) inherits(i, "SpatDataSet")))) {
+		stop("Only 'x' can be a SpatDataSet" )
+		# otherwise .lapp_test_stack fails
+	}
 	
 	ncx <- ncol(x[1])
 	nrx <- nrow(x[1])
@@ -100,7 +111,7 @@ function(x, fun, ..., recycle=FALSE, filename="", overwrite=FALSE, wopt=list()) 
 	v <- lapply(1:length(x), function(i) readValues(x[i], round(0.5*nrx), 1, 1, ncx, mat=TRUE))
 	test <- .lapp_test_stack(v, fun, recycle, ...)
 	if (test$nl < 1) stop("lapp does not like 'fun'")
-	out <- rast(x[1], nlyr=test$nl)
+	out <- rast(x, nlyr=test$nl)
 	if (length(test$names == test$nl)) {
 		if (is.null(wopt$names)) wopt$names <- test$names
 	}
