@@ -1,4 +1,4 @@
-cd0b50fbbbf1f45025d325e836108590 *DESCRIPTION
+9f7fecb48ddf001d76a1e91fded36cbc *DESCRIPTION
 3a873f64f53c98cba685a96486e9dfd2 *NAMESPACE
 d41d8cd98f00b204e9800998ecf8427e *NEWS
 127af2bdfd53e43dd783962a287c2626 *R/Aclasses.R
@@ -163,7 +163,7 @@ adf57f14d295c3e39e7386ef39105e99 *man/replace.Rd
 0c6a7f327be7a77155429f5116edb450 *man/resample.Rd
 ddd0874b4b7ed7a5cc8ef8b93d33df2c *man/rotate.Rd
 1a0f57348c170e0273747ead6a5565ce *man/sample.Rd
-0d7b2f93677e8a2febdc88862f357c00 *man/scatter.Rd
+505547e723b6ebbf611f39e473eff71f *man/scatter.Rd
 41a7f3bbb86a1040f8c1f017e3f83b40 *man/sds.Rd
 9d21e3552233e9508b3d182367756a9e *man/select.Rd
 d6b9612059b64e1a084051feceec01b7 *man/selectRange.Rd
