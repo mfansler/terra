@@ -51,7 +51,11 @@ SpatVector SpatRaster::as_points(bool values, bool narm, SpatOptions &opt) {
             pv.df.add_column(0, nms[i]);
         }
 	}
-	readStart();
+	if (!readStart()) {
+		pv.setError(getError());
+		return(pv);
+	}
+	
 	unsigned nc = ncol();
 	unsigned nl = nlyr();
 	for (size_t i = 0; i < bs.n; i++) {
@@ -188,7 +192,8 @@ SpatVector SpatRaster::as_polygons(bool trunc, bool dissolve, bool values, bool 
 	}
 
 	SpatVector vect;
-	if (!canProcessInMemory(12, opt)) {
+	opt.ncopies = 12;
+	if (!canProcessInMemory(opt)) {
 		vect.setError("the raster is too large");
 		return vect;
 	}

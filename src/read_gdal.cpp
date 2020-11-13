@@ -103,6 +103,28 @@ SpatDataFrame GetRATdf(GDALRasterAttributeTable *pRAT) {
 
 
 
+SpatDataFrame GetCOLdf(GDALColorTable *pCT) {
+
+	SpatDataFrame out;
+	size_t nc = (int) pCT->GetColorEntryCount();
+
+	out.add_column(1, "red");
+	out.add_column(1, "green");
+	out.add_column(1, "blue");
+	out.add_column(1, "alpha");
+	out.reserve(nc);
+
+	for (size_t i=0; i<nc; i++) {		
+		const GDALColorEntry * col = pCT->GetColorEntry(i);
+		out.iv[0].push_back(col->c1);
+		out.iv[1].push_back(col->c2);
+		out.iv[2].push_back(col->c3);
+		out.iv[3].push_back(col->c4);
+	}
+	return(out);
+}
+
+
 SpatCategories GetCategories(char **pCat) {
 	size_t n = CSLCount(pCat);
 	std::vector<std::string> nms(n);
@@ -151,10 +173,10 @@ std::vector<std::vector<std::string>> metatime(std::vector<std::string> meta) {
 }
 
 
-bool SpatRaster::constructFromSubDataSets(std::string filename, std::vector<std::string> meta, int subds, std::string subdsname) {
+bool SpatRaster::constructFromSubDataSets(std::string filename, std::vector<std::string> meta, std::vector<int> subds, std::vector<std::string> subdsname) {
 
 	std::vector<std::string> sd; //, nms;
-	std::vector<std::string> dc; //, nms;
+//	std::vector<std::string> dc; //, nms;
 	std::string ndelim = "NAME=";
 	std::string ddelim = "DESC=";
 	for (size_t i=0; i<meta.size(); i++) {
@@ -163,61 +185,68 @@ bool SpatRaster::constructFromSubDataSets(std::string filename, std::vector<std:
 		if (pos != std::string::npos) {
 			s.erase(0, pos + ndelim.length());
 			sd.push_back(s);
-		} else {
-			size_t pos = s.find(ddelim);
-			if (pos != std::string::npos) {
-				s.erase(0, pos + ddelim.length());
-				dc.push_back(s);
-			}
-		}
+		} //else {
+		//	size_t pos = s.find(ddelim);
+		//	if (pos != std::string::npos) {
+		//		s.erase(0, pos + ddelim.length());
+		//		dc.push_back(s);
+		//	}
+		//}
 	}
 	if (sd.size() == 0) {
 		return false;
 	}
-	bool useDC = (dc.size() == sd.size());
+	//bool useDC = (dc.size() == sd.size());
 	int sdsize = sd.size();
-	if (subds >=0) {
-		if (subds < sdsize) {
-			sd = {sd[subds]};
-			if (useDC) {
-				dc = {dc[subds]};
+	if (subds[0] >=0) {
+		std::vector<std::string> tmp;
+		for (size_t i=0; i<subds.size(); i++) {
+			if (subds[i] >=0 && subds[i] < sdsize) {
+				tmp.push_back(sd[subds[i]]);
+			//	if (useDC) {
+			//		dc = {dc[subds[0]]};
+			//	}
+			} else {
+				std::string emsg = std::to_string(subds[i]+1) + " is not valid. There are " + std::to_string(sd.size()) + " subdatasets\n";
+				setError(emsg);
+				return false;
 			}
-		} else {
-			std::string emsg = std::to_string(subds) + " is not valid. There are " + std::to_string(sd.size()) + " subdatasets\n";
-			setError(emsg);
-			return false;
 		}
-	} else if (subdsname != "") {
+		sd = tmp;		
+	} else if (subdsname[0] != "") {
+		std::vector<std::string> tmp;
 		std::vector<std::string> shortnames = getlastpart(sd, ":");
-		int w = where_in_vector(subdsname, shortnames);
-		if (w >= 0) {
-			sd = {sd[w]};
-			if (useDC) {
-				dc = {dc[w]};
-			}			
-		} else {
-			std::string emsg = concatenate(shortnames, ", ");
-			emsg = subdsname + " not found. Choose one of:\n" + emsg;
-			setError(emsg);
-			return false;
+		for (size_t i=0; i<subdsname.size(); i++) {
+			int w = where_in_vector(subdsname[i], shortnames);
+			if (w >= 0) {
+				tmp.push_back(sd[w]);
+			//	if (useDC) {
+			//		dc = {dc[w]};
+			//	}			
+			} else {
+				std::string emsg = concatenate(shortnames, ", ");
+				emsg = subdsname[i] + " not found. Choose one of:\n" + emsg;
+				setError(emsg);
+				return false;
+			}
 		}
+		sd = tmp;
 	}
 	
-	bool success = constructFromFile(sd[0], -1, "");
+	bool success = constructFromFile(sd[0], {-1}, {""});
 	if (!success) {
 		return false;
 	}
 	SpatRaster out;
+	std::vector<int> skipped;
     for (size_t i=1; i < sd.size(); i++) {
 //		printf( "%s\n", sd[i].c_str() );
-		success = out.constructFromFile(sd[i], -1, "");
+		success = out.constructFromFile(sd[i], {-1}, {""});
 		if (success) {
-//			out.source[0].subdataset = true;
-			addSource(out);
-			if (out.msg.has_error) {
-				//setError(out.msg.error);
-				//return false;
-				addWarning("skipped (different geometry): " + sd[i]);
+			if (out.compare_geom(*this, false, false)) {
+				addSource(out);
+			} else {
+				skipped.push_back(i);
 			}
 		} else {
 			if (out.msg.has_error) {
@@ -228,11 +257,20 @@ bool SpatRaster::constructFromSubDataSets(std::string filename, std::vector<std:
 	}
 
 	for (std::string& s : sd) s = basename_sds(s);
+	if (skipped.size() > 0) {
+		std::string s="skipped subdatasets (different geometry):";
+		for (size_t i=0; i<skipped.size(); i++) {
+			s += "\n   " + sd[skipped[i]];
+		}
+		s += "\nSee 'describe_sds' for more info";
+		addWarning(s);
+		for (int i=skipped.size()-1; i>0; i--) {
+			sd.erase(sd.begin() + skipped[i]);
+		}
+	}
 	success = setNames(sd);
-
 	return true;
 }
-
 
 
 std::string getDsWKT(GDALDataset *poDataset) { 
@@ -331,7 +369,7 @@ SpatRasterStack::SpatRasterStack(std::string fname, std::vector<int> ids, bool u
 			size_t pos = s.find(delim);
 			if (pos != std::string::npos) {
 				s.erase(0, pos + delim.length());
-				if (sub.constructFromFile(s, -1, "")) {
+				if (sub.constructFromFile(s, {-1}, {""})) {
 					if (!push_back(sub, basename_sds(s))) {
 						addWarning("skipped (different geometry): " + s);
 					}
@@ -420,7 +458,7 @@ bool fixTime(std::vector<double> &time, int &startdate, std::string &calendar) {
 
 
 
-bool SpatRaster::constructFromFile(std::string fname, int subds, std::string subdsname) {
+bool SpatRaster::constructFromFile(std::string fname, std::vector<int> subds, std::vector<std::string> subdsname) {
 
     GDALDataset *poDataset;
     poDataset = (GDALDataset *) GDALOpen(fname.c_str(), GA_ReadOnly );
@@ -510,6 +548,7 @@ bool SpatRaster::constructFromFile(std::string fname, int subds, std::string sub
 	if (crs == "") {
 		if (s.extent.xmin >= -180 && s.extent.xmax <= 360 && s.extent.ymin >= -90 && s.extent.ymax <= 90) {
 			crs = "+proj=longlat +datum=WGS84";
+			s.parameters_changed = true;
 		}
 	}
 	std::string msg;
@@ -603,20 +642,23 @@ bool SpatRaster::constructFromFile(std::string fname, int subds, std::string sub
 
 		//GDALGetColorInterpretationName( poBand->GetColorInterpretation()) );
 
-		GDALColorTable *ct;
-		ct = poBand->GetColorTable();
-		if( ct != NULL )	{
+
+
+		GDALColorTable *ct = poBand->GetColorTable();
+		if( ct != NULL ) {
 			s.hasColors.push_back(true);
+			s.cols.resize(i+1);
+			s.cols[i] = GetCOLdf(ct);
 		} else {
 			s.hasColors.push_back(false);
 		}
 
+
 		GDALRasterAttributeTable *rat = poBand->GetDefaultRAT();
 		if( rat != NULL )	{
 			s.hasAttributes.push_back(true);
-			SpatDataFrame df = GetRATdf(rat);
 			s.atts.resize(i+1);
-			s.atts[i] = df;
+			s.atts[i] = GetRATdf(rat);;
 		} else {
 			s.hasAttributes.push_back(false);
 		}
@@ -724,17 +766,17 @@ void vflip(std::vector<double> &v, const size_t &ncell, const size_t &nrows, con
 }
 
 
-std::vector<double> SpatRaster::readChunkGDAL(unsigned src, uint_64 row, unsigned nrows, uint_64 col, unsigned ncols) {
+void SpatRaster::readChunkGDAL(std::vector<double> &data, unsigned src, uint_64 row, unsigned nrows, uint_64 col, unsigned ncols) {
 
 	std::vector<double> errout;
 	if (source[src].rotated) {
 		setError("cannot read from rotated files. First use 'rectify'");
-		return errout;
+		return;
 	}
 
 	if (!source[src].open_read) {
 		setError("the file is not open for reading");
-		return errout;
+		return;
 	}
 
 	unsigned ncell = ncols * nrows;
@@ -784,14 +826,13 @@ std::vector<double> SpatRaster::readChunkGDAL(unsigned src, uint_64 row, unsigne
 */	
 	if (err != CE_None ) {
 		setError("cannot read values");
-		return errout;
+		return;
 	}
 
 	if (source[src].flipped) {
 		vflip(out, ncell, nrows, ncols, nl);
 	}
-
-	return(out);
+	data.insert(data.end(), out.begin(), out.end());			
 }
 
 

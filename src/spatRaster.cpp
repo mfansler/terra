@@ -25,14 +25,14 @@
 #endif
 
 
-SpatRaster::SpatRaster(std::string fname, int subds, std::string subdsname) {
+SpatRaster::SpatRaster(std::string fname, std::vector<int> subds, std::vector<std::string> subdsname) {
 #ifdef useGDAL
 	constructFromFile(fname, subds, subdsname);
 #endif
 }
 
 
-SpatRaster::SpatRaster(std::vector<std::string> fname, int subds, std::string subdsname, std::string x) {
+SpatRaster::SpatRaster(std::vector<std::string> fname, std::vector<int> subds, std::vector<std::string> subdsname, std::string x) {
 // argument "x" is ignored. It is only there to have four arguments such that the Rcpp module
 // can distinguish this constructor from another with three arguments. 	
 #ifdef useGDAL
@@ -194,7 +194,7 @@ SpatRaster::SpatRaster(const SpatRaster &r) {
 
 
 
-SpatRaster SpatRaster::geometry(long nlyrs) {
+SpatRaster SpatRaster::geometry(long nlyrs, bool properties) {
 	RasterSource s;
 	s.values.resize(0);
 	s.nrow = nrow();
@@ -207,6 +207,12 @@ SpatRaster SpatRaster::geometry(long nlyrs) {
 	long nl = nlyr();
 	bool keepnlyr = ((nlyrs == nl) | (nlyrs < 1));
 	nlyrs = (keepnlyr) ? nlyr(): nlyrs;
+	if (properties) {
+		s.hasColors = hasColors();
+		s.cols = getColors();
+		s.hasCategories = hasCategories();
+		s.cats = getCategories();
+	}
 	s.resize(nlyrs);
 	std::vector<std::string> nms;
 	if (keepnlyr) {
@@ -392,6 +398,9 @@ bool SpatRaster::setSRS(std::string crs) {
 	}
 	for (size_t i = 0; i < nsrc(); i++) { 
 		source[i].srs = srs; 
+		if (!source[i].memory) {
+			source[i].parameters_changed = true;
+		}
 	}
 	return true;
 }
@@ -427,13 +436,15 @@ std::vector<std::string> SpatRaster::getNames() {
 }
 
 
-bool SpatRaster::setNames(std::vector<std::string> names) {
+bool SpatRaster::setNames(std::vector<std::string> names, bool make_valid) {
 	if (names.size() != nlyr()) {
 		return false;
 	} else {
-        make_valid_names(names);
-        make_unique_names(names);
-        size_t begin=0;
+		if (make_valid) {
+			make_valid_names(names);
+			make_unique_names(names);
+        }
+		size_t begin=0;
         size_t end;
         for (size_t i=0; i<source.size(); i++)	{
             end = begin + source[i].nlyr;
@@ -563,4 +574,125 @@ double SpatRaster::yres() {
 	SpatExtent extent = getExtent();
 	return (extent.ymax - extent.ymin) / nrow() ;
 }
+
+
+bool SpatRaster::valid_sources(bool files, bool rotated) {
+	std::vector<std::string> ff;
+	for (size_t i=0; i<source.size(); i++) { 
+		std::string f = source[i].filename; 
+		if (f == "") continue;
+		if (files) {
+			std::size_t found = f.find(":"); // perhaps http: or PG:xxx
+			if ((found == 1) || (found == std::string::npos)) {
+				if (!file_exists(f)) {
+					setError("missing source: " + f);
+					return false;
+				}
+			}
+		}
+		if (rotated) {
+			if (source[i].rotated) {
+				setError(f + " is rotated");
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
+bool SpatRaster::hasWindow() {
+	return source[0].hasWindow;
+}
+
+bool SpatRaster::removeWindow() {
+	if (hasWindow()) {
+		SpatExtent e = source[0].window.full_extent;
+		setExtent(e, true, "");
+		for (size_t i=0; i<source.size(); i++) {
+			source[i].hasWindow = false;
+			source[i].nrow = source[0].window.full_nrow;
+			source[i].ncol = source[0].window.full_ncol;
+		}
+	} 
+	return true;
+}
+
+
+
+
+
+bool SpatRaster::setWindow(SpatExtent x) {
+
+	if ( !x.valid() ) {
+		setError("invalid extent");
+		return false;
+	} 
+
+	if (hasWindow()) {
+		removeWindow();
+	}
+
+	x = align(x, "near");
+	SpatExtent e = getExtent();
+	if (x.compare(e, "==", 0.1 * xres())) {
+		return true;
+	}
+	
+	e.intersect(x);
+	if ( !e.valid() ) {
+		setError("extents do not overlap");
+		return false;
+	} 
+
+// get read-window
+	double xr = xres();
+	double yr = yres();
+
+	bool expand = false;
+	std::vector<uint_64> rc(2);
+	std::vector<uint_64> exp(4, 0);
+
+	int_64 r = rowFromY(x.ymax - 0.5 * yr);
+	if (r < 0) {
+		rc[0] = 0;
+		expand = true;
+		exp[0] = trunc(abs(e.ymax - x.ymax) / yr);
+	} else {
+		rc[0] = r;
+	}
+	r = rowFromY(x.ymin + 0.5 * yr);
+	if (r < 0) {
+		expand = true;
+		exp[1] = trunc((e.ymax - x.ymin) / yr);
+	}
+
+	r = colFromX(x.xmin + 0.5 * xr);
+	if (r < 0) {
+		rc[1] = 0;
+		expand = true;
+		exp[2] = trunc((x.xmin - e.xmin) / xres());
+	} else {
+		rc[1] = r;
+	}
+	r = colFromX(x.xmax - 0.5 * xr);
+	if (r < 0) {
+		expand = true;
+		exp[3] = trunc(abs(x.xmin - e.xmin) / xres());
+	} 
+
+	for (size_t i=0; i<source.size(); i++) {
+		source[i].window.off_row = rc[0];
+		source[i].window.off_col = rc[1];
+		source[i].window.expand = exp;
+		source[i].window.expanded  = expand;
+		source[i].window.full_extent = getExtent();
+		source[i].window.full_nrow   = source[i].nrow;
+		source[i].window.full_ncol   = source[i].ncol;
+		source[i].hasWindow     = true;
+	}
+	setExtent(x, true, "");		
+
+	return true;
+}
+
 

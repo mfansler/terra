@@ -22,9 +22,10 @@ Note the following important differences in methods names with the 'raster' pack
 \bold{raster package} \tab \bold{terra package}\cr
 \code{raster, brick, stack}\tab\code{\link{rast}}\cr
 \code{rasterFromXYZ}\tab\code{\link{rast}( , type="xyz")}\cr
-\code{stack} (for combining Raster* objects)\tab\code{\link{c}}\cr
+\code{stack, addLayer} (combining Raster* objects or files)\tab\code{\link{c}}\cr
+\code{addLayer} \tab\code{\link{add<-}}\cr
 \code{extent}\tab\code{\link{ext}}\cr
-\code{calc}\tab\code{\link{app}}\cr
+\code{calc}\tab\code{\link{app}} and \code{\link{arith}}\cr
 \code{overlay}\tab\code{\link{lapp}}\cr
 \code{stackApply}\tab\code{\link{tapp}}\cr
 \code{extend}\tab\code{\link{expand}}\cr
@@ -78,6 +79,7 @@ Below is a list of some of the most important methods grouped by theme. Some of 
 
   \tabular{ll}{
     \code{\link{c}} \tab Combine SpatRasters (multiple layers) (like raster::stack)\cr
+    \code{\link{add<-}} \tab Add a SpatRaster to another one (like raster::addLayer)\cr
     \code{\link{subset}} or \code{[[}, or \code{$} \tab Select layers of a SpatRaster\cr
     \code{\link{selectRange}} \tab Select cell values from different layers using an index layer\cr
 --------------------------- \tab ------------------------------------------------------------------------------------------ \cr
@@ -110,12 +112,13 @@ Also see the methods in section XI
 \section{IV. Local (cell based) computation}{
 
   \tabular{ll}{
-    \code{\link{Arith-methods}} \tab Arith functions (\code{+, -, *, ^, \%\%, \%/\%, /}) \cr
-	\code{\link{Math-methods}} \tab Math functions like \code{abs, sqrt, trunc, log, log10, exp, sin, round} \cr	
-    \code{\link{Logic-methods}} \tab Logic functions (\code{!, &, |}) \cr
-    \code{\link{Summary-methods}} \tab Summary functions (\code{mean, max, min, median, sum, range, prod, any, all, stdev, which.min, which.max}) \cr
-    \code{\link{Compare-methods}} \tab Compare functions (\code{==, !=, >, <, <=, >=}) \cr
-    \code{\link{app}} \tab Apply a function to cells of all layers(as in \code{base::apply}) \cr
+    \code{\link{Arith-methods}} \tab Standard arith methods (\code{+, -, *, ^, \%\%, \%/\%, /}) \cr
+	\code{\link{Math-methods}} \tab Math methods like \code{abs, sqrt, trunc, log, log10, exp, sin, round} \cr	
+    \code{\link{Logic-methods}} \tab Boolean methods (\code{!, &, |}) \cr
+    \code{\link{Summary-methods}} \tab Summary methods (\code{mean, max, min, median, sum, range, prod, any, all, stdev, which.min, which.max}) \cr
+    \code{\link{Compare-methods}} \tab Comparison methods (\code{==, !=, >, <, <=, >=}) \cr
+    \code{\link{arith}} \tab Use a function to compute new values for all cells \cr
+    \code{\link{app}} \tab Apply a function to cells, across layers (as in \code{base::apply}) \cr
     \code{\link{tapp}} \tab Apply a function to groups of layers (as in \code{base::tapply})\cr
     \code{\link{lapp}} \tab Apply a function using the layers as variables\cr
     \code{\link{rapp}} \tab Apply a function to a spatially variable range of layers\cr
@@ -363,10 +366,10 @@ The name in \bold{bold} is the equivalent command in ArcGIS.
 }
 }
 
-\author{Except where indicated otherwise, the methods and functions in this package were written by Robert Hijmans}
+\author{Except where indicated otherwise, the methods and functions in this package were written by Robert Hijmans. The configuration scripts were written by Roger Bivand. Some of the underlying C++ code for GDAL/GEOS was written by Edzer Pebesma for `sf`. The progress bar code is by Karl Forner (RcppProgress). Jeroen Ooms provided the compiled GDAL and GEOS libraries for installation on windows}
 
 \section{Acknowledgments}{
-This package is an attempt to stand on the shoulders of giants (GDAL, PROJ, GEOS, GeographicLib, Rcpp, R)
+This package is an attempt to stand on the shoulders of giants (GDAL, PROJ, GEOS, GeographicLib, Rcpp, R). Many others have contributed by asking questions or filing bug reports. Gerald Nelson's feedback has been especially helpful.
 }
 
 \keyword{ package }

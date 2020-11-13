@@ -21,11 +21,8 @@ setMethod ("show" , "Rcpp_SpatDataFrame",
 setMethod ("show" , "SpatExtent", 
 	function(object) {
 		e <- as.vector(object)
-		cat("class       :" , class(object), "\n")
-		cat("xmin        :" , e[1], "\n")
-		cat("xmax        :" , e[2], "\n")
-		cat("ymin        :" , e[3], "\n")
-		cat("ymax        :" , e[4], "\n")
+		e <- paste(e, collapse=", ")
+		cat("SpatExtent :", e, "(xmin, xmax, ymin, ymax)\n")
 	}
 )	
 	
@@ -59,9 +56,15 @@ setMethod ("show" , "SpatRaster",
 		xyres <- res(object)
 		cat("resolution  : " , xyres[1], ", ", xyres[2], "  (x, y)\n", sep="")
 
-		e <- as.vector(ext(object))
-		cat("extent      : " , e[1], ", ", e[2], ", ", e[3], ", ", e[4], "  (xmin, xmax, ymin, ymax)\n", sep="")
-
+		if (object@ptr$hasWindow()) {
+			w <- as.vector(ext(object))
+			cat("extent (win): " , w[1], ", ", w[2], ", ", w[3], ", ", w[4], "  (xmin, xmax, ymin, ymax)\n", sep="")		
+			#e <- as.vector(object@ptr$source[[1]]$window$full_extent$vector)
+			#cat("full extent : " , e[1], ", ", e[2], ", ", e[3], ", ", e[4], "  (xmin, xmax, ymin, ymax)\n", sep="")
+		} else {
+			e <- as.vector(ext(object))
+			cat("extent      : " , e[1], ", ", e[2], ", ", e[3], ", ", e[4], "  (xmin, xmax, ymin, ymax)\n", sep="")
+		}
 		cat("coord. ref. :" , .proj4(object), "\n")
 		
 		mnr <- 6
@@ -133,6 +136,27 @@ setMethod ("show" , "SpatRaster",
 				cat("min values  :", paste(m[2,], collapse=", "), "\n")
 				cat("max values  :", paste(m[3,], collapse=", "), "\n")
 
+				isf <- is.factor(object)
+				if (any(isf)) {
+					lv <- levels(object)
+					for (i in 1:length(isf)) {
+						if (isf[i]) {
+							cats <- lv[[i]]
+							m[2,i] <- cats$labels[1]
+							m[3,i] <- cats$labels[length(cats$labels)]						
+						} else {
+							m[2,i] <- ""
+							m[3,i] <- ""
+						}
+					}
+					m <- m[-1, ,drop=FALSE]
+					for (i in 1:ncol(m)) {
+						m[,i] <- ifelse(nchar(m[,i]) > w[i], paste0(substr(m[,i], 1, w[i]-1),"~"), substr(m[,i], 1, w[i]))
+						m[,i] <- format(m[,i], width=w[i], justify="right")
+					}
+					cat("first label :", paste(m[1,], collapse=", "), "\n")
+					cat("last label  :", paste(m[2,], collapse=", "), "\n")				
+				}
 			} else {
 				cat("names       :", paste(ln, collapse=", "), "\n")
 			}			

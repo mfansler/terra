@@ -20,7 +20,11 @@ Change the coordinate reference system ("project") of a SpatVector or SpatRaster
 
 \arguments{
   \item{x}{SpatVector}
-  \item{y}{SpatRaster or character if \code{x} is a SpatRaster; character if \code{x} is a SpatVector. The character should be a PROJ.4 description of the output coordinate reference system (crs). If \code{x} is a SpatVector, you can also provide another object from which a crs can be extracted with \code{\link{crs}}}
+  \item{y}{SpatRaster or character if \code{x} is a SpatRaster; character if \code{x} is a SpatVector. 
+  You can use a WKT , PROJ.4, and EPSG description of the output coordinate reference system (crs). But note that when using PROJ.4 you now must use the WGS84 datum. Other datums are silently ignored. 
+  
+  If \code{x} is a SpatVector, you can also provide another object from which a crs can be extracted with \code{\link{crs}}}
+  
   \item{method}{character. Method used for estimating the new cell values. One of: 
   
 	near: nearest neighbor. This method is fast, and it can be the preferred method if the cell values represent classes. It is not a good choice for continuous values.
@@ -41,7 +45,21 @@ Change the coordinate reference system ("project") of a SpatVector or SpatRaster
 SpatVector or SpatRaster
 }
 
-\seealso{ \code{\link{resample}}}
+\seealso{\code{\link{crs}}, \code{\link{resample}}}
+
+\note{
+User beware. Sadly, the PROJ.4 notation has been partly deprecated in the GDAL/PROJ library that is used by this function. You can still use it, but *only* with the the WGS84 datum. Other datums are silently ignored. 
+
+When printing a Spat* object the PROJ.4 notation is shown because it is the most concise and clear format available. However, internally a WKT representation is used (see \code{\link{crs}}).
+
+Transforming (projecting) raster data is fundamentally different from transforming vector data. Vector data can be transformed and back-transformed without loss in precision and without changes in the values. This is not the case with raster data. Each transformation will have to re-estiamte values for the new raster cells. Therefore, if you need to match raster and vector data for analysis, you should generally transform the vector data. 
+
+When using this method with a \code{SpatRaster}, the preferable approach is to provide a template \code{SpatRaster} as argument \code{y}. The template is then another raster dataset that you want your data to align with. 
+
+If you do not have a template to begin with, you can do \code{project(x, crs)} and then manipulate the output to get the template you want. For example, where possible use whole numbers for the extent and resolution so that you do not have to worry about small differences in the future. You can use commands like \code{dim(z) = c(180, 360)} or \code{res(z) <- 100000}. 
+
+The output resolution should be similar to the input resolution, but there is not "correct" resolution in raster transformation; but it is not obvious what this resolution is if you are using lon/lat data that spans a large North-South extent.
+}
 
 
 \examples{

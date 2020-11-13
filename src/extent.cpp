@@ -33,7 +33,7 @@ bool SpatExtent::compare(SpatExtent e, std::string oper, double tolerance) {
 	
 	//double xr = (xmax - xmin) / tolerance;
 	//double yr = (ymax - ymin) / tolerance;
-		
+
 	bool e1 = fabs(xmax - e.xmax) <= tolerance;
 	bool e2 = fabs(xmin - e.xmin) <= tolerance;
 	bool e3 = fabs(ymax - e.ymax) <= tolerance;
@@ -107,6 +107,8 @@ SpatExtent SpatRaster::getExtent() {
 	}
 }
 
+
+
 void SpatRaster::setExtent(SpatExtent e) { 
 	for (size_t i=0; i<nsrc(); i++) {
 		source[i].extent = e;
@@ -130,11 +132,41 @@ void SpatRaster::setExtent(SpatExtent ext, bool keepRes, std::string snap) {
 		source[0].nrow = nr;
 		ext.xmax = ext.xmin + nc * xrs;
 		ext.ymax = ext.ymin + nr * yrs;
+		source[0].extent = ext;
 	}
 	
 	for (size_t i=0; i<nsrc(); i++) {
 		source[i].extent = ext;
+		//source[i].nrow = source[0].nrow;
+		//source[i].ncol = source[0].ncol;
 	}
+}
+
+
+SpatExtent SpatExtent::align(double d, std::string snap) {
+    std::vector<double> e = asVector();
+	if (d == 0) {
+		SpatExtent out = *this;
+		return(out);
+	}
+	d = d < 0 ? -d : d;
+	
+	
+	for (size_t i=0; i<4; i++) {
+		double x = d * trunc(e[i] / d);
+		if ((i == 0) | (i == 2)) {
+			if (x > e[i]) {
+				x -= d;
+			} 
+		} else {
+			if (x < e[i]) {
+				x += d;
+			}
+		}
+		e[i] = x;
+	}
+	SpatExtent out(e[0], e[1], e[2], e[3]);
+	return(out)	;
 }
 
 

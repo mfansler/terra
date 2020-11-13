@@ -97,7 +97,11 @@ setReplaceMethod("[", c("SpatRaster","numeric", "missing"),
 		if (narg > 0) { # row
 			i <- cellFromRowColCombine(x, i, 1:ncol(x))
 		}
-		if (length(i) != length(value)) {
+		
+		if (!is.null(dim(value))) {
+			#x@ptr <- x@ptr$replaceValues(i, value, ncol(value))
+			stopifnot(ncol(value) == nlyr(x))
+		} else if (length(i) != length(value)) {
 			# recycling with warning
 			v <- value
 			value <- i
@@ -139,7 +143,6 @@ setReplaceMethod("[", c("SpatRaster", "logical", "missing"),
 )	
 
 
-
 setReplaceMethod("[", c("SpatRaster", "SpatRaster", "missing"),
 	function(x, i, j, value) {
 		theCall <- sys.call(-1)
@@ -147,7 +150,15 @@ setReplaceMethod("[", c("SpatRaster", "SpatRaster", "missing"),
 		if (narg > 0) { # row
 			stop("you cannot use a SpatRaster as a row index")
 		}
-		mask(x, i, maskvalue=TRUE, updatevalue=value[1])
+		if (inherits(value, "SpatRaster")) {
+			x <- mask(x, i, maskvalue=TRUE)
+			cover(x, value)
+		} else {
+			if (length(value) > 1) {
+				warning("the first replacement value is used for all cells")
+			}
+			mask(x, i, maskvalue=TRUE, updatevalue=value[1])
+		}
 	}
 )
 

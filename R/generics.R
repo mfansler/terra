@@ -17,9 +17,24 @@ setMethod("origin", signature(x="SpatRaster"),
 )	
 
 setMethod("rectify", signature(x="SpatRaster"), 
-	function(x, method="bilinear", filename="", overwrite=FALSE, wopt=list(), ...) {
+	function(x, method="bilinear", aoi=NULL, snap=TRUE, filename="", overwrite=FALSE, wopt=list(), ...) {
 		opt <- .runOptions(filename, overwrite, wopt)
-		x@ptr <- x@ptr$rectify(method, opt)
+		if (!is.null(aoi)) {
+			if (inherits(aoi, "SpatExtent")) {
+				aoi <- rast(aoi)
+				useaoi <- 1
+			} else if (inherits(aoi, "SpatRaster")) {
+				aoi <- rast(aoi)
+				useaoi <- 2
+			} else {
+				stop("ext must be a SpatExtent or SpatRaster")
+			}
+		} else {
+			aoi <- rast()
+			useaoi <- 0
+		}
+		snap <- as.logical(snap)
+		x@ptr <- x@ptr$rectify(method, aoi@ptr, useaoi, snap, opt)
 		show_messages(x, "rectify")
 	}
 )
@@ -38,6 +53,13 @@ setMethod("align", signature(x="SpatExtent", y="SpatRaster"),
 	function(x, y, snap="near", ...) {
 		x@ptr <- y@ptr$align(x@ptr, tolower(snap))
 		#show_messages(x, "align")
+		x
+	}
+)
+
+setMethod("align", signature(x="SpatExtent", y="numeric"), 
+	function(x, y, ...) {
+		x@ptr <- x@ptr$align(y, "")
 		x
 	}
 )
@@ -90,27 +112,60 @@ setMethod("boundaries", signature(x="SpatRaster"),
 	show_messages(x, "collapse")
 }
 
-setMethod("c", signature(x="SpatRaster"), 
-	function(x, ...) {
-		s <- sds(list(x, ...))
-		x@ptr <- s@ptr$collapse()
-		x <- show_messages(x, "c")		
-		try( x@ptr <- x@ptr$collapse_sources() )
-		show_messages(x, "c")		
+
+setMethod("add<-", signature("SpatRaster", "SpatRaster"), 
+	function(x, value) {
+		if (x@ptr$same(value@ptr)) {
+			x@ptr <- x@ptr$deepcopy() 
+		}
+		x@ptr$addSource(value@ptr)
+		show_messages(x, "add")
 	}
 )
 
+setMethod("collapse", signature("SpatRaster"), 
+	function(x, ...) {
+		x@ptr <- x@ptr$collapse_sources()
+		show_messages(x, "collapse")
+	}
+)
+
+setMethod("collapse", signature("SpatDataSet"), 
+	function(x, ...) {
+		y <- new("SpatRaster")
+		y@ptr <- x@ptr$collapse()
+		show_messages(y, "collapse")
+	}
+)
+
+
 #setMethod("c", signature(x="SpatRaster"), 
 #	function(x, ...) {
-#		dots <- list(...)
-#		for (i in dots) {
-#			if (inherits(i, "SpatRaster")) {
-#				x@ptr <- x@ptr$combineSources(i@ptr)
-#			}
-#		}
+#		s <- sds(list(x, ...))
+#		x@ptr <- s@ptr$collapse()
+#		x <- show_messages(x, "c")		
+#		try( x@ptr <- x@ptr$collapse_sources() )
 #		show_messages(x, "c")		
 #	}
 #)
+
+
+
+setMethod("c", signature(x="SpatRaster"), 
+	function(x, ...) {
+		dots <- list(...)
+		for (i in dots) {
+			if (inherits(i, "SpatRaster")) {
+				x@ptr <- x@ptr$combineSources(i@ptr)
+				if (x@ptr$messages$has_error) {
+					show_messages(x, "c")
+					return()
+				}
+			}
+		}
+		show_messages(x, "c")		
+	}
+)
 
 
 setMethod("rep", signature(x="SpatRaster"), 
@@ -358,6 +413,24 @@ setMethod("shift", signature(x="SpatRaster"),
 	}
 )
 
+
+setMethod("shift", signature(x="SpatExtent"), 
+	function(x, dx=0, dy=0, ...) { 
+		s <- c(dx[1], dx[1], dy[1], dy[1])
+		ext(as.vector(x) + s)
+	}
+)
+
+
+setMethod("shift", signature(x="SpatVector"), 
+	function(x, dx=0, dy=0, ...) { 
+		x@ptr <- x@ptr$shift(dx, dy)
+		show_messages(x, "shift")		
+	}
+)
+
+
+
 setMethod("slope", signature(x="SpatRaster"), 
 	function(x, neighbors=8, unit="degrees", filename="", overwrite=FALSE, wopt=list(), ...) { 
 		opt <- .runOptions(filename, overwrite, wopt)
@@ -420,8 +493,11 @@ setMethod("resample", signature(x="SpatRaster", y="SpatRaster"),
 )
 
 setMethod("summary", signature(object="SpatRaster"), 
-	function(object, size=100000, ...)  {
-		summary(spatSample(object, size, method="regular", ...))
+	function(object, size=100000, warn=TRUE, ...)  {
+		if (warn && (ncell(object) > size)) {
+			warning("'summary' used a sample")
+		}
+		summary(spatSample(object, size, method="regular"), ...)
 	}
 )
 

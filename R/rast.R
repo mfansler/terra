@@ -98,7 +98,7 @@ setMethod("rast", signature(x="character"),
 		}
 		r <- methods::new("SpatRaster")
 		f <- .fullFilename(x)
-		subds <- subds[1]
+		#subds <- subds[1]
 		if (is.character(subds)) { 
 			r@ptr <- SpatRaster$new(f, -1, subds, "")		
 		} else {
@@ -119,7 +119,7 @@ setMethod("rast", signature(x="character"),
 setMethod("rast", signature(x="SpatRaster"),
 	function(x, nlyrs=nlyr(x), ...) {
 		r <- methods::new("SpatRaster")
-		r@ptr <- x@ptr$geometry(nlyrs)
+		r@ptr <- x@ptr$geometry(nlyrs, FALSE)
 		if (length(list(...)) > 0) {
 			warning("additional arguments are ignored")
 		}

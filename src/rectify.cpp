@@ -22,8 +22,9 @@
 
 
 
-SpatRaster SpatRaster::rectify(std::string method, SpatOptions &opt) {
+SpatRaster SpatRaster::rectify(std::string method, SpatRaster aoi, unsigned useaoi, bool snap, SpatOptions &opt) {
 	SpatRaster out = geometry(0);
+
 	if (nsrc() > 1) {
 		out.setError("you can transform only one data source at a time");
 		return(out);
@@ -55,7 +56,7 @@ SpatRaster SpatRaster::rectify(std::string method, SpatOptions &opt) {
 	std::vector<double> y = {0, nr, 0, nr};
 	std::vector<double> xx(4);
 	std::vector<double> yy(4);
-	for (size_t i=0; i<x.size(); i++) {
+	for (size_t i=0; i<4; i++) {
 		xx[i] = gt[0] + x[i]*gt[1] + y[i]*gt[2];
 		yy[i] = gt[3] + x[i]*gt[4] + y[i]*gt[5];
 	}
@@ -64,10 +65,24 @@ SpatRaster SpatRaster::rectify(std::string method, SpatOptions &opt) {
 	double ymin = vmin(yy, TRUE);
 	double ymax = vmax(yy, TRUE);
 	SpatExtent en(xmin, xmax, ymin, ymax);
-	out.setExtent(en, false, "");
 	out = out.setResolution(gt[1], -gt[5]);
+	out.setExtent(en, false, "out");
+
+	if (useaoi == 1) { // use extent
+		en = aoi.getExtent();
+		if (snap) {
+			en = out.align(en, "near");
+			out.setExtent(en, false, "near");
+		} else {
+			out.setExtent(en, false, "");
+		}
+	} else if (useaoi == 2){  // extent and resolution
+		out = aoi.geometry(0);
+	} // else { // if (useaoi == 0) // no aoi
 	
+		
 	out = warper(out, "", method, false, opt);
+
 	return(out);
 }
 	

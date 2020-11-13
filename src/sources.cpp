@@ -45,6 +45,7 @@ RasterSource::RasterSource() {
 }
 
 
+
 SpatRaster SpatRaster::combineSources(SpatRaster x) {
 
 	SpatRaster out = geometry();
@@ -63,14 +64,16 @@ SpatRaster SpatRaster::combineSources(SpatRaster x) {
 //    if (!hv) {
 //       out.source = x.source;
 //    } else {
-    out.source.insert(out.source.end(), x.source.begin(), x.source.end());
+	out.source.insert(out.source.end(), x.source.begin(), x.source.end());
 //	}
     // to make names unique
 	out.setNames(out.getNames());
 	return(out);
 }
 
+
 void SpatRaster::addSource(SpatRaster x) {
+	
 	if (compare_geom(x, false, false)) {
         if (!hasValues()) {  //or if n src == 0?
             source = x.source;

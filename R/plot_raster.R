@@ -31,44 +31,12 @@
 }
 
 
-
-# legend 	
-#	border="black", box.lwd = graphics::par("lwd"), box.lty = graphics::par("lty"), 
-#	box.col = graphics::par("fg"), bty = "o", bg = graphics::par("bg"), xjust = 0, 
-#	yjust = 1, x.intersp = 1, y.intersp = 1, adj = c(0, 0.5), text.width = NULL, 
-#	text.col = graphics::par("col"), text.font = NULL, ncol = 1, horiz = FALSE, title = NULL,
- #   inset = 0, title.col = text.col, title.adj = 0.5, 
-
-.plotit <- function(x, xlab="", ylab="", type = "n", asp=x$asp, axes=TRUE, ...) {
-	
-	if ((!x$add) & (!x$legend_only)) {
-		if (!any(is.na(x$mar))) { graphics::par(mar=x$mar) }
-		plot(x$ext[1:2], x$ext[3:4], type=type, xlab=xlab, ylab=ylab, asp=asp, axes=FALSE, ...)
-		if (axes) x <- .plot.axes(x)
-	}
-	
-	if (!x$legend_only) {
-		graphics::rasterImage(x$r, x$ext[1], x$ext[3], x$ext[2], x$ext[4], 
-			angle = 0, interpolate = x$interpolate)	
-	}
-	if (x$legend_draw) {	
-		if (x$legend_type == "continuous") {
-			x <- do.call(.plot.cont.legend, list(x=x))
-#		} else if (x$legend_type == "classes") {
-		} else {
-			y <- do.call(.plot.class.legend, x$leg)
-		}
-	}
-	x
-}	
-
-
-
 .as.raster.continuous <- function(out, x, type) {
 		
 	Z <- as.matrix(x, TRUE)
 	Z[is.nan(Z) | is.infinite(Z)] <- NA
-
+	Z <- round(Z, 10) # avoid missing extreme values due to precision problems
+	
 	z <- stats::na.omit(as.vector(Z))
 	n <- length(z)
 	if (n == 0) stop("no values")
@@ -85,6 +53,7 @@
 	} else {
 		stopifnot(length(out$range) == 2)
 	}
+	
 	
 	interval <- (out$range[2]-out$range[1])/(length(out$cols)-1)
 	breaks <- out$range[1] + interval * (0:(length(out$cols)-1))
@@ -112,24 +81,31 @@
 
 
 .as.raster.classes <- function(out, x, ...) {
+
 	Z <- as.matrix(x, TRUE)
 	Z[is.nan(Z) | is.infinite(Z)] <- NA
 	if (all(is.na(Z))) {
 		stop("no values")
 	}
 
-	if (is.null(out$levels)) {
-		fz <- as.factor(Z)
-		levs <- levels(fz)
-		out$levels <- as.numeric(levs)
-		if (is.null(out$leg$legend)) {
-			out$leg$legend <- levs
-		}
-	} else {
+	fz <- as.factor(Z)
+	levs <- levels(fz)
+	if (!is.null(out$levels)) {
 		if (is.null(out$leg$legend)) {
 			out$leg$legend <- as.character(out$levels)
 		}
 		levs <- out$levels
+	} else if (!is.null(out$facts)) {
+		uz <- as.integer(levels(fz))
+		labs <- out$facts[[1]]$labels[uz+1]
+		labs[is.na(labs)] <- "?"
+		out$leg$legend <- labs
+		out$levels <- uz
+	} else {
+		out$levels <- as.numeric(levs)
+		if (is.null(out$leg$legend)) {
+			out$leg$legend <- levs
+		}
 	}
 	stopifnot(length(out$leg$legend) == length(out$levels))
 	nlevs <- length(levs)
@@ -167,13 +143,13 @@
 
 .as.raster.interval <- function(out, x, ...) {
 
-	if (is.null(out$levels)) {
-		out$levels <- 5
+	if (is.null(out$breaks)) {
+		out$breaks <- 5
 	} 
 
 	Z <- as.matrix(x, TRUE)
 	Z[is.nan(Z) | is.infinite(Z)] <- NA
-	fz <- cut(Z, out$levels, include.lowest=TRUE, right=FALSE)
+	fz <- cut(Z, out$breaks, include.lowest=TRUE, right=FALSE)
 
 	levs <- levels(fz)
 	nlevs <- length(levs)
@@ -211,13 +187,92 @@
 
 # leg.shrink=c(0,0), leg.main=NULL, leg.main.cex = 1, leg.digits=NULL, leg.loc=NULL, leg.ext=NULL, leg.levels=NULL, leg.labels=NULL, leg.at=NULL, 
 
-.prep.plot.data <- function(x, type, cols, mar, draw=FALSE, interpolate=FALSE,  
-legend=TRUE, legend.only=FALSE, pax=list(), pal=list(), levels=NULL, add=FALSE, range=NULL, ...) {
 
+.as.raster.colortable <- function(out, x, ...) {
+	z <- round(values(x))
+	z[z<0 | z>255] <- NA
+	z[is.nan(z) | is.infinite(z)] <- NA
+	if (all(is.na(z))) {
+		stop("no values")
+	}
+	out$cols <- grDevices::rgb(out$coltab[,1], out$coltab[,2], out$coltab[,3], out$coltab[,4], maxColorValue=255)
+	z <- out$cols[z]
+	z <- matrix(z, nrow=nrow(x), ncol=ncol(x), byrow=TRUE)
+	out$r <- as.raster(z)
+	out$legend_draw	 <- FALSE
+	out
+}
+
+
+# legend 	
+#	border="black", box.lwd = graphics::par("lwd"), box.lty = graphics::par("lty"), 
+#	box.col = graphics::par("fg"), bty = "o", bg = graphics::par("bg"), xjust = 0, 
+#	yjust = 1, x.intersp = 1, y.intersp = 1, adj = c(0, 0.5), text.width = NULL, 
+#	text.col = graphics::par("col"), text.font = NULL, ncol = 1, horiz = FALSE, title = NULL,
+ #   inset = 0, title.col = text.col, title.adj = 0.5, 
+
+.plotit <- function(x, xlab="", ylab="", type = "n", yaxs="i", xaxs="i", asp=x$asp, axes=TRUE, new=NA, ...) {
+	
+	if ((!x$add) & (!x$legend_only)) {
+		
+		#if (!is.na(new)) {
+		#	if (!any(is.na(x$mar))) { marpar=x$mar } else { marpar=graphics::par("mar") }
+		#	marw <- marpar[2] + marpar[4]
+		#	marh <- marpar[1] + marpar[3]
+		#	a <- asp * nrow(x$r) / ncol(x$r)
+		#	if (a > 1) {
+		#		dev.new(width=marw+new, height=marh+new*a, noRStudioGD = TRUE)
+		#	} else {
+		#		dev.new(width=marw+new*a, height=marh+new, noRStudioGD = TRUE)
+		#	}
+		#}
+		if (!any(is.na(x$mar))) { graphics::par(mar=x$mar) }
+		plot(x$lim[1:2], x$lim[3:4], type=type, xlab=xlab, ylab=ylab, asp=asp, xaxs=xaxs, yaxs=yaxs, axes=FALSE, ...)
+	}
+	
+	if (!x$legend_only) {
+		graphics::rasterImage(x$r, x$ext[1], x$ext[3], x$ext[2], x$ext[4], 
+			angle = 0, interpolate = x$interpolate)	
+
+		if (axes) x <- .plot.axes(x)			
+	}
+	if (x$legend_draw) {	
+		if (x$legend_type == "continuous") {
+			x <- do.call(.plot.cont.legend, list(x=x))
+#		} else if (x$legend_type == "classes") {
+		} else {
+			y <- do.call(.plot.class.legend, x$leg)
+		}
+	}
+	x
+}	
+
+
+
+.prep.plot.data <- function(x, type, maxcell, cols, mar, draw=FALSE, interpolate=FALSE,  
+legend=TRUE, legend.only=FALSE, pax=list(), pal=list(), levels=NULL, add=FALSE,
+ range=NULL, new=NA, breaks=NULL, coltab=NULL, facts=NULL, xlim=NULL, ylim=NULL, ...) {
+
+#mar=c(5.1, 4.1, 4.1, 7.1); legend=TRUE; axes=TRUE; pal=list(); pax=list(); maxcell=50000; draw=FALSE; interpolate=FALSE; legend=TRUE; legend.only=FALSE; pax=list(); pal=list(); levels=NULL; add=FALSE; range=NULL; new=NA; breaks=NULL; coltab=NULL; facts=NULL; xlim=NULL; ylim=NULL;
+ 
 	out <- list()
+
+	if (!(is.null(xlim) & is.null(ylim))) {
+		e <- as.vector(ext(x))
+		if (!is.null(xlim)) e[1:2] <- xlim
+		if (!is.null(ylim)) e[3:4] <- ylim
+		x <- crop(x, ext(e))
+		out$ext <- as.vector(ext(x))
+		out$lim <- e
+	} else {
+		out$lim <- out$ext <- as.vector(ext(x))
+	}
+
+	x <- spatSample(x, maxcell, method="regular", as.raster=TRUE)
+
 	out$add <- isTRUE(add)
 	out$mar <- mar
-	out$ext <- as.vector(ext(x))
+
 	out$axs <- pax 
 	out$leg <- pal
 	out$asp <- 1
@@ -227,12 +282,17 @@ legend=TRUE, legend.only=FALSE, pax=list(), pal=list(), levels=NULL, add=FALSE, 
 	}
 	out$cols <- cols
 	out$levels <- levels
+	out$facts <- facts
+	out$breaks <- breaks
 	out$range <- range
 	out$interpolate <- isTRUE(interpolate)
 	out$legend_draw <- isTRUE(legend)
 	out$legend_only <- isTRUE(legend.only)
 
-	if (type=="classes") {
+	if (type=="colortable") {
+		out$coltab <- coltab
+		out <- .as.raster.colortable(out, x)
+	} else if (type=="classes") {
 		out <- .as.raster.classes(out, x)
 	} else if (type=="interval") {
 		out <- .as.raster.interval(out, x)
@@ -241,7 +301,7 @@ legend=TRUE, legend.only=FALSE, pax=list(), pal=list(), levels=NULL, add=FALSE, 
 	}
 
 	if (draw) {
-		out <- .plotit(out, ...)
+		out <- .plotit(out, new=new, ...)
 	}
 	out
 }
@@ -250,20 +310,38 @@ legend=TRUE, legend.only=FALSE, pax=list(), pal=list(), levels=NULL, add=FALSE, 
 setMethod("plot", signature(x="SpatRaster", y="numeric"), 
 	function(x, y=1, col, type, mar=c(5.1, 4.1, 4.1, 7.1), legend=TRUE, axes=TRUE, pal=list(), pax=list(), maxcell=50000, ...) {
 
-		if (missing(type)) {
-			type <- "depends"
-		} else {
-			type <- match.arg(type, c("continuous", "classes", "interval"))
-		}
-		if (!hasValues(x)) { stop("SpatRaster has no cell values") }
 		x <- x[[y]]
-		object <- spatSample(x, maxcell, method="regular", as.raster=TRUE)
+		if (!hasValues(x)) { stop("SpatRaster has no cell values") }
+
+		breaks <- list(...)$breaks
+		coltab <- NULL
+		facts <- NULL
+		if (!is.null(breaks)) {
+			type <- "interval"
+		} else {
+			if (missing(type)) {
+				if (x@ptr$hasColors()) {
+					coltab <- cols(x)[[1]]
+					type <- "colortable"
+				} else if (is.factor(x)) {
+					type <- "classes"
+					facts <- levels(x)
+				} else {
+					type <- "depends"
+				}
+			} else {
+				type <- match.arg(type, c("continuous", "classes", "interval"))
+			}
+		}
+		
 		if (missing(col)) col <- rev(grDevices::terrain.colors(25))
-		x <- .prep.plot.data(object, type=type, cols=col, mar=mar, draw=TRUE, pal=pal, pax=pax, legend=isTRUE(legend), axes=isTRUE(axes), ...)
+		x <- .prep.plot.data(x, type=type, maxcell=maxcell, cols=col, mar=mar, draw=TRUE, pal=pal, pax=pax, legend=isTRUE(legend), axes=isTRUE(axes), coltab=coltab, facts=facts, ...)
 		invisible(x)
 	}
 )
 
+
+#mar=c(5.1, 4.1, 4.1, 7.1); legend=TRUE; axes=TRUE; pal=list(); pax=list(); maxcell=50000
 
 #object <- spatSample(r, Inf, method="regular", as.raster=TRUE)
 #x <- .prep.plot.data(object, type="classes", cols=rainbow(25), mar=rep(3,4), draw=T)

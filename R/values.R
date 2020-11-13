@@ -138,15 +138,16 @@ setMethod("minmax", signature(x="SpatRaster"),
 
 setMethod("setMinMax", signature(x="SpatRaster"), 
 	function(x) {
-		if (!.hasMinMax(x)) {
-			x@ptr$setRange
+		if (any(!.hasMinMax(x))) {
+			x@ptr$setRange()
+			x <- show_messages(x)
 		}
 	}
 )
 
 
 setMethod("compareGeom", signature(x="SpatRaster", y="SpatRaster"), 
-	function(x, y, ..., lyrs=TRUE, crs=TRUE, warncrs=FALSE, ext=TRUE, rowcol=TRUE, res=FALSE) {
+	function(x, y, ..., lyrs=FALSE, crs=TRUE, warncrs=FALSE, ext=TRUE, rowcol=TRUE, res=FALSE) {
 		dots <- list(...)
 		bool <- x@ptr$compare_geom(y@ptr, lyrs, crs, warncrs, ext, rowcol, res)
 		show_messages(x, "compareGeom")

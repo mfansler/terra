@@ -82,6 +82,43 @@ bool SpatRaster::isSource(std::string filename) {
 	return false;
 }
 
+/*
+#include <experimental/filesystem>
+bool SpatRaster::differentFilenames(std::vector<std::string> outf) {
+	std::vector<std::string> inf = filenames();
+	for (size_t i=0; i<inf.size(); i++) {
+		if (inf[i] == "") continue;
+		std::experimental::filesystem::path pin = inf[i];
+		for (size_t j=0; j<outf.size(); j++) {
+			Rcpp::Rcout << inf[i] << std::endl << outf[j] << std::endl;
+			std::experimental::filesystem::path pout = outf[i];
+			if (pin.compare(pout) == 0) return false;
+		}
+	}
+	return true;
+}
+*/
+
+bool SpatRaster::differentFilenames(std::vector<std::string> outf) {
+	std::vector<std::string> inf = filenames();
+	for (size_t i=0; i<inf.size(); i++) {
+		if (inf[i] == "") continue;
+		#ifdef _WIN32
+		lowercase(inf[i]);
+		#endif
+		for (size_t j=0; j<outf.size(); j++) {
+			#ifdef _WIN32
+			lowercase(outf[j]);
+			#endif
+			if (inf[i] == outf[j]) return false;
+		}
+	}
+	return true;
+}
+
+
+
+
 
 SpatRaster SpatRaster::writeRaster(SpatOptions &opt) {
 
@@ -89,7 +126,7 @@ SpatRaster SpatRaster::writeRaster(SpatOptions &opt) {
 // a) the SpatRaster is backed by a file
 // b) there are no write options 
 
-	SpatRaster out = geometry();
+	SpatRaster out = geometry(nlyr(), true);
 	if (!hasValues()) {
 		out.setError("there are no cell values");
 		return out;
@@ -97,6 +134,12 @@ SpatRaster SpatRaster::writeRaster(SpatOptions &opt) {
 
 	// recursive writing of layers
 	std::vector<std::string> fnames = opt.get_filenames();
+	if (!differentFilenames(fnames)) {
+		out.setError("source and target filename cannot be the same");
+		return(out);
+	}
+
+
 	size_t nl = nlyr();
 	if (fnames.size() > 1) {
 		if (fnames.size() != nl) {
@@ -122,13 +165,16 @@ SpatRaster SpatRaster::writeRaster(SpatOptions &opt) {
 					return out;
 				}
 			}
-			SpatRaster out(fnames, -1, "", "");
+			SpatRaster out(fnames, {-1}, {""}, "");
 			return out;
 		}		
 	} 
 
+	if (!readStart()) {
+		out.setError(getError());
+		return(out);
+	}
 	if (!out.writeStart(opt)) { return out; }
-	readStart();
 	for (size_t i=0; i<out.bs.n; i++) {
 		std::vector<double> v = readBlock(out.bs, i);
 		if (!out.writeValuesGDAL(v, out.bs.row[i], out.bs.nrows[i], 0, ncol())) return out;
@@ -154,7 +200,7 @@ bool SpatRaster::writeStart(SpatOptions &opt) {
 	}
 	std::string filename = fnames[0];
 	if (filename == "") {
-		if (!canProcessInMemory(4, opt)) {
+		if (!canProcessInMemory(opt)) {
 			std::string extension = ".tif";
 			filename = tempFile(opt.get_tempdir(), extension);
 			opt.set_filenames({filename});
@@ -184,17 +230,16 @@ bool SpatRaster::writeStart(SpatOptions &opt) {
 	}
 	source[0].open_write = true;
 	source[0].filename = filename;
-	//bs = getBlockSize(opt.get_blocksizemp(), opt.get_memfrac(), opt.get_steps());
 	bs = getBlockSize(opt);
     #ifdef useRcpp
 	if (opt.verbose) {
-		std::vector<double> mems = mem_needs(opt.get_blocksizemp(), opt); 
-		double gb = 1073741824; 
+		std::vector<double> mems = mem_needs(opt); 
+		double gb = 1073741824 / 8; 
 		//{memneed, memavail, frac, csize, inmem} ;
-		Rcpp::Rcout<< "max vect size : " << roundn(mems.max_size() / gb, 2) << " GB" << std::endl;
+		//Rcpp::Rcout<< "max vect size : " << roundn(mems.max_size() / gb, 2) << " GB" << std::endl;
 		Rcpp::Rcout<< "memory avail. : " << roundn(mems[1] / gb, 2) << " GB" << std::endl;
 		Rcpp::Rcout<< "memory allow. : " << roundn(mems[2] * mems[1] / gb, 2) << " GB" << std::endl;
-		Rcpp::Rcout<< "memory needed : " << roundn(mems[0] / gb, 3) << " GB" << "  (" << opt.get_blocksizemp() << " copies)" << std::endl;
+		Rcpp::Rcout<< "memory needed : " << roundn(mems[0] / gb, 3) << " GB" << "  (" << opt.ncopies << " copies)" << std::endl;
 		std::string inmem = mems[4] < 0.5 ? "false" : "true";
 		Rcpp::Rcout<< "in memory     : " << inmem << std::endl;
 		Rcpp::Rcout<< "block size    : " << mems[3] << " rows" << std::endl;
@@ -298,6 +343,8 @@ bool SpatRaster::writeStop(){
 	return success;
 }
 
+//bool SpatRaster::replaceValues(std::vector<double> cells, std::vector<double> _values, int ncols) {
+//}
 
 bool SpatRaster::setValues(std::vector<double> _values) {
 	bool result = false;
@@ -322,9 +369,19 @@ bool SpatRaster::setValues(std::vector<double> _values) {
 }
 
 void SpatRaster::setRange() {
+	
+	SpatOptions opts;
 	for (size_t i=0; i<nsrc(); i++) {
-		if (source[i].memory) { // for now. should read from files as needed
+		if (source[i].hasRange[0]) continue;
+
+		if (source[i].memory) {
 			source[i].setRange();
+		} else {
+			SpatRaster r(source[i]);
+			SpatDataFrame x = r.global("range", true, opts);
+			source[i].range_min = x.getD(0);
+			source[i].range_max = x.getD(1);
+			source[i].hasRange = std::vector<bool>(source[i].hasRange.size(), true);
 		}
 	}
 }

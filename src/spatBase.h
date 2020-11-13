@@ -92,6 +92,7 @@ class SpatOptions {
 		double memfrac = 0.6;
 
 	public:
+		unsigned ncopies = 2;
 		std::string def_datatype = "FLT4S";
 		std::string def_filetype = "GTiff";
 		//std::string def_bandorder = "BIL";
@@ -168,6 +169,8 @@ class SpatExtent {
 //		SpatExtent() {xmin = inf; xmax = neginf; ymin = inf; ymax = neginf;}
 		SpatExtent() {xmin = -180; xmax = 180; ymin = -90; ymax = 90;}
 		SpatExtent(double _xmin, double _xmax, double _ymin, double _ymax) {xmin = _xmin; xmax = _xmax; ymin = _ymin; ymax = _ymax;}
+
+		SpatExtent align(double d, std::string snap);
 
 		void intersect(SpatExtent e) { // check first if intersects?
 			xmin = std::max(xmin, e.xmin);
