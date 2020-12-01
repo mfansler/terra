@@ -75,13 +75,16 @@ class RasterSource {
 		bool flipped=false;
 		bool hasWindow=false;
 		SpatWindow window;
+	
 		
 		//std::vector<std::string> crs = std::vector<std::string>(2, "");
 		SpatSRS srs;
 		std::vector<unsigned> layers;
 		std::vector<std::string> names;
+		std::vector<std::string> long_names;
+		std::vector<int_64> time;
+		std::string timestep = "seconds";
 		bool hasTime = false;
-		std::vector<double> time;
 		std::vector<double> depth;
 		std::vector<std::string> unit;
 
@@ -104,10 +107,10 @@ class RasterSource {
 		bool hasValues=false;
 		std::string filename;
 		std::string driver;
-
+		std::string datatype; 
+		
 		// for native files
-		std::string datatype; // also for writing gdal
-		double NAflag;
+		//double NAflag;
 
 		std::vector<bool> has_scale_offset;
 		std::vector<double> scale;
@@ -122,6 +125,8 @@ class RasterSource {
 		bool combine_sources(const RasterSource &x);
 
 		bool parameters_changed = false;		
+		
+		void set_names_time_ncdf(std::vector<std::string> metadata, std::vector<std::vector<std::string>> bandmeta, std::string &msg);
 		
 };
 
@@ -166,6 +171,7 @@ class SpatRaster {
 		void setError(std::string s) { msg.setError(s); }
 		std::string getError() { return msg.getError(); }
 		void addWarning(std::string s) { msg.addWarning(s); }
+		void setMessage(std::string s) { msg.setMessage(s); }
 		bool hasError() { return msg.has_error; }
 		bool hasWarning() { return msg.has_warning; }
 
@@ -213,6 +219,8 @@ class SpatRaster {
 		bool setValues(std::vector<double> _values);
 		bool replaceValues(std::vector<double> cells, std::vector<double> _values, int ncols);
 		void setRange();
+
+
 		
 ////////////////////////////////////////////////////
 // property like methods for RasterSources
@@ -223,17 +231,23 @@ class SpatRaster {
 
 
 ////////////////////////////////////////////////////
-// property like methods for Layers
+// property like methods for layers
 ////////////////////////////////////////////////////
 
 		std::vector<bool> hasRange();
 		std::vector<double> range_min();
 		std::vector<double> range_max();
 		std::vector<std::string> getNames();
+		std::vector<std::string> getLongNames();
+		bool setLongNames(std::vector<std::string> nms);
 		bool setNames(std::vector<std::string> names, bool make_valid=false);
-		std::vector<bool> hasTime();
-		std::vector<double> getTime();
-		bool setTime(std::vector<double> times);
+		bool hasTime();
+		std::vector<int_64> getTime();
+		std::string getTimeStep();
+		
+		std::vector<std::string> getTimeStr();
+
+		bool setTime(std::vector<int_64> time, std::string step);
 		std::vector<double> getDepth();
 		bool setDepth(std::vector<double> depths);
 		std::vector<std::string> getUnit();
@@ -258,7 +272,9 @@ class SpatRaster {
 
 		bool constructFromFile(std::string fname, std::vector<int> subds, std::vector<std::string> subdsname);
 		bool constructFromFiles(std::vector<std::string> fnames);
-		bool constructFromSubDataSets(std::string filename, std::vector<std::string> meta, std::vector<int> subds, std::vector<std::string> subdsname);
+		bool constructFromSDS(std::string filename, std::vector<std::string> meta, std::vector<int> subds, std::vector<std::string> subdsname, bool ncdf);
+//		bool constructFromNCDFsds(std::string filename, std::vector<std::string> meta, std::vector<int> subds, std::vector<std::string> subdsname);
+
 
 		void addSource(SpatRaster x);
 		SpatRaster combineSources(SpatRaster x);
@@ -340,7 +356,9 @@ class SpatRaster {
 		std::vector<double> readBlock(BlockSize bs, unsigned i);
 		std::vector<std::vector<double>> readBlock2(BlockSize bs, unsigned i);
 		std::vector<double> readBlockIP(BlockSize bs, unsigned i);		
+		std::vector<double> readExtent(SpatExtent e);
 		bool readStop();
+
 
 		bool writeStart(SpatOptions &opt);
 		bool writeValues(std::vector<double> &vals, uint_64 startrow, uint_64 nrows, uint_64 startcol, uint_64 ncols);
@@ -461,6 +479,7 @@ class SpatRaster {
 		SpatRaster init(std::string value, bool plusone, SpatOptions &opt);
 		SpatRaster init(double value, SpatOptions &opt);
 		SpatRaster is_in(std::vector<double> m, SpatOptions &opt);
+		std::vector<std::vector<double>> is_in_cells(std::vector<double> m, SpatOptions &opt);
 
 		SpatRaster isnot(SpatOptions &opt);
 		SpatRaster isnan(SpatOptions &opt);
@@ -476,11 +495,15 @@ class SpatRaster {
 		SpatRaster math(std::string fun, SpatOptions &opt);
 		SpatRaster math2(std::string fun, unsigned digits, SpatOptions &opt);
 
+
+		SpatRaster separate(std::vector<double> classes, double keepvalue, double othervalue, SpatOptions &opt);
+
 		SpatRaster modal(std::vector<double> add, std::string ties, bool narm, SpatOptions &opt);
 
         std::vector<double> polygon_cells(SpatGeom& g);
 		SpatRaster quantile(std::vector<double> probs, bool narm, SpatOptions &opt);
 		SpatRaster stretch(std::vector<double> minv, std::vector<double> maxv, std::vector<double> minq, std::vector<double> maxq, std::vector<double> smin, std::vector<double> smax, SpatOptions &opt);
+		SpatRaster reverse(SpatOptions &opt);
 
 		SpatRaster range(std::vector<double> add, bool narm, SpatOptions &opt);
 		//SpatRaster rasterize(SpatVector p, std::vector<double> values, double background, bool update, SpatOptions &opt);
@@ -542,17 +565,3 @@ class SpatRaster {
 
 };
 
-
-/*
-SpatRaster SQRT() {
-	SpatRaster r = *this;
-	std::transform(r.values.begin(), r.values.end(), r.values.begin(), (double(*)(double)) sqrt);
-	return r;
-}
-
-SpatRaster SQRTfree(SpatRaster* g) {
-	SpatRaster r = *g;
-	std::transform(r.values.begin(), r.values.end(), r.values.begin(), (double(*)(double)) sqrt);
-	return r;
-}
-*/

@@ -58,7 +58,11 @@ setMethod("rast", signature(x="SpatExtent"),
 
 setMethod("rast", signature(x="SpatVector"),
 	function(x, ...) {
-		rast(ext(x), ...)
+		e <- ext(x)
+		dx <- diff(as.vector(e)[1:2])
+		dy <- diff(as.vector(e)[3:4])
+		res <- min(dx, dy) / 100
+		rast(ext(x), res=res, ...)
 	}
 )
 
@@ -102,7 +106,13 @@ setMethod("rast", signature(x="character"),
 		if (is.character(subds)) { 
 			r@ptr <- SpatRaster$new(f, -1, subds, "")		
 		} else {
-			r@ptr <- SpatRaster$new(f, subds-1, "", "")
+			r@ptr <- terra:::SpatRaster$new(f, subds-1, "", "")
+		}
+		if (r@ptr$messages$getMessage() == "ncdf extent") {
+			test <- try(r <- .ncdf_extent(r), silent=TRUE)
+			if (inherits(test, "try-error")) {
+				warning("GDAL did not find an extent. Cells not equally spaced?") 
+			}
 		}
 		r <- show_messages(r, "rast")
 		

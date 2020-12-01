@@ -1,10 +1,10 @@
 Package: terra
 Type: Package
 Title: Spatial Data Analysis
-Version: 0.9-8
-Date: 2020-11-12
+Version: 0.9-11
+Date: 2020-11-28
 Depends: R (>= 3.5.0)
-Suggests: parallel, tinytest
+Suggests: parallel, tinytest, ncdf4, sf
 LinkingTo: Rcpp
 Imports: methods, Rcpp, raster (>= 3.3-7)
 SystemRequirements: C++11, GDAL (>= 3.0.4), GEOS (>= 3.8.0), PROJ (>=
@@ -23,11 +23,11 @@ Authors@R: c(
 	person("Jeroen", "Ooms", role = "ctb", comment = c(ORCID = "0000-0002-4035-0289")),
     person("Edzer", "Pebesma", role = "ctb", comment = c(ORCID = "0000-0001-8049-7069")))
 NeedsCompilation: yes
-Packaged: 2020-11-12 19:20:24 UTC; rhijm
+Packaged: 2020-11-29 03:12:30 UTC; rhijm
 Author: Robert J. Hijmans [cre, aut] (<https://orcid.org/0000-0001-5872-2872>),
   Roger Bivand [ctb] (<https://orcid.org/0000-0003-2392-6140>),
   Karl Forner [ctb],
   Jeroen Ooms [ctb] (<https://orcid.org/0000-0002-4035-0289>),
   Edzer Pebesma [ctb] (<https://orcid.org/0000-0001-8049-7069>)
 Repository: CRAN
-Date/Publication: 2020-11-13 06:30:07 UTC
+Date/Publication: 2020-12-01 05:50:02 UTC

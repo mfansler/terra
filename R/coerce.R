@@ -9,7 +9,6 @@
 #		lapply(1:nlyr(x), function(i) x[[i]])
 #	}
 #)
-
  
 setMethod("as.polygons", signature(x="SpatRaster"), 
 	function(x, trunc=TRUE, dissolve=TRUE, values=TRUE, extent=FALSE, ...) {
@@ -31,6 +30,21 @@ setMethod("as.polygons", signature(x="SpatExtent"),
 		show_messages(p, "as.polygons")
 	}
 )
+
+setMethod("as.lines", signature(x="SpatExtent"), 
+	function(x, crs="", ...) {
+		as.lines(as.polygons(x, crs, ...))
+	}
+)
+
+
+setMethod("as.points", signature(x="SpatExtent"), 
+	function(x, crs="", ...) {
+		#vect(do.call(cbind, x@ptr$as.points()), "points", crs=crs)
+		as.points(as.polygons(x, crs, ...))
+	}
+)
+
 
 setMethod("as.lines", signature(x="SpatVector"), 
 	function(x, ...) {
@@ -110,7 +124,7 @@ setMethod("as.matrix", signature(x="SpatRaster"),
 
 
 setMethod("as.data.frame", signature(x="SpatRaster"), 
-	function(x, xy=FALSE, cells=FALSE, ...) {
+	function(x, xy=FALSE, cells=FALSE, na.rm=TRUE, ...) {
 		d <- NULL
 		if (xy) {
 			d <- xyFromCell(x, 1:ncell(x))
@@ -119,10 +133,22 @@ setMethod("as.data.frame", signature(x="SpatRaster"),
 			d <- cbind(cell=1:ncell(x), d)
 		}
 		d <- cbind(d, values(x, matrix=TRUE))
+		if (na.rm) d <- stats::na.omit(d) 
 		data.frame(d)
 	}
 )
 
+setAs("SpatRaster", "data.frame", 
+	function(from) {
+		as.data.frame(from)
+	}
+)
+
+setAs("SpatVector", "data.frame", 
+	function(from) {
+		as.data.frame(from)
+	}
+)
 
 setMethod("as.array", signature(x="SpatRaster"), 
 	function(x, ...) {
@@ -265,11 +291,23 @@ setAs("SpatRaster", "Raster",
 	}
 )
 
-
+# to spatvector. indirect, via sp
+# should be made direct
 setAs("sf", "SpatVector", 
 	function(from) {
 		from <- methods::as(from, "Spatial")
 		methods::as(from, "SpatVector")
+	}
+)
+
+
+setAs("SpatVector", "sf", 
+	function(from) {
+		g <- as.data.frame(from, geom=TRUE)
+		g$geometry <- sf::st_as_sfc(g$geometry)
+		g <- sf::st_as_sf(g)
+		sf::st_crs(g) <- crs(from)
+		g
 	}
 )
 

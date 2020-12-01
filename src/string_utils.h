@@ -14,11 +14,15 @@ std::vector<std::string> getlastpart (std::vector<std::string> s, std::string de
 
 std::vector<std::string> strsplit(std::string s, std::string delimiter);
 std::vector<double> str2dbl(std::vector<std::string> s);
+std::vector<int> str2int(std::vector<std::string> s);
+std::vector<long> str2long(std::vector<std::string> s);
+
 std::vector<std::string> dbl2str(std::vector<double> d);
 void lrtrim(std::string &s);
 std::string lrtrim_copy(std::string s);
 
 bool in_string(const std::string &x, std::string part);
+bool ends_on(std::string const &s, std::string const &end);
 
 void make_unique_names(std::vector<std::string> &s);
 void make_valid_names(std::vector<std::string> &s);

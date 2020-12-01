@@ -38,6 +38,8 @@ class SpatHole {
 class SpatPart {
 	public:
 		std::vector<double> x, y; //, z;
+// should be here to support collections; add to constructors
+//		SpatGeomType gtype = unknown;
 		SpatExtent extent;
 		SpatPart();
 		SpatPart(std::vector<double> X, std::vector<double> Y);
@@ -88,6 +90,7 @@ class SpatVector {
 		SpatVector(SpatGeom g);
 		SpatVector(SpatExtent e, std::string crs);
 		SpatVector(std::vector<double> x, std::vector<double> y, SpatGeomType g, std::string crs);
+		SpatVector(std::vector<std::string> wkt);
 
 		SpatGeom window;
 
@@ -138,6 +141,8 @@ class SpatVector {
 		bool addGeom(SpatGeom p);
 		bool setGeom(SpatGeom p);
 		SpatDataFrame getGeometryDF();
+		std::vector<std::string> getGeometryWKT();
+
 		std::vector<std::vector<double>> coordinates();
 
 		SpatVector project(std::string crs);

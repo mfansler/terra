@@ -21,6 +21,7 @@
 #include <vector>
 #include <numeric>
 
+
 std::string double_to_string(double x) { 
 	std::string s = std::to_string (x);
 	s.erase( s.find_last_not_of('0') + 1, std::string::npos );
@@ -39,6 +40,10 @@ std::vector<char *> string_to_charpnt(std::vector<std::string> s) {
 	return out;
 }
 
+//std::vector<char> string_to_char(std::vector<std::string> s) {
+//	std::vector<char> charstr(s.c_str(), s.c_str() + s.size() + 1);
+//	return charstr;
+//}
 
 std::vector<std::string> double_to_string(const std::vector<double> &x, std::string prep) { 
 	std::vector<std::string> out(x.size());
@@ -79,6 +84,16 @@ bool in_string(const std::string &x, std::string part) {
 }
 
 
+bool ends_on(std::string const &s, std::string const &end) {
+	if (s.length() >= end.length()) {
+		if (s.compare(s.length() - end.length(), s.length(), end) == 0) {
+			return false;
+		} 
+	}
+	return true;
+}
+
+
 void lowercase(std::string &s) {
 	std::transform(s.begin(), s.end(), s.begin(), ::tolower);
 }
@@ -114,14 +129,11 @@ std::string is_in_set_default(std::string s, std::vector<std::string> ss, std::s
 std::vector<std::string> strsplit(std::string s, std::string delimiter){
 	std::vector<std::string> out;
 	size_t pos = 0;
-	std::string token;
 	while ((pos = s.find(delimiter)) != std::string::npos) {
-		token = s.substr(0, pos);
-		out.push_back(token);
+		out.push_back(s.substr(0, pos));
 		s.erase(0, pos + delimiter.length());
 	}
-	token = s.substr(0, pos);
-	out.push_back(token);
+	out.push_back(s.substr(0, pos));
 	return out;
 }
 
@@ -130,6 +142,22 @@ std::vector<double> str2dbl(std::vector<std::string> s) {
 	std::vector<double> d (s.size());
 	std::transform(s.begin(), s.end(), d.begin(), [](const std::string& val) {
 		return std::stod(val);
+	});
+	return d;
+}
+
+std::vector<long> str2long(std::vector<std::string> s) {
+	std::vector<long> d (s.size());
+	std::transform(s.begin(), s.end(), d.begin(), [](const std::string& val) {
+		return std::stol(val);
+	});
+	return d;
+}
+
+std::vector<int> str2int(std::vector<std::string> s) {
+	std::vector<int> d (s.size());
+	std::transform(s.begin(), s.end(), d.begin(), [](const std::string& val) {
+		return std::stoi(val);
 	});
 	return d;
 }
@@ -197,29 +225,28 @@ void make_valid_names(std::vector<std::string> &s) {
 }
 
 
-
 template <typename T>
-std::vector<long unsigned> order(const std::vector<T> &v) {
-  // initialize original index locations
-  std::vector<long unsigned> idx(v.size());
+std::vector<size_t> order(const std::vector<T> &v) {
+  std::vector<size_t> idx(v.size());
   std::iota(idx.begin(), idx.end(), 0);
-  // sort indexes based on comparing values in v
-  std::sort(idx.begin(), idx.end(),
-       [&v](long unsigned i1, long unsigned i2) {return v[i1] < v[i2];});
+  std::stable_sort(idx.begin(), idx.end(),
+            [&v](size_t i1, size_t i2) {return v[i1] < v[i2];});
   return idx;
 }
 
-//does not catch all cases. needs fixing
+
 void make_unique_names(std::vector<std::string> &s) {
-    std::vector<long unsigned> x = order(s);
+    std::vector<size_t> x = order(s);
     std::sort(s.begin(), s.end());
     std::vector<std::string> ss = s;
     unsigned j = 1;
     for (size_t i=1; i<s.size(); i++) {
         if (s[i] == s[i-1]) {
-            ss[i-1] = s[i-1] + "_" + std::to_string(j);
-            ss[i] = s[i] + "_" + std::to_string(j + 1);
-            j++;
+			if (j==1) {
+				ss[i-1] = s[i-1] + "_1";
+			}
+			j++;
+            ss[i] = s[i] + "_" + std::to_string(j);
         } else {
             j = 1;
         }

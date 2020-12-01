@@ -7,26 +7,33 @@
 setMethod("time", signature(x="SpatRaster"), 
 	function(x, ...) { 
 		d <- x@ptr$time
-		as.Date("1970-01-01") + d
+		tstep <- x@ptr$timestep 
+		if (tstep == "seconds") {
+			strptime("1970-01-01", "%Y-%m-%d", tz = "UTC") + d
+		} else if (tstep == "days") {
+			as.Date("1970-01-01") + d
+		#} else if (tstep == "months") {
+		} else { # raw 
+			d
+		}
 	}
 )
 
 
 setMethod("time<-", signature(x="SpatRaster"), 
 	function(x, value)  {
-		if (!inherits(value, "Date")) {
-			value <- as.Date(value)
+		if (inherits(value, "Date")) {
+			value <- as.POSIXlt(value)
 		}
-		value <- as.numeric(value)
-		if (length(value) != nlyr(x)) {
-			stop("incorrect number of values")
+		if (inherits(value, "POSIXt")) {
+			if (!x@ptr$setTime(as.numeric(value), "seconds")) {
+				stop("cannot set these  values")
+			}
+		} else {
+			if (!x@ptr$setTime(as.numeric(value), "raw")) {
+				stop("cannot set these  values")
+			}		
 		}
-		if (! x@ptr$setTime(value)) {
-			stop("cannot set these  values")
-		}
-		#if (any(time(x) != value)) {
-		#	warning("some values were changed to make them valid and/or unique")
-		#}
 		return(x)
 	}
 )
@@ -35,7 +42,7 @@ setMethod("time<-", signature(x="SpatRaster"),
 
 setMethod("depth", signature(x="SpatRaster"), 
 	function(x, ...) { 
-		d <- x@ptr$depth
+		x@ptr$depth
 	}
 )
 
@@ -43,17 +50,26 @@ setMethod("depth", signature(x="SpatRaster"),
 setMethod("depth<-", signature(x="SpatRaster"), 
 	function(x, value)  {
 		value <- as.numeric(value)
-		if (length(value) != nlyr(x)) {
-			stop("incorrect number of values")
-		}
 		if (! x@ptr$setDepth(value)) {
 			stop("cannot set these  values")
 		}
-		#if (any(time(x) != value)) {
-		#	warning("some values were changed to make them valid and/or unique")
-		#}
 		return(x)
 	}
 )
 
 
+setMethod("units", signature(x="SpatRaster"), 
+	function(x) { 
+		x@ptr$units
+	}
+)
+
+setMethod("units<-", signature(x="SpatRaster"), 
+	function(x, value)  {
+		value <- as.character(value)
+		if (! x@ptr$set_units(value)) {
+			stop("cannot set these  values")
+		}
+		return(x)
+	}
+)

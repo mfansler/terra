@@ -41,10 +41,15 @@ setMethod("geomtype", signature(x="Spatial"),
 )	
 
 setMethod("geom", signature(x="SpatVector"), 
-	function(x, ...){ 
-		x@ptr$getGeometry()
+	function(x, wkt=FALSE, ...){
+		if (wkt) {
+			x@ptr$getGeometryWKT()
+		} else {
+			x@ptr$getGeometry()
+		}
 	}
 )	
+
 
 setMethod("dim", signature(x="SpatVector"), 
 	function(x){ 
@@ -53,16 +58,19 @@ setMethod("dim", signature(x="SpatVector"),
 )	
 
 setMethod("as.data.frame", signature(x="SpatVector"), 
-	function(x, ...) {
-		d <- data.frame(x@ptr$getDF(), stringsAsFactors=FALSE)
+	function(x, geom=FALSE, ...) {
+		d <- data.frame(x@ptr$getDF(), check.names=FALSE, fix.empty.names=FALSE, stringsAsFactors=FALSE)
 		colnames(d) <- x@ptr$names
+		if (geom) {
+			d$geometry <- geom(x, TRUE)
+		}
 		d
 	}
 )
 
 setMethod("as.list", signature(x="SpatVector"), 
-	function(x, ...) {
-		as.list(as.data.frame(x))
+	function(x, geom=FALSE, ...) {
+		as.list(as.data.frame(x, geom=geom, ...))
 	}
 )
 	

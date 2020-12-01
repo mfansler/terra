@@ -21,6 +21,9 @@
 	g <- geom(x)
 	g <- split(g, g[,1])
 	g <- lapply(g, function(y) split(y, y[,2]))
+	if (!is.null(border)) {
+		border <- rep_len(border, length(g))
+	}
 	for (i in 1:length(g)) {
 		gg <- g[[i]]
 		for (j in 1:length(gg)) {
@@ -32,7 +35,7 @@
 				a <- a[-nrow(a), ]
 				# g[[i]][[1]] <- a 
 			}
-			graphics::polypath(a[,3:4], col=cols[i], rule = "evenodd", border=border, ...)
+			graphics::polypath(a[,3:4], col=cols[i], rule = "evenodd", border=border[i], ...)
 		}
 	}
 }
@@ -173,7 +176,8 @@ setMethod("plot", signature(x="SpatVector", y="character"),
 			.factorLegend(leg.ext, 1:length(uv), ucols, uv, n)
 		} else {
 			zlim <- range(uv, na.rm=TRUE)
-			if (missing(digits)) {
+			digits <- list(...)$digits
+			if (is.null(digits)) {
 				dif <- diff(zlim)
 				if (dif == 0) {
 					digits = 0;

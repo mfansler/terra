@@ -18,9 +18,20 @@ setMethod("vect", signature(x="missing"),
 setMethod("vect", signature(x="character"), 
 	function(x, ...) {
 		p <- methods::new("SpatVector")
-		p@ptr <- SpatVector$new()
-		x <- normalizePath(x)
-		p@ptr$read(x)
+		s <- substr(x[1], 1, 5)
+		if (s %in% c("POINT", "MULTI", "LINES", "POLYG")) {
+#		if (all(grepl("\\(", x) & grepl("\\)", x))) {
+			x <- gsub("\n", "", x)
+			p@ptr <- SpatVector$new(x)
+			dots <- list(...)
+			if (!is.null(dots$crs)) {
+				crs(p) <- dots$crs
+			}
+		} else {
+			p@ptr <- SpatVector$new()
+			x <- normalizePath(x)
+			p@ptr$read(x)
+		}
 		show_messages(p, "vect")
 	}
 )
@@ -123,8 +134,20 @@ function(x, i, j, ... ,drop=FALSE) {
 
 setMethod("$<-", "SpatVector",  
 	function(x, name, value) { 
+		if (is.null(value)) {
+			if (name %in% names(x)) {
+				x@ptr$remove_column(name)
+			}
+			return(x);
+		}
+
 		value <- rep(value, length.out=nrow(x))
-		if (!(name %in% names(x))) {
+
+		if (name %in% names(x)) {
+			d <- values(x)
+			d[[name]] <- value
+			values(x) <- d
+		} else {
 			if (is.integer(value)) {
 				ok <- x@ptr$add_column_long(value, name)	
 			} else if (is.numeric(value)) {
@@ -134,14 +157,6 @@ setMethod("$<-", "SpatVector",
 			}
 			if (!ok) {
 				stop("cannot set these values")
-			}
-		} else {
-			if (is.null(value)) {
-				x@ptr$remove_column(name)
-			} else {
-				d <- values(x)
-				d[[name]] <- value
-				values(x) <- d
 			}
 		} 
 		return(x)		

@@ -43,7 +43,6 @@ setMethod ("show" , "SpatVector",
 )
 
 
-
 setMethod ("show" , "SpatRaster", 
 	function(object) {
 		
@@ -101,6 +100,12 @@ setMethod ("show" , "SpatRaster",
 			} else {
 				cat("data source :", sources[1], "\n")
 			}
+
+			uts <- units(object)
+			hasunits <- !all(uts == "")
+			if (nl > mnr) {
+				uts <- c(uts[1:mnr], "...")
+			}
 			
 			hMM <- .hasMinMax(object)
 			if (any(hMM)) {
@@ -115,8 +120,6 @@ setMethod ("show" , "SpatRaster",
 					minv <- c(minv[1:mnr], "...")
 					maxv <- c(maxv[1:mnr], "...")
 				}
-				
-				
 				n <- nchar(ln)
 				if (nl > 5) {
 					b <- n > 20
@@ -126,8 +129,9 @@ setMethod ("show" , "SpatRaster",
 					}
 				}
 				
-				w <- pmax(nchar(ln), nchar(minv), nchar(maxv))
+				w <- pmax(nchar(ln), nchar(minv), nchar(maxv), nchar(uts))
 				m <- rbind(ln, minv, maxv)
+				if (hasunits) m <- rbind(m, uts)
 				# a loop because "width" is not recycled by format
 				for (i in 1:ncol(m)) {
 					m[,i]   <- format(m[,i], width=w[i], justify="right")
@@ -157,12 +161,25 @@ setMethod ("show" , "SpatRaster",
 					cat("first label :", paste(m[1,], collapse=", "), "\n")
 					cat("last label  :", paste(m[2,], collapse=", "), "\n")				
 				}
+				if (hasunits) cat("units       :", paste(m[4,], collapse=", "), "\n")
+
 			} else {
-				cat("names       :", paste(ln, collapse=", "), "\n")
+				w <- pmax(nchar(ln), nchar(uts))
+				m <- rbind(ln, uts)
+				for (i in 1:ncol(m)) {
+					m[,i]   <- format(m[,i], width=w[i], justify="right")
+				}
+				cat("names       :", paste(m[1,], collapse=", "), "\n")
+				if (hasunits) cat("units       :", paste(m[2,], collapse=", "), "\n")
 			}			
-			if (nsr==1) {
-				if (object@ptr$hasTime) {
-					cat("time        :", paste(range(time(object)), collapse=" to "), "\n")
+
+
+			if (object@ptr$hasTime) {
+				tim <- time(object)
+				if (length(tim) > 1) {
+					cat("time        :", paste(range(tim), collapse=" to "), "\n")
+				} else {
+					cat("time        :", as.character(tim), "\n")
 				}
 			}
 			
@@ -173,6 +190,26 @@ setMethod ("show" , "SpatRaster",
 		
 	}
 )
+
+
+
+.sources <- function(x) {
+	m <- .inMemory(x)
+	f <- .filenames(x)
+	f <- gsub("\"", "", basename(f))
+	i <- grep(":", f)
+	if (length(i) > 0) {
+		for (j in i) {
+			ff <- try(basename( strsplit(f[j], ':')[[1]][1]), silent=TRUE)
+			if (!inherits(ff, "try-error")) {
+				f[j] <- ff
+			}
+		}
+	}
+	sources <- rep("memory", length(m))
+	sources[!m] <- f[!m] 
+	unique(sources)
+}
 
 
 setMethod("show" , "SpatDataSet", 
@@ -199,9 +236,13 @@ setMethod("show" , "SpatDataSet",
 
 
 		cat("coord. ref. :" , .proj4(object[1]), "\n")
-		
+
+		s <- unlist(lapply(1:ns, function(i) .sources(object[i])))
+		s <- unique(s)
+		cat("source(s)   :", paste(s, collapse=", "), "\n")
+
 		ln <- names(object)
-		if (!all(ln == "")) {
+		if (any(ln != "")) {
 			cat("names       :", paste(ln, collapse=", "), "\n")
 		}
 	}

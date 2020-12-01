@@ -52,6 +52,7 @@
 		out$range <- range(z)
 	} else {
 		stopifnot(length(out$range) == 2)
+		stopifnot(out$range[2] > out$range[1])
 	}
 	
 	
@@ -281,11 +282,9 @@ legend=TRUE, legend.only=FALSE, pax=list(), pal=list(), levels=NULL, add=FALSE,
 		out$asp <- 1/cos((mean(out$ext[3:4]) * pi)/180)
 	}
 	out$cols <- cols
-	out$levels <- levels
 	out$facts <- facts
 	out$breaks <- breaks
-	out$range <- range
-	out$interpolate <- isTRUE(interpolate)
+	out$interpolate <- FALSE
 	out$legend_draw <- isTRUE(legend)
 	out$legend_only <- isTRUE(legend.only)
 
@@ -293,29 +292,32 @@ legend=TRUE, legend.only=FALSE, pax=list(), pal=list(), levels=NULL, add=FALSE,
 		out$coltab <- coltab
 		out <- .as.raster.colortable(out, x)
 	} else if (type=="classes") {
+		out$levels <- levels
 		out <- .as.raster.classes(out, x)
 	} else if (type=="interval") {
 		out <- .as.raster.interval(out, x)
 	} else {
+		out$interpolate <- isTRUE(interpolate)
+		out$range <- range
 		out <- .as.raster.continuous(out, x, type)
 	}
 
 	if (draw) {
 		out <- .plotit(out, new=new, ...)
 	}
-	out
+	invisible(out)
 }
 
 
 setMethod("plot", signature(x="SpatRaster", y="numeric"), 
-	function(x, y=1, col, type, mar=c(5.1, 4.1, 4.1, 7.1), legend=TRUE, axes=TRUE, pal=list(), pax=list(), maxcell=50000, ...) {
+	function(x, y=1, col, type, mar=c(5.1, 4.1, 4.1, 7.1), legend=TRUE, axes=TRUE, pal=list(), pax=list(), maxcell=50000, smooth=FALSE, range=NULL, levels=NULL, fun=NULL, ...) {
 
 		x <- x[[y]]
 		if (!hasValues(x)) { stop("SpatRaster has no cell values") }
 
 		breaks <- list(...)$breaks
 		coltab <- NULL
-		facts <- NULL
+		facts  <- NULL
 		if (!is.null(breaks)) {
 			type <- "interval"
 		} else {
@@ -335,7 +337,15 @@ setMethod("plot", signature(x="SpatRaster", y="numeric"),
 		}
 		
 		if (missing(col)) col <- rev(grDevices::terrain.colors(25))
-		x <- .prep.plot.data(x, type=type, maxcell=maxcell, cols=col, mar=mar, draw=TRUE, pal=pal, pax=pax, legend=isTRUE(legend), axes=isTRUE(axes), coltab=coltab, facts=facts, ...)
+		x <- .prep.plot.data(x, type=type, maxcell=maxcell, cols=col, mar=mar, draw=TRUE, pal=pal, pax=pax, legend=isTRUE(legend), axes=isTRUE(axes), coltab=coltab, facts=facts, interpolate=smooth, levels=levels, range=range, ...)
+
+		if (!is.null(fun)) {
+			if (!is.null(formals(fun))) {
+				fun(1)
+			} else {
+				fun()
+			}
+		}
 		invisible(x)
 	}
 )
@@ -387,3 +397,80 @@ setMethod("plot", signature(x="SpatRaster", y="numeric"),
 # x <- as.factor(x)
 # levels(x) <- c("earth", "wind", "fire")
 # plot(x)
+
+
+
+setMethod("plot", signature(x="SpatRaster", y="missing"), 
+	function(x, y, col, type, mar=c(5.1, 4.1, 4.1, 7.1), legend=TRUE, axes=TRUE, pal=list(), pax=list(), maxcell=50000, smooth=FALSE, range=NULL, levels=NULL, fun=NULL, nc, nr, main, maxnl=16, ...)  {
+
+		nl <- max(1, min(nlyr(x), maxnl))
+		usefun = 0;
+		if (!is.null(fun)) {
+			if (!is.null(formals(fun))) {
+				usefun = 2;
+			} else {
+				usefun = 1;
+			}
+		}
+
+		if (nl==1) {
+			if (missing(main)) {
+				out <- plot(x, 1, col=col, type=type, mar=mar, legend=legend, axes=axes, pal=pal, pax=pax, maxcell=maxcell, smooth=smooth, levels=levels, range=range, ...)
+			} else {
+				out <- plot(x, 1, col=col, type=type, mar=mar, legend=legend, axes=axes, pal=pal, pax=pax, maxcell=maxcell, smooth=smooth, levels=levels, main=main[1], range=range, ...)
+			}
+			if (usefun == 1) {
+				fun()
+			} else if (usefun == 2) {
+				fun(1)
+			}
+			return(invisible(out))
+		}
+		if (missing(nc)) {
+			nc <- ceiling(sqrt(nl))
+		} else {
+			nc <- max(1, min(nl, round(nc)))
+		}
+		if (missing(nr)) {
+			nr <- ceiling(nl / nc)
+		} else {
+			nr <- max(1, min(nl, round(nr)))
+			nc <- ceiling(nl / nr)
+		}
+		
+		old.par <- graphics::par(no.readonly = TRUE) 
+		on.exit(graphics::par(old.par))
+		graphics::par(mfrow=c(nr, nc), mar=c(2, 2, 2, 4))
+
+		maxcell=maxcell/(nl/2)
+			
+		if (missing("main")) {
+			main <- names(x)
+		} else {
+			main <- rep_len(main, nl)	
+		}
+		x <- spatSample(x, maxcell, method="regular", as.raster=TRUE)
+
+		for (i in 1:nl) {
+			#	image(x[[i]], main=main[i], ...)
+			plot(x, i, main=main[i], col=col, type=type, mar=mar, legend=legend, axes=axes, pal=pal, pax=pax, smooth=smooth, levels=levels, range=range, ...)
+			if (usefun == 1) {
+				fun()
+			} else if (usefun == 2) {
+				fun(i)
+			}
+		}
+	}
+)
+
+
+
+setMethod("lines", signature(x="SpatRaster"),
+function(x, mx=50000, ...) {
+	if(prod(dim(x)) > mx) {
+		stop("too many lines")
+	}
+	v <- as.polygons(x)
+	lines(v, ...)
+}
+)
