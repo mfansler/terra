@@ -29,10 +29,12 @@ SpatOptions::SpatOptions(const SpatOptions &opt) {
 	def_datatype = opt.def_datatype;
 	def_filetype = opt.def_filetype; 
 	filenames = {""};
-	overwrite = false;	
+	overwrite = false;
 	progress = opt.progress;
 	blocksizemp = opt.blocksizemp;
 	verbose = opt.verbose;
+	statistics = opt.statistics;
+	//ncdfcopy = opt.ncdfcopy;
 }
 
 
@@ -45,9 +47,16 @@ SpatOptions SpatOptions::deepCopy(const SpatOptions &opt) {
 //void SpatOptions::set_bandorder(std::string d) { bandorder = d; }
 //std::string SpatOptions::get_bandorder() {if (bandorder != "") {return bandorder;} else {return def_datatype;}}
 
-void SpatOptions::set_def_datatype(std::string d) { def_datatype = d; }
+void SpatOptions::set_def_datatype(std::string d) { 
+	std::vector<std::string> ss = {"INT1U", "INT2U", "INT4U", "INT2S", "INT4S", "FLT4S", "FLT8S" } ;
+	if (is_in_vector(d, ss)) def_datatype = d; 
+}
 std::string SpatOptions::get_def_datatype() { return def_datatype; }
-void SpatOptions::set_datatype(std::string d) { datatype = d; }
+
+void SpatOptions::set_datatype(std::string d) { 
+	std::vector<std::string> ss = {"INT1U", "INT2U", "INT4U", "INT2S", "INT4S", "FLT4S", "FLT8S" };
+	if (is_in_vector(d, ss)) datatype = d; 
+}
 std::string SpatOptions::get_datatype() {if (datatype != "") {return datatype;} else {return def_datatype;}}
 
 void SpatOptions::set_def_filetype(std::string d) { def_filetype = d; }
@@ -59,13 +68,30 @@ std::string SpatOptions::get_filetype() { return filetype;}
 bool SpatOptions::get_overwrite() { return overwrite; }
 void SpatOptions::set_overwrite(bool b) { overwrite = b; }
 
+int SpatOptions::get_statistics() { return statistics; }
+void SpatOptions::set_statistics(int s) { if ((s> 0) && (s<7)) statistics = s; }
+
+//bool SpatOptions::get_ncdfcopy() { return ncdfcopy;}
+//void SpatOptions::set_ncdfcopy(bool x) { ncdfcopy = x; }
+
 void SpatOptions::set_def_verbose(bool v) { def_verbose = v; }
 bool SpatOptions::get_def_verbose() { return def_verbose; }
 bool SpatOptions::get_verbose() { return verbose; }
 void SpatOptions::set_verbose(bool v) { verbose = v; }
 
-double SpatOptions::get_NAflag() { return NAflag; }
-void SpatOptions::set_NAflag(double flag) { NAflag = flag; }
+bool SpatOptions::has_NAflag(double &flag) { 
+	flag = NAflag;
+	return hasNAflag; 
+}
+
+double SpatOptions::get_NAflag() { 
+	return NAflag;
+}
+
+void SpatOptions::set_NAflag(double flag) { 
+	NAflag = flag; 
+	hasNAflag = true;
+}
 
 unsigned SpatOptions::get_progress() { return progress; }
 void SpatOptions::set_progress(unsigned p) { 

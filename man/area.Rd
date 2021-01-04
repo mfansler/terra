@@ -9,13 +9,15 @@
 \title{Area and perimeter}
 
 \description{
-Compute the area of polygons or for raster cells that are not \code{NA}. Computing the surface area of raster cells is particularly relevant for longitude/latitude rasters, as the size of the cells is constant in degrees, but not in meters. 
+Compute the area of polygons or for raster cells that are not \code{NA}. Computing the surface area of raster cells is particularly relevant for longitude/latitude rasters, as the size of the cells is constant in degrees, but not in meters. But it can also be very important with raster data if the coordinate referece system us not equal-area. In that case, you can use the \code{correct=TRUE} option. 
+
+For vector data, the best way to compute area is to use the longitude/latitude crs if that is what the data come in. This is contrary to (erroneous) popular belief that suggest that you should use a planar crs.
 
 The perimeter method works only on SpatVector objects, and computes the length of lines or the perimeter of polygons.
 }
 
 \usage{
-\S4method{area}{SpatRaster}(x, sum=TRUE, filename="", overwrite=FALSE,  wopt=list(), ...)
+\S4method{area}{SpatRaster}(x, sum=TRUE, correct=FALSE, filename="", overwrite=FALSE,  wopt=list(), ...)
 
 \S4method{area}{SpatVector}(x, ...)
 
@@ -26,6 +28,7 @@ The perimeter method works only on SpatVector objects, and computes the length o
 \arguments{
   \item{x}{SpatRaster or SpatVector}
   \item{sum}{logical. If \code{TRUE} the summed area of the cells that are not \code{NA} is returned. Otherwise, a SpatRaster with the area for each cell is returned}
+  \item{correct}{logical. If \code{TRUE}, the area is not computed based on the linear units of the coordinate reference system, but on the *actual* area, correcting for distortion. This may be considerbly slower}
   \item{filename}{character. Output filename. Optional}
   \item{overwrite}{logical. If \code{TRUE}, \code{filename} is overwritten}
   \item{wopt}{list. Options for writing files as in \code{\link{writeRaster}}}
@@ -33,12 +36,8 @@ The perimeter method works only on SpatVector objects, and computes the length o
 }
 
 \value{
-If the coordinate reference system is longitude/latitude the values returned are in square meter for area and meter for perimeter.
-
-In other cases, the unit is set by coordinate reference system. In most cases it is meter too. 
+area or perimeter in m2
 }
-
-
 
 \examples{
 
@@ -58,6 +57,15 @@ area(r) / 1000000
 ## and compute the global sum to get the same result
 #am <- mask(a, r)
 #global(am, "sum", na.rm=TRUE) / 1000000
+
+# effect of "correct"
+#r <- rast(ncol=90, nrow=45, ymin=-80, ymax=80)
+#m <- project(r, "+proj=merc")
+
+#a <- area(m, sum=FALSE, wopt=list(names="naive"))
+#b <- area(m, correct=TRUE, sum=FALSE, wopt=list(names="corrected"))
+#plot(c(a, b)/1000000, nc=1)
+
 
 ### SpatVector
 f <- system.file("ex/lux.shp", package="terra")

@@ -226,7 +226,7 @@ SpatRaster SpatRaster::aggregate(std::vector<unsigned> fact, std::string fun, bo
 		out.setError(message);
 		return out;
 	}
-	
+
 	SpatExtent extent = getExtent();
 	double xmax = extent.xmin + fact[4] * fact[1] * xres();
 	double ymin = extent.ymax - fact[3] * fact[0] * yres();
@@ -238,7 +238,7 @@ SpatRaster SpatRaster::aggregate(std::vector<unsigned> fact, std::string fun, bo
 	if (fact[5] == nlyr()) {
 		out.setNames(getNames());
 	}
-	
+
 	if (!source[0].hasValues) { 
 		return out; 
 	}
@@ -257,13 +257,13 @@ SpatRaster SpatRaster::aggregate(std::vector<unsigned> fact, std::string fun, bo
 		std::vector<std::string> gf {"average", "min", "max", "med", "mode"};
 		gstring = gf[ifun-1]; 
 	}
-	
+
 #ifdef useGDAL 
 #if GDAL_VERSION_MAJOR >= 3
 	if (gstring != "") {
 		out = warper(out, "", gstring, opt);
 		return out;
-	}	
+	}
 #endif
 #endif
 */
@@ -273,30 +273,33 @@ SpatRaster SpatRaster::aggregate(std::vector<unsigned> fact, std::string fun, bo
 	unsigned outnc = out.ncol();
 
 	//BlockSize bs = getBlockSize(4, opt.get_memfrac());
-	BlockSize bs = getBlockSize(opt);	
+	BlockSize bs = getBlockSize(opt);
 	//bs.n = floor(nrow() / fact[0]); # ambiguous on solaris
 	bs.n = std::floor(static_cast <double> (nrow() / fact[0]));
-	
-	bs.nrows = std::vector<uint_64>(bs.n, fact[0]);
+
+	bs.nrows = std::vector<size_t>(bs.n, fact[0]);
 	bs.row.resize(bs.n);
 	for (size_t i =0; i<bs.n; i++) {
 		bs.row[i] = i * fact[0];
 	}
-	uint_64 lastrow = bs.row[bs.n - 1] + bs.nrows[bs.n - 1] + 1;
+	size_t lastrow = bs.row[bs.n - 1] + bs.nrows[bs.n - 1] + 1;
 	if (lastrow < nrow()) {
 		bs.row.push_back(lastrow);
 		bs.nrows.push_back(std::min(bs.nrows[bs.n-1], nrow()-lastrow));
 		bs.n += 1;
 	}
-
-	opt.steps = bs.n;
-	if (!out.writeStart(opt)) { return out; }
-
-	size_t nc = ncol();
 	if (!readStart()) {
 		out.setError(getError());
 		return(out);
 	}
+
+	opt.steps = bs.n;
+	if (!out.writeStart(opt)) {
+		readStop();
+		return out;
+	}
+
+	size_t nc = ncol();
 	for (size_t i = 0; i < bs.n; i++) {
         std::vector<double> vin = readValues(bs.row[i], bs.nrows[i], 0, nc);
 		std::vector<double> v  = compute_aggregates(vin, bs.nrows[i], nc, nlyr(), fact, agFun, narm);

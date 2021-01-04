@@ -7,27 +7,29 @@
 
 #include "gdal_utils.h"
 
-
 SpatRaster rasterizePoints(SpatVector p, SpatRaster r, std::vector<double> values, double background, SpatOptions &opt) {
 	r.setError("not implemented yet");
 	return(r);
 }
 
 
-
 #if GDAL_VERSION_MAJOR >= 3
 
-
-SpatRaster SpatRaster::rasterize(SpatVector x, std::string field, std::vector<double> values, double background, bool update, bool touches, bool inverse, SpatOptions &opt) {
+SpatRaster SpatRaster::rasterize(SpatVector x, std::string field, std::vector<double> values, std::vector<std::string> labels, double background, bool update, bool touches, bool inverse, SpatOptions &opt) {
 
 	SpatRaster out;
 	if ( !hasValues() ) update = false;
-	
+
 	if (update) {
 		out = geometry();
 	} else {
 		out = geometry(1);
 		out.setNames({""});
+		if ((!update) && (labels.size() > 0)) {
+			std::vector<double> levels(labels.size());
+			std::iota(levels.begin(), levels.end(), 0);
+			out.setCategories(0, levels, labels);
+		}
 	}
 
 	std::string errmsg;
@@ -54,13 +56,13 @@ SpatRaster SpatRaster::rasterize(SpatVector x, std::string field, std::vector<do
 	if (inverse) options.push_back("-i");
 	if (touches) options.push_back("-at");
 
-	if (field != "") {
+	if (values.size() == 0) {
+//	if (field != "") {
 		std::vector<std::string> nms = x.get_names();
 		if (!is_in_vector(field, nms)) {
 			out.setError("field " + field + " not found");
 			return out;
 		}
-		if (!update) out.setNames({field});
 		options.push_back("-a");
 		options.push_back(field);
 	} else {
@@ -80,6 +82,7 @@ SpatRaster SpatRaster::rasterize(SpatVector x, std::string field, std::vector<do
 			return out;
 		}
 	}
+	if (!update) out.setNames({field});
 
 	GDALDatasetH rstDS, vecDS;
 
@@ -113,22 +116,22 @@ SpatRaster SpatRaster::rasterize(SpatVector x, std::string field, std::vector<do
 				}
 				GDALClose(hDstDS);
 			}
-			
-			rstDS = GDALOpen( filename.c_str(), GA_Update);		
+		
+			rstDS = GDALOpen( filename.c_str(), GA_Update);	
 		}
 		for (size_t i=0; i<nlyr(); i++) {
 			options.push_back("-b");
 			options.push_back(std::to_string(i+1));
 		}
-		
+	
 	} else {
 		if (!out.create_gdalDS(rstDS, filename, driver, true, background, opt)) {
 			out.setError("cannot create dataset");
 			return out;
 		}
 	}
-	
-	
+
+
 	GDALDataset *poDS = x.write_ogr("", "lyr", "Memory", true);
 	vecDS = poDS->ToHandle(poDS);
 
@@ -140,7 +143,7 @@ SpatRaster SpatRaster::rasterize(SpatVector x, std::string field, std::vector<do
 	if (err != 0) {
 		setError("error "+ std::to_string(err));
 	}
-	
+
 	if (driver == "MEM") {
 		bool test = out.from_gdalMEM(hDst, false, true); 
 		GDALClose( hDst );
@@ -162,7 +165,7 @@ SpatRaster SpatRaster::rasterize(SpatVector x, std::string field, std::vector<do
 			double adfMinMax[2];
 			bool approx = ncell() > 10e+8;
 			GDALComputeRasterMinMax(hBand, approx, adfMinMax);
-			GDALSetRasterStatistics(hBand, adfMinMax[0], adfMinMax[1], NAN, NAN);		
+			GDALSetRasterStatistics(hBand, adfMinMax[0], adfMinMax[1], NAN, NAN);	
 		}
 		GDALClose( hDst );
 		GDALRasterizeOptionsFree(ropts);
@@ -173,7 +176,7 @@ SpatRaster SpatRaster::rasterize(SpatVector x, std::string field, std::vector<do
 }
 
 #else 
-	
+
 
 std::vector<double> rasterize_polygon(std::vector<double> r, double value, const std::vector<double> &pX, const std::vector<double> &pY, const unsigned startrow, const unsigned nrows, const unsigned ncols, const double xmin, const double ymax, const double rx, const double ry) {
 
@@ -313,7 +316,7 @@ SpatRaster rasterizeLines(SpatVector p, SpatRaster r, std::vector<double> value,
 
 
 
-SpatRaster SpatRaster::rasterize(SpatVector x, std::string field, std::vector<double> values, double background, bool update, bool touches, bool inverse, SpatOptions &opt) {
+SpatRaster SpatRaster::rasterize(SpatVector x, std::string field, std::vector<double> values, std::vector<std::string> labels, double background, bool update, bool touches, bool inverse, SpatOptions &opt) {
 
 //SpatRaster SpatRaster::rasterize(SpatVector x, std::vector<double> values, double background, bool update, SpatOptions &opt) {
 
@@ -348,13 +351,13 @@ SpatRaster SpatRaster::rasterize(SpatVector x, std::string field, std::vector<do
 	}  else {
 		out = rasterizePoints(x, out, values, background, opts);
 	}
-	if (update) out = cover(out, background, opt);
+if (update) out = cover(out, {background}, opt);
 
 	if (touches) {
-		out.addWarning("argument touches is not supported with your version of GDAL");	
+		out.addWarning("argument touches is not supported with your version of GDAL");
 	}
 	if (inverse) {
-		out.addWarning("argument inverse is not supported with your version of GDAL");	
+		out.addWarning("argument inverse is not supported with your version of GDAL");
 	}
 
 	return out;
@@ -375,12 +378,12 @@ std::vector<double> SpatRaster::rasterizeCells(SpatVector &v, bool touches) {
 		return out;
 	}
 	SpatRaster rc = r.crop(e, "out", opt);
-#if GDAL_VERSION_MAJOR >= 3			
-	std::vector<double> feats(1, 1) ;			
-    SpatRaster rcr = rc.rasterize(v, "", feats, NAN, false, touches, false, opt); 
+#if GDAL_VERSION_MAJOR >= 3		
+	std::vector<double> feats(1, 1) ;		
+    SpatRaster rcr = rc.rasterize(v, "", feats, {""}, NAN, false, touches, false, opt); 
 #else
-	std::vector<double> feats(v.size(), 1) ;			
-    SpatRaster rcr = rc.rasterize(v, "", feats, NAN, false, touches, false, opt); 
+	std::vector<double> feats(v.size(), 1) ;		
+    SpatRaster rcr = rc.rasterize(v, "", feats, {""}, NAN, false, touches, false, opt); 
 #endif
 	SpatVector pts = rcr.as_points(false, true, opt);
     SpatDataFrame vd = pts.getGeometryDF();
@@ -388,5 +391,37 @@ std::vector<double> SpatRaster::rasterizeCells(SpatVector &v, bool touches) {
     std::vector<double> y = vd.getD(1);
 	std::vector<double> cells = r.cellFromXY(x, y);
 	return cells;
+}
+
+std::vector<std::vector<double>> SpatRaster::rasterizeCellsWeights(SpatVector &v, bool touches) { 
+// note that this is only for polygons
+    SpatOptions opt;
+	opt.progress = nrow()+1;
+	SpatRaster rr = geometry(1);
+	std::vector<unsigned> fact = {10, 10};
+	SpatExtent e = getExtent();
+	e.intersect(v.getExtent());
+	std::vector<std::vector<double>> out(2);
+	if ( !e.valid() ) {
+		return out;
+	}
+	SpatRaster r = rr.crop(v.extent, "out", opt);
+	r = r.disaggregate(fact, opt);
+#if GDAL_VERSION_MAJOR >= 3
+	std::vector<double> feats(1, 1) ;		
+	r = r.rasterize(v, "", feats, {""}, NAN, false, touches, false, opt); 
+#else
+	std::vector<double> feats(v.size(), 1) ;		
+	r = r.rasterize(v, "", feats, {""}, NAN, false, touches, false, opt); 
+#endif
+	r = r.arith(100.0, "/", false, opt);
+	r = r.aggregate(fact, "sum", true, opt);
+	SpatVector pts = r.as_points(true, true, opt);
+	SpatDataFrame vd = pts.getGeometryDF();
+	std::vector<double> x = vd.getD(0);
+	std::vector<double> y = vd.getD(1);
+	out[0] = rr.cellFromXY(x, y);
+	out[1] = pts.df.dv[0];
+	return out;
 }
 

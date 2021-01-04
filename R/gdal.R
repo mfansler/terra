@@ -1,22 +1,36 @@
 
 
 gdal_version <- function() {
-	#if (is.null(.terra_environment$options)) .init()
-	.gdalversion()
+	gdal()
 }
 
-gdal_warnings <- function(level = 3) {
-	level <- as.integer(level)
-	stopifnot(level %in% c(1:4))
-	.set_gdal_warnings(level)
+
+gdal <- function(warn=NA, drivers=FALSE) {
+	if (!is.na(warn)) {
+		warn <- as.integer(warn)
+		stopifnot(warn %in% c(1:4))
+		.set_gdal_warnings(warn)
+	} else if (drivers) {
+		x <- .gdaldrivers()
+		x <- do.call(cbind, x)
+		x[,2] = c("vector", "raster")[as.integer(x[,2])+1]
+		x[,3] = c("read", "read/copy-write", "read/write")[as.integer(x[,3])+1]
+		colnames(x) <- c("name", "type", "can", "long.name")
+		x <- data.frame(x)
+		x <- x[order(x$type, x$name), ]
+		rownames(x) <- NULL
+		x
+	} else {
+		.gdalversion()
+	}
 }
+
 
 
 .describe_sds <- function(x, print=FALSE, ...) {
-	#if (is.null(.terra_environment$options)) .init()
 	x <- .sdinfo(x)
 	if (length(x[[1]]) == 1 & length(x[[2]]) == 0) {
-		stop(x[[1]])
+		error("gdal (sds)", "not working for: ", x[[1]])
 	}
 	m <- do.call(cbind, x)
 	m <- data.frame(1:nrow(m), m, stringsAsFactors=FALSE)
@@ -31,9 +45,37 @@ gdal_warnings <- function(level = 3) {
 }
 
 
-setMethod("desc", signature(x="character"), 
-	function(x, sds=FALSE, options="", print=FALSE, open_opt="", ...) {
-		#if (is.null(.terra_environment$options)) .init()
+
+.meta_sds <- function(x, parse=FALSE, ...) {
+	if (parse) {
+		m <- .parsedsdsmetadata(x)
+		m <- do.call(cbind, m)
+		if (nrow(m) > 0) {
+			m <- data.frame(1:nrow(m), m, stringsAsFactors=FALSE)
+		} else {
+			m <- data.frame(0[0], m, stringsAsFactors=FALSE)
+		}
+		for (i in 5:7) m[,i] <- as.integer(m[,i])
+		colnames(m) <- c("id", "name", "var", "desc", "nrow", "ncol", "nlyr")
+	} else {
+		m <- .sdsmetadata(x)
+	}
+	m
+}
+
+
+
+setMethod("describe", signature(x="character"), 
+	function(x, sds=FALSE, meta=FALSE, parse=FALSE, options="", print=FALSE, open_opt="", ...) {
+
+		if (meta) {
+			if (sds) {
+				return(.meta_sds(x, parse))
+			} else {
+				return(.metadata(x))
+			}
+		}
+
 		if (sds) {
 			return(.describe_sds(x, print=print))
 		}
@@ -45,49 +87,19 @@ setMethod("desc", signature(x="character"),
 		}
 		open_opt <- unique(trimws(open_opt))
 		open_opt <- open_opt[open_opt != ""]
-		x <- .gdalinfo(x, options, open_opt)
+		g <- .gdalinfo(x, options, open_opt)
 
-		if (x == "") {
-			add <- ifelse(file.exists(filename), "\n", "\nThe file does not exist\n")
+		if (g == "") {
+			add <- ifelse(!file.exists(x), "\n", "\nThe file does not exist\n")
 			x <- paste0("GDAL cannot open: ", x, add)
 		}
-		y <- unlist(strsplit(x, "\n"))
+		y <- unlist(strsplit(g, "\n"))
 		if (print) {
-			cat(x, "\n")
+			cat(g, "\n")
 			invisible(y)
 		} else {
 			return(y)
 		}
 	}
 )
-
-
-
-.meta_sds <- function(x, parse=FALSE, ...) {
-	if (parse) {
-		m <- .parsedsdsmetadata(x)
-		m <- do.call(cbind, m)
-		if (nrow(m) > 0) {
-			m <- data.frame(1:nrow(m), m, stringsAsFactors=FALSE)
-		} else {
-			m <- data.frame(0[0], m, stringsAsFactors=FALSE)
-		}
-		for (i in 5:7) m[,i] <- as.integer(m[,i])	
-		colnames(m) <- c("id", "name", "var", "desc", "nrow", "ncol", "nlyr")
-	} else {
-		m <- .sdsmetadata(x)
-	}
-	m
-}
-
-setMethod("meta", signature(x="character"), 
-	function(x, sds=FALSE, parse=FALSE, ...) {
-		if (sds) {
-			.meta_sds(x, parse)
-		} else {
-			.metadata(x)
-		}
-	}
-)
-
 

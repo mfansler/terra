@@ -12,6 +12,7 @@
 \alias{Arith,SpatExtent,SpatExtent-method}
 
 \alias{Arith,SpatRaster,SpatRaster-method}
+\alias{Arith,SpatVector,SpatVector-method}
 \alias{Arith,SpatRaster,missing-method}
 \alias{Arith,numeric,SpatRaster-method}
 \alias{Arith,SpatRaster,numeric-method}
@@ -66,21 +67,13 @@ for \bold{(SpatExtent, numeric)} : \code{+, -, *, /, \%\%}
 }
 
 
-\usage{
-\S4method{is.na}{SpatRaster}(x)
-}
-
-\arguments{
-  \item{x}{SpatRaster}
-}
-
 \section{seealso}{
 \code{\link{ifel}} to convieniently combine operations and \code{\link{app}} to use mathematical functions not implemented by the package.
 }
 
 
 \value{
-SpatRaster
+SpatRaster or SpatExtent
 }
 
 \examples{
@@ -110,8 +103,10 @@ y <- which.max(s)
 ### SpatExtent methods
 x <- ext(0.1, 2.2, 0, 3)
 y <- ext(-2, 1, -2,2)
+# union
 x + y
-x - y
+# intersection
+x * y
 
 e <- x %% 2
 e

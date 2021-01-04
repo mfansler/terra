@@ -8,27 +8,25 @@ setMethod("focal", signature(x="SpatRaster"),
 function(x, w=3, na.rm=TRUE, na.only=FALSE, fillvalue=NA, fun="sum", filename="", overwrite=FALSE, wopt=list(), ...)  {
 
 	if (nlyr(x) > 1) {
-		warning("only the first layer of x is used")
+		warn("focal", "only the first layer of x is used")
 		x <- x[[1]]
 	}
 	if (na.only && (!is.matrix(w))) {
 		if (!na.rm) {
-			warning("na.rm set to TRUE because na.only is TRUE")
+			warning("focal", "na.rm set to TRUE because na.only is TRUE")
 			na.rm <- TRUE
 		}
 	}
-	
+
 	cpp <- FALSE
 	if (is.matrix(w)) {
 		m <- as.vector(t(w))
 		w <- dim(w)
-		na.rm <- FALSE
+		#na.rm <- FALSE
 		fun <- .makeTextFun(match.fun(fun))
-		if (!is.character(fun)) {
-			fun <- "bad"
-		}
+		if (!is.character(fun))	fun <- "bad"
 		if (fun != "sum") {
-			warning("if 'w' is a matrix, 'fun' must be 'sum'")
+			warning("focal", "if 'w' is a matrix, 'fun' must be 'sum'")
 		}
 		fun <- "sum"
 		cpp <- TRUE
@@ -37,17 +35,17 @@ function(x, w=3, na.rm=TRUE, na.only=FALSE, fillvalue=NA, fun="sum", filename=""
 		m <- 0.5[0]
 		fun <- .makeTextFun(match.fun(fun))
 		if (class(fun) == "character") { 
-			test <- match(fun, c("mean", "min", "max", "sum", "median", "modal"))
+			test <- match(fun, c("mean", "min", "max", "sum", "median", "modal", "sd", "sdpop"))
 			cpp <- TRUE
 		}
 	}
-	
-	if (cpp) {		
-		opt <- .runOptions(filename, overwrite, wopt)
+
+	if (cpp) {
+		opt <- spatOptions(filename, overwrite, wopt)
 		x@ptr <- x@ptr$focal(w, m, fillvalue, na.rm[1], na.only[1], fun, opt)
-		show_messages(x, "focal")
+		messages(x, "focal")
 		return(x)
-	
+
 	} else {
 		out <- rast(x)
 		readStart(x)
@@ -63,7 +61,7 @@ function(x, w=3, na.rm=TRUE, na.only=FALSE, fillvalue=NA, fun="sum", filename=""
 			}
 			writeValues(out, v, b$row[i], b$nrows[i])
 		}
-		out <- writeStop(out)		
+		out <- writeStop(out)
 		return(out)
 	}
 }

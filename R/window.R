@@ -3,17 +3,25 @@
 setMethod("window<-", signature(x="SpatRaster"), 
 	function(x, ..., value)  {
 		if (inherits(value, "SpatExtent")) {
+			value <- value * ext(x)
 			if (!(x@ptr$setWindow(value@ptr))) {
-				stop("could not set window")
+				error("window<-,SpatRaster", "could not set window")
 			}
-		} else if (is.null(value)) {
+			warn("window<-", "using a window is experimental")
+		} else if (is.null(value	)) {
 			x@ptr$removeWindow()
 		} else {
-			stop("'value' should be a SpatExtent or NULL")
+			error("window<-,SpatRaster", "'value' should be a SpatExtent or NULL")
 		}
 		x
 	}
 )
 
+
+setMethod("window", signature(x="SpatRaster"), 
+	function(x, ...)  {
+		x@ptr$hasWindow()
+	}
+)
 
 

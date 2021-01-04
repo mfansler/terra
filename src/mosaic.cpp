@@ -1,3 +1,4 @@
+/*
 #include "spatRasterMultiple.h"
 
 std::vector<double> mean2d(const std::vector<std::vector<double>> &x) {
@@ -10,17 +11,17 @@ std::vector<double> mean2d(const std::vector<std::vector<double>> &x) {
 		v = 0;
 		d = 0;
 		for (size_t j=0; j<nn; j++) {
-			if (!isnan(x[i][j])) {
+			if (!std::isnan(x[i][j])) {
 				v += x[i][j];
 				d++;
 			}
 		}
 		if (d > 0) {
-			out[i] = v / d;		
+			out[i] = v / d;	
 		}
 	}
 	return out;
-}	
+}
 
 
 std::vector<double> SpatRaster::readExtent(SpatExtent e) {
@@ -42,7 +43,7 @@ SpatRaster SpatRasterCollection::summary(std::string fun, SpatOptions &opt) {
 		out = x[0].deepCopy();
 		return(out);
 	}
-	
+
 	bool anyvals = x[0].hasValues();
 	out = x[0].geometry();
 	SpatExtent e = x[0].getExtent();
@@ -70,7 +71,7 @@ SpatRaster SpatRasterCollection::summary(std::string fun, SpatOptions &opt) {
 //	out.fill(NAN);
     double xmin = e.xmin;
     double xmax = e.xmax;
-	
+
 	std::vector<std::vector<double>> v(n);
 	for (size_t i=0; i < out.bs.n; i++) {
 		double ymin = out.yFromRow(out.bs.row[i]);
@@ -88,7 +89,7 @@ SpatRaster SpatRasterCollection::summary(std::string fun, SpatOptions &opt) {
 	return(out);
 }
 
-
+*/
 
 /// to be done
 /*
@@ -100,7 +101,7 @@ SpatRaster SpatRaster::mosaic(SpatRaster x, SpatOptions &opt) {
 		out = merge(x, opt)
 		return out;
 	}
-	
+
 	out = x[0].geometry();
 	SpatExtent e = x[0].getExtent();
 	for (size_t i=1; i<n; i++) {
@@ -132,8 +133,8 @@ SpatRaster SpatRaster::mosaic(SpatRaster x, SpatOptions &opt) {
 		// simple, no gradient
 		r1.arith(r2, "+", xopt);
 	} 
-	
-	
+
+
 
 
 	for (size_t i=0; i<n; i++) {
@@ -209,8 +210,8 @@ SpatRaster SpatRasterCollection::mosaic(SpatOptions &opt) {
 		// simple, no gradient
 		r1.arith(r2, "+", xopt);
 	} 
-	
-	
+
+
 
 
 	for (size_t i=0; i<n; i++) {

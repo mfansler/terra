@@ -3,25 +3,29 @@
 # Version 1.0
 # License GPL v3
 
-show_messages <- function(x, f="") {
+error <- function(f, emsg="", ...) {
+	stop("[", f, "] ", emsg, ..., call.=FALSE)
+}
+
+warn <- function(f, wmsg="", ...) {
+	warning("[", f, "] ", wmsg, ..., call.=FALSE)
+}
+
+messages <- function(x, f="") {
 	if (methods::.hasSlot(x, "ptr")) {
-		if (x@ptr$messages$has_warning) { 
-			warns <- x@ptr$messages$getWarnings()
-			warning(paste(warns, collapse="\n"), call.=FALSE)
+		if (x@ptr$has_warning()) { 
+			warn(f, paste(x@ptr$getWarnings(), collapse="\n"))
 		}
-		if (x@ptr$messages$has_error) {
-			emsg <- x@ptr$messages$getError()
-			stop(paste0("[", f, "] ", emsg), call.=FALSE)
+		if (x@ptr$has_error()) {
+			error(f, x@ptr$getError())
 		}
 		return(x)
-	} else {
-		if (x$messages$has_warning) { 
-			warns <- x$messages$getWarnings()
-			warning(paste(warns, collapse="\n"), call.=FALSE)
+	} else { 
+		if (x$has_warning()) { 
+			warn(f, paste(x$getWarnings(), collapse="\n"))
 		}
-		if (x$messages$has_error) {
-			emsg <- x$messages$getError()
-			stop(paste0("[", f, "] ", emsg), call.=FALSE)
+		if (x$has_error()) {
+			error(f, x$getError())
 		}
 		return(x)
 	}
@@ -40,15 +44,14 @@ show_messages <- function(x, f="") {
 		cat("\n------------------------")
 		cat(paste("\navailable       :",  round(v[2] / gb, 2)))
 		cat(paste0("\nallowed (", round(100* v[3]) , "%)   : ", round(v[3] * v[2] / gb, 2)))
-		
+
 		cat(paste0("\nneeded (n=", n, ")   ", ifelse(n<10, " : ", ": "), round(v[1] / gb, 2)))
 		cat("\n------------------------")
 		cat(paste("\nproc in memory  :", round(v[5]) != 0))
 		cat(paste("\nnr chunks       :", ceiling(nrow(x)/v[4])))
 		cat("\n------------------------\n")
-	} else {
-		names(v) <- c("needed", "available", "memfrac", "chunksize")
-		v
-	}
+	} 
+	names(v) <- c("needed", "available", "memfrac", "chunksize")
+	invisible(v)
 }
 

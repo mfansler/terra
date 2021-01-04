@@ -8,7 +8,7 @@ setMethod("dim", signature(x="SpatRaster"),
 	function(x){ return(c(nrow(x), ncol(x), nlyr(x))) }
 )
 
-setMethod("dim", signature(x="SpatDataSet"), 
+setMethod("dim", signature(x="SpatRasterDataset"), 
 	function(x) {
 		dim(x[1])[1:2]
 	}
@@ -18,7 +18,7 @@ setMethod("nrow", signature(x="SpatRaster"),
 	function(x){ return(x@ptr$nrow())}
 )
 
-setMethod("nrow", signature(x="SpatDataSet"), 
+setMethod("nrow", signature(x="SpatRasterDataset"), 
 	function(x){ return(x[1]@ptr$nrow())}
 )
 
@@ -30,7 +30,7 @@ setMethod("ncol", signature(x="SpatRaster"),
 	function(x){ return(x@ptr$ncol()) }
 )
 
-setMethod("ncol", signature(x="SpatDataSet"), 
+setMethod("ncol", signature(x="SpatRasterDataset"), 
 	function(x){ return(x[1]@ptr$ncol())}
 )
 
@@ -41,15 +41,15 @@ setMethod("ncol", signature(x="SpatVector"),
 
 setMethod("dim<-", signature(x="SpatRaster"), 
 	function(x, value) {
-	
+
 		if (length(value) == 1) {
 			value <- c(value, ncol(x), nlyr(x))
 		} else if (length(value) == 2) {
 			value <- c(value, nlyr(x))
 		} else if (length(value) > 3) {
-			warning("value should have length 1, 2, or 3. Additional values ignored")
+			warn("dim<-", "value should have length 1, 2, or 3. Additional values ignored")
 			value <- value[1:3]
-		}		
+		}
 		value <- as.integer(pmax(round(value), c(1,1,1)))
 		rast(nrow=value[1], ncol=value[2], nlyr=value[3], extent=ext(x), crs=crs(x))
 	}
@@ -63,7 +63,7 @@ setMethod("ncell", signature(x="SpatRaster"),
 	}
 )
 
-setMethod("ncell", signature(x="SpatDataSet"), 
+setMethod("ncell", signature(x="SpatRasterDataset"), 
 	function(x) {
 		ncell(x[1])
 	}
@@ -83,7 +83,7 @@ setMethod("size", signature(x="SpatRaster"),
 	}
 )
 
-setMethod("size", signature(x="SpatDataSet"), 
+setMethod("size", signature(x="SpatRasterDataset"), 
 	function(x){
 		nc <- ncell(x)
 		sapply(1:length(x), function(i) nlyr(x[i]) * nc)
@@ -96,7 +96,7 @@ setMethod("nlyr", signature(x="SpatRaster"),
     }
 )
 
-setMethod("nlyr", signature(x="SpatDataSet"), 
+setMethod("nlyr", signature(x="SpatRasterDataset"), 
 	function(x){
 		sapply(1:length(x), function(i) nlyr(x[i]))
     }
@@ -142,7 +142,7 @@ function(x) {
 	}
 )
 
-setMethod("res", signature(x="SpatDataSet"), 
+setMethod("res", signature(x="SpatRasterDataset"), 
 function(x) {
 		x[1]@ptr$res
 	}
@@ -153,10 +153,10 @@ setMethod("res<-", signature(x="SpatRaster"),
 		if (length(value) == 1) {
 			value <- c(value, value)
 		} else if (length(value) > 2) {
-			warning("value should have length 1 or 2. Additional values ignored")
-		}		
+			warn("res<-", "value should have length 1 or 2. Additional values ignored")
+		}
 		x@ptr <- x@ptr$set_resolution(value[1], value[2])
-		show_messages(x, "resolution")
+		messages(x, "resolution")
 	}
 )
 

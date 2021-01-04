@@ -2,13 +2,18 @@
 
 \docType{methods}
 
+\alias{$,SpatExtent-method}
+\alias{$<-,SpatExtent-method}
+\alias{[,SpatExtent,missing,missing-method}
+\alias{[,SpatExtent,numeric,missing-method}
+\alias{[<-,SpatExtent,numeric,missing-method}
 
 \alias{ext}
 \alias{ext<-}
 \alias{ext,SpatExtent-method}
 \alias{ext,SpatRaster-method}
 \alias{ext,SpatVector-method}
-\alias{ext,SpatDataSet-method}
+\alias{ext,SpatRasterDataset-method}
 \alias{ext<-,SpatRaster,SpatExtent-method}
 \alias{ext<-,SpatRaster,numeric-method}
 \alias{ext,numeric-method}
@@ -18,7 +23,6 @@
 \alias{ext,Extent-method}
 \alias{bbox,SpatRaster-method}
 \alias{bbox,SpatVector-method}
-
 
   
 \title{Create, get or set a SpatExtent}
@@ -33,11 +37,16 @@ Get a SpatExtent of a SpatRaster, or coordinates from such an object. Or create 
 \S4method{ext}{SpatRaster,SpatExtent}(x)<-value
 
 \S4method{ext}{SpatRaster,numeric}(x)<-value
+
+\S4method{$}{SpatExtent}(x, name)
+
+\S4method{$}{SpatExtent}(x, name)<-value
 }
 
 \arguments{
   \item{x}{SpatRaster}
-  \item{value}{SpatExtent, or numeric vector of lenght four (xmin, xmax, ymin, ymax)}  
+  \item{value}{SpatExtent, or numeric vector of lenght four (xmin, xmax, ymin, ymax), or a single number with the \code{$} method}  
+  \item{name}{charcter, one of xmin, xmax, ymin, or ymax}  
   \item{...}{additional arguments. None implemented }
 }
  

@@ -21,25 +21,25 @@
 /*
 #include "string_utils.h"
 
-void RasterSource::fsopen(std::string filename) {
+void SpatRasterSource::fsopen(std::string filename) {
     std::string grifile = setFileExt(filename, ".gri");
  	std::ofstream fstr(grifile, std::ios::out | std::ios::binary);
     *ofs = &fstr;
 }
 
-bool RasterSource::fswrite(std::vector<double> &v) {
+bool SpatRasterSource::fswrite(std::vector<double> &v) {
 	unsigned sz = v.size() * sizeof(double);
 	bool result = (*ofs).write(reinterpret_cast<const char*>(&v[0]), sz);
  	return result;
 }
 
-void RasterSource::fsclose() {
+void SpatRasterSource::fsclose() {
 	(*ofs).close();
 }
 */
 
 
-RasterSource::RasterSource() {
+SpatRasterSource::SpatRasterSource() {
 	open_write = false;
 	open_read = false;
 }
@@ -73,7 +73,7 @@ SpatRaster SpatRaster::combineSources(SpatRaster x) {
 
 
 void SpatRaster::addSource(SpatRaster x) {
-	
+
 	if (compare_geom(x, false, false)) {
         if (!hasValues()) {  //or if n src == 0?
             source = x.source;
@@ -163,15 +163,20 @@ std::vector<unsigned> SpatRaster::sourcesFromLyrs(std::vector<unsigned> lyrs) {
 
 
 
-std::vector<double> RasterSource::getValues(unsigned lyr) {
-    unsigned nc = nrow * ncol;
-    unsigned start = lyr * nc;
-    unsigned stop = start + nc;
-    std::vector<double> out (values.begin()+start, values.begin()+stop);
-    return out;
+std::vector<double> SpatRasterSource::getValues(unsigned lyr) {
+	size_t nc ;
+	if (hasWindow) {
+		nc = window.full_ncol * window.full_nrow;
+	} else {
+		nc = nrow * ncol;
+	}
+	size_t start = lyr * nc;
+	std::vector<double> out(values.begin()+start, values.begin()+start+nc);
+	return out;
+
 }
 
-bool RasterSource::in_order() {
+bool SpatRasterSource::in_order() {
 	if (memory) return true;
 	if (nlyr != nlyrfile) return false;
 	for (size_t i=0; i<layers.size(); i++) {
@@ -183,11 +188,11 @@ bool RasterSource::in_order() {
 }
 
 
-void RasterSource::resize(unsigned n) {
+void SpatRasterSource::resize(unsigned n) {
 	names.resize(n);
-	long_names.resize(n);
-	unit.resize(n);	
-	depth.resize(n);	
+	time.resize(n);
+	unit.resize(n);
+	depth.resize(n);
     hasRange.resize(n);
     range_min.resize(n);
     range_max.resize(n);
@@ -198,16 +203,18 @@ void RasterSource::resize(unsigned n) {
 	cols.resize(n);
     hasCategories.resize(n);
 	cats.resize(n);
+    hasAttributes.resize(n);
+	atts.resize(n);
 	nlyr = n;
 	layers.resize(n);
 	std::iota(layers.begin(), layers.end(), 0);
 }
 
 
-//std::vector<RasterSource> RasterSource::subset(std::vector<unsigned> lyrs) {
-RasterSource RasterSource::subset(std::vector<unsigned> lyrs) {
+//std::vector<SpatRasterSource> SpatRasterSource::subset(std::vector<unsigned> lyrs) {
+SpatRasterSource SpatRasterSource::subset(std::vector<unsigned> lyrs) {
 
-	RasterSource out;
+	SpatRasterSource out;
 
     unsigned nl = lyrs.size();
     bool all = true;
@@ -221,60 +228,59 @@ RasterSource RasterSource::subset(std::vector<unsigned> lyrs) {
     } else {
         all = false;
     }
-    if (all) {
-        out = *this ;
-    } else {
-        RasterSource rs = *this;
-        rs.resize(0);
-		bool hasTime = time.size() == nl;
-
+	out = *this ;
+    if (!all) {
+        out.resize(0);
         if (memory) {
             if (hasValues) {
-                rs.values.resize(0);
+                out.values.resize(0);
                 for (size_t i=0; i<nl; i++) {
                     unsigned j = lyrs[i];
                     std::vector<double> x = getValues(j);
-                    rs.values.insert(rs.values.end(), x.begin(), x.end());
-                    rs.names.push_back(names[j]);
-					if (hasTime) rs.time.push_back(time[j]);
-					rs.depth.push_back(depth[j]);
-					rs.unit.push_back(unit[j]);
-					rs.long_names.push_back(long_names[j]);
-					
-					rs.layers.push_back(i);
-                    rs.hasRange.push_back(hasRange[j]);
-                    rs.range_min.push_back(range_min[j]);
-                    rs.range_max.push_back(range_max[j]);
-                    rs.hasColors.push_back(hasColors[j]);
-                    rs.hasCategories.push_back(hasCategories[j]);
-					//rs.RAT.push_back(RAT[j]);
-					rs.has_scale_offset.push_back(has_scale_offset[j]);
-					rs.scale.push_back(scale[j]);
-					rs.offset.push_back(offset[j]);
+                    out.values.insert(out.values.end(), x.begin(), x.end());
+                    out.names.push_back(names[j]);
+					out.time.push_back(time[j]);
+					out.depth.push_back(depth[j]);
+					out.unit.push_back(unit[j]);
+					out.layers.push_back(i);
+                    out.hasRange.push_back(hasRange[j]);
+                    out.range_min.push_back(range_min[j]);
+                    out.range_max.push_back(range_max[j]);
+                    out.hasColors.push_back(hasColors[j]);
+                    out.cols.push_back(cols[j]);
+                    out.hasCategories.push_back(hasCategories[j]);
+                    out.cats.push_back(cats[j]);
+					out.hasAttributes.push_back(hasAttributes[j]);
+					out.atts.push_back(atts[j]);
+					out.has_scale_offset.push_back(has_scale_offset[j]);
+					out.scale.push_back(scale[j]);
+					out.offset.push_back(offset[j]);
                 }
             }
         } else {
-            //rs.layers = lyrs;
+            //out.layers = lyrs;
             for (size_t i=0; i<nl; i++) {
                 unsigned j = lyrs[i];
-                rs.layers.push_back(layers[j]);
-                rs.names.push_back(names[j]);
-				if (hasTime) rs.time.push_back(time[j]);
-				rs.unit.push_back(unit[j]);
-				rs.long_names.push_back(long_names[j]);
-				rs.depth.push_back(depth[j]);
-                rs.hasRange.push_back(hasRange[j]);
-                rs.range_min.push_back(range_min[j]);
-                rs.range_max.push_back(range_max[j]);
-                rs.hasColors.push_back(hasColors[j]);
-                rs.hasCategories.push_back(hasCategories[j]);
-				rs.has_scale_offset.push_back(has_scale_offset[j]);
-				rs.scale.push_back(scale[j]);
-				rs.offset.push_back(offset[j]);
+                out.layers.push_back(layers[j]);
+                out.names.push_back(names[j]);
+				out.time.push_back(time[j]);
+				out.unit.push_back(unit[j]);
+				out.depth.push_back(depth[j]);
+                out.hasRange.push_back(hasRange[j]);
+                out.range_min.push_back(range_min[j]);
+                out.range_max.push_back(range_max[j]);
+                out.hasColors.push_back(hasColors[j]);
+                out.cols.push_back(cols[j]);
+                out.hasCategories.push_back(hasCategories[j]);
+                out.cats.push_back(cats[j]);
+				out.hasAttributes.push_back(hasAttributes[j]);
+				out.atts.push_back(atts[j]);
+				out.has_scale_offset.push_back(has_scale_offset[j]);
+				out.scale.push_back(scale[j]);
+				out.offset.push_back(offset[j]);
             }
         }
-        rs.nlyr = nl;
-        out = rs;
+        out.nlyr = nl;
     }
     return out;
 }
@@ -315,13 +321,12 @@ SpatRaster SpatRaster::subset(std::vector<unsigned> lyrs, SpatOptions &opt) {
         out.addWarning("ignored " + std::to_string(oldsize - lyrs.size()) + " invalid layer reference(s)");
 	}
 
-
     std::vector<unsigned> srcs = sourcesFromLyrs(lyrs);
 
     unsigned ss = srcs[0];
     std::vector<unsigned> slyr;
     std::vector<unsigned> lyrbys = nlyrBySource();
-    RasterSource rs;
+    SpatRasterSource rs;
     unsigned offset = 0;
     for (size_t i=0; i<ss; i++) { offset += lyrbys[i]; }
 
@@ -340,21 +345,20 @@ SpatRaster SpatRaster::subset(std::vector<unsigned> lyrs, SpatOptions &opt) {
 
     rs = source[ss].subset(slyr);
     out.source.push_back(rs);
-	
 
     if (opt.get_filename() != "") {
         out.writeRaster(opt);
     } else {
 		out = out.collapse_sources();
 	}
-		
+	
     return out;
 }
 
 
 
 
-bool RasterSource::combine_sources(const RasterSource &x) {
+bool SpatRasterSource::combine_sources(const SpatRasterSource &x) {
 	if (memory & x.memory) {
 		if ((values.size() + x.values.size()) < (values.max_size()/8) ) {
 			values.insert(values.end(), x.values.begin(), x.values.end());
@@ -367,17 +371,15 @@ bool RasterSource::combine_sources(const RasterSource &x) {
 		layers.insert(layers.end(), x.layers.begin(), x.layers.end());
 	} else {
 		return false;
-	}	
+	}
 	nlyr += x.nlyr;
 	names.insert(names.end(), x.names.begin(), x.names.end());
-	if (hasTime & x.hasTime) {
-		time.insert(time.end(), x.time.begin(), x.time.end());
-	} else {
-		time.resize(0);
+	time.insert(time.end(), x.time.begin(), x.time.end());
+	if (!(hasTime & x.hasTime)) {
 		hasTime = false;
 	}
-	unit.insert(unit.end(), x.unit.begin(), x.unit.end());	
-	long_names.insert(long_names.end(), x.long_names.begin(), x.long_names.end());	
+	unit.insert(unit.end(), x.unit.begin(), x.unit.end());
+
 	depth.insert(depth.end(), x.depth.begin(), x.depth.end());
 	hasRange.insert(hasRange.end(), x.hasRange.begin(), x.hasRange.end());
 	range_min.insert(range_min.end(), x.range_min.begin(), x.range_min.end());
@@ -399,8 +401,8 @@ bool RasterSource::combine_sources(const RasterSource &x) {
 
 SpatRaster SpatRaster::collapse_sources() {
 	SpatRaster out;
-	std::vector<RasterSource> src;
-	RasterSource s = source[0];
+	std::vector<SpatRasterSource> src;
+	SpatRasterSource s = source[0];
 	for (size_t i=1; i<nsrc(); i++) {
 		if (! s.combine_sources(source[i])) {
 			src.push_back(s);

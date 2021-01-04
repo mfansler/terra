@@ -6,11 +6,11 @@ function(x, index, fun, ..., filename="", overwrite=FALSE, wopt=list()) {
 	txtfun <- .makeTextFun(match.fun(fun))
 	if (inherits(txtfun, "character")) { 
 		if (txtfun %in% c("max", "min", "mean", "prod", "sum", "any", "all")) {
-			opt <- .runOptions(filename, overwrite, wopt)
+			opt <- spatOptions(filename, overwrite, wopt)
 			na.rm <- isTRUE(list(...)$na.rm)
-			x@ptr <- x@ptr$rapply(index@ptr, txtfun, na.rm, opt)	
-			return(show_messages(x, "rapp"))
-		}		
+			x@ptr <- x@ptr$rapply(index@ptr, txtfun, na.rm, opt)
+			return(messages(x, "rapp"))
+		}
 	} 
 
 	stopifnot(hasValues(x))

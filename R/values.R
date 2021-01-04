@@ -16,10 +16,10 @@ function(x, row=1, nrows=nrow(x), col=1, ncols=ncol(x), mat=FALSE, dataframe=FAL
 	v <- x@ptr$readValues(row-1, nrows, col-1, ncols)
 	if (dataframe || mat) {
 		v <- matrix(v, ncol = nlyr(x))
-		colnames(v) <- names(x)	
+		colnames(v) <- names(x)
 	}
 	if (dataframe) {
-		v <- data.frame(v)	
+		v <- data.frame(v)
 		ff <- is.factor(x)
 		if (any(ff)) {
 			ff <- which(ff)
@@ -40,7 +40,7 @@ setMethod("values", signature(x="SpatRaster"),
 function(x, mat=TRUE, ...) {
 	if (hasValues(x)) {
 		v <- x@ptr$getValues(-1)
-		show_messages(x, "values")
+		messages(x, "values")
 	} else {
 		v <- matrix(NA, nrow=ncell(x), ncol=nlyr(x))
 	}
@@ -48,7 +48,7 @@ function(x, mat=TRUE, ...) {
 		v <- matrix(v, ncol=nlyr(x))
 		colnames(v) <- names(x)
 	}
-	return(v)	
+	return(v)
 }
 )
 
@@ -71,19 +71,19 @@ setMethod("setValues", signature("SpatRaster", "ANY"),
 			stopifnot(length(dim(values)) == 3)
 			values <- as.vector(aperm(values, c(2,1,3)))
 		}
-		
+
 		if (!(is.numeric(values) || is.integer(values) || is.logical(values))) {
-			stop("values must be numeric, integer, or logical")
+			error("setValues", "values must be numeric, integer, or logical")
 		}
 
 		lv <- length(values)
 		nc <- ncell(x)
 		nl <- nlyr(x)
-		if (lv == 1) {	
+		if (lv == 1) {
 			values <- rep(values, nl * nc)
 		} else {
 			if (!((lv %% nc) == 0)) {
-				warning("the length of the values does not match the size of the SpatRaster")
+				warn("setValues", "length of values does not match the number of cells")
 			}
 			if (lv > (nc * nl)) {
 				values <- values[1:(nc*nl)]
@@ -96,7 +96,7 @@ setMethod("setValues", signature("SpatRaster", "ANY"),
 		y
 	}
 )
-	
+
 
 #.hasValues <- function(x) {
 #	x@ptr$hasValues
@@ -127,9 +127,12 @@ setMethod("sources", signature(x="SpatRaster"),
 
 setMethod("minmax", signature(x="SpatRaster"), 
 	function(x) {
-		rmin <- x@ptr$range_min
-		rmax <- x@ptr$range_max
-		r <- rbind(rmin, rmax)
+		have <- x@ptr$hasRange
+		if (!any(have)) {
+			warn("minmax", "min and max values not available. See 'setMinMax' or 'global'")
+		}
+		r <- rbind(x@ptr$range_min, x@ptr$range_max)
+		r[,!have] <- c(Inf, -Inf)
 		colnames(r) <- names(x)
 		r
 	}
@@ -137,11 +140,13 @@ setMethod("minmax", signature(x="SpatRaster"),
 
 
 setMethod("setMinMax", signature(x="SpatRaster"), 
-	function(x) {
-		if (any(!.hasMinMax(x))) {
+	function(x, force=FALSE) {
+		if (force) {
 			x@ptr$setRange()
-			x <- show_messages(x)
+		} else if (any(!.hasMinMax(x))) {
+			x@ptr$setRange()
 		}
+		x <- messages(x)
 	}
 )
 
@@ -150,11 +155,11 @@ setMethod("compareGeom", signature(x="SpatRaster", y="SpatRaster"),
 	function(x, y, ..., lyrs=FALSE, crs=TRUE, warncrs=FALSE, ext=TRUE, rowcol=TRUE, res=FALSE) {
 		dots <- list(...)
 		bool <- x@ptr$compare_geom(y@ptr, lyrs, crs, warncrs, ext, rowcol, res)
-		show_messages(x, "compareGeom")
+		messages(x, "compareGeom")
 		if (length(dots)>1) {
 			for (i in 1:length(dots)) {
 				bool <- x@ptr$compare_geom(dots[[i]]@ptr, lyrs, crs, warncrs, ext, rowcol, res)
-				show_messages(x, "compareGeom")
+				messages(x, "compareGeom")
 			}
 		}
 		bool
@@ -191,3 +196,9 @@ setMethod("values<-", signature("SpatVector", "data.frame"),
 	}
 )
 
+setMethod("values<-", signature("SpatVector", "NULL"), 
+	function(x, value) {
+		x@ptr$remove_df()
+		x
+	}
+)

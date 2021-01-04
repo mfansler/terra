@@ -18,7 +18,7 @@
 	ff <- list.files(tempdir(), pattern=pattrn, full.names=TRUE)
 	i <- !(basename(ff) %in% basename(ftmp))
 	ff[i]
-	
+
 }
 
 
@@ -27,14 +27,15 @@
 tmpFiles <- function(current=TRUE, orphan=FALSE, old=FALSE, remove=FALSE) {
 
 	if (!(old | current | orphan)) {
-		stop("at least one of 'orphan', 'current' and 'old' must be set to TRUE")
+		error("tmpFiles", "at least one of 'orphan', 'current' and 'old' must be set to TRUE")
 	}
-	
-	d <- .terra_environment$options@ptr$tempdir
+
+	opt <- spatOptions("", TRUE, list())
+	d <- opt$tempdir
 	f <- NULL
 	if (old) {
 		if (normalizePath(tempdir()) != normalizePath(d)) {
-			warning("old files can only be found if terra uses the R tempdir")
+			warn("tmpFiles", "old files can only be found if terra uses the R tempdir")
 		} else {
 			f <- list.files(dirname(d), recursive=TRUE, pattern="^spat_", full.names=TRUE)
 			f <- grep("Rtmp", f, value=TRUE)
@@ -46,7 +47,7 @@ tmpFiles <- function(current=TRUE, orphan=FALSE, old=FALSE, remove=FALSE) {
 			}
 		}
 	} 
-	
+
 	if (current) {
 		ff <- list.files(d, pattern="^spat", full.names=TRUE)
 		f <- c(f, ff)
@@ -54,8 +55,8 @@ tmpFiles <- function(current=TRUE, orphan=FALSE, old=FALSE, remove=FALSE) {
 		fo <- .orphanTmpFiles()
 		f <- c(f, fo) # for if old=TRUE
 	} 
-	
-	
+
+
 	if (remove) {
 		file.remove(f) 
 		return(invisible(f))

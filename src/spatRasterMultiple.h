@@ -18,7 +18,7 @@
 #include "spatRaster.h"
 
 
-// A class for any collection of SpatRasters 
+// A collection of (perhaps non matching) SpatRasters 
 class SpatRasterCollection {
 	public:
 		SpatMessages msg;
@@ -26,6 +26,8 @@ class SpatRasterCollection {
 		void addWarning(std::string s) { msg.addWarning(s); }
 		bool hasError() { return msg.has_error; }
 		bool hasWarning() { return msg.has_warning; }
+		std::string getWarnings() { return msg.getWarnings(); }
+		std::string getError() { return msg.getError(); }
 	
 		std::vector<SpatRaster> x;
 		SpatRasterCollection() {};
@@ -46,27 +48,47 @@ class SpatRasterStack {
 		SpatMessages msg;
 		void setError(std::string s) { msg.setError(s); }
 		void addWarning(std::string s) { msg.addWarning(s); }
-		bool hasError() { return msg.has_error; }
-		bool hasWarning() { return msg.has_warning; }
+		bool has_error() { return msg.has_error; }
+		bool has_warning() { return msg.has_warning; }
+		std::string getWarnings() { return msg.getWarnings();}
+		std::string getError() { return msg.getError();}
 
 		std::vector<SpatRaster> ds;
 		std::vector<std::string> names;
-		//bool oneRes = true;
+		std::vector<std::string> long_names;
+		std::vector<std::string> units;
 		SpatRasterStack() {};
 		SpatRasterStack(std::string fname, std::vector<int> ids, bool useids);
-		SpatRasterStack(SpatRaster r, std::string name, bool warn=false) { push_back(r, name, warn); };
+		SpatRasterStack(SpatRaster r, std::string name, std::string longname, std::string unit, bool warn=false) { 
+			push_back(r, name, longname, unit, warn); 
+		};
 
 		std::vector<std::vector<std::vector<double>>> extractXY(std::vector<double> &x, std::vector<double> &y, std::string method);
 		std::vector<std::vector<std::vector<double>>> extractCell(std::vector<double> &cell);
 		std::vector<std::vector<std::vector<std::vector<double>>>> extractVector(SpatVector v, bool touches, std::string method);
 
-		std::vector<std::string> getnames() {
+		std::vector<std::string> get_names() {
 			return names;
 		};
-		void setnames(std::vector<std::string> nms) {
+		void set_names(std::vector<std::string> nms) {
 			if (nms.size() == ds.size()) {
-				// make_unique
 				names = nms;
+			}
+		}
+		std::vector<std::string> get_longnames() {
+			return long_names;
+		};
+		void set_longnames(std::vector<std::string> nms) {
+			if (nms.size() == ds.size()) {
+				long_names = nms;
+			}
+		}
+		std::vector<std::string> get_units() {
+			return units;
+		};
+		void set_units(std::vector<std::string> u) {
+			if (u.size() == ds.size()) {
+				units = u;
 			}
 		}
 
@@ -117,7 +139,7 @@ class SpatRasterStack {
 			}
 		}
 		
-		bool push_back(SpatRaster r, std::string name, bool warn) { 
+		bool push_back(SpatRaster r, std::string name, std::string longname, std::string unit, bool warn) { 
 			if (ds.size() > 0) {
 				if (!r.compare_geom(ds[0], false, false, true, true, true, false)) {
 //				if (!ds[0].compare_geom(r, false, false, true, true, false, false)) {
@@ -130,14 +152,19 @@ class SpatRasterStack {
 					}
 				}
 			}
-			ds.push_back(r); 
-			names.push_back(name); 
+			ds.push_back(r);
+			names.push_back(name);
+			long_names.push_back(longname);
+			units.push_back(unit);
 			return true;
 		};
 		
 		void resize(size_t n) { 
 			if (n < ds.size()) {
 				ds.resize(n); 
+				names.resize(n);
+				long_names.resize(n);
+				units.resize(n);
 			}
 		}
 		SpatRaster getsds(size_t i) {
@@ -153,17 +180,9 @@ class SpatRasterStack {
 			SpatRasterStack out;
 			for (size_t i=0; i<x.size(); i++) {
 				if (x[i] < ds.size()) {
-					out.push_back(ds[x[i]], names[x[i]], true);
+					out.push_back(ds[x[i]], names[i], long_names[i], units[i], true);
 				} 				
 			} 
-			//if (!oneRes) {
-			//	for (size_t i=1; i<out.ds.size(); i++) {
-			//		if ((out.ds[0].nrow() != out.ds[i].nrow()) || (out.ds[0].ncol() != out.ds[i].ncol())) {
-			//			oneRes = false;
-			//			break;
-			//		}
-			//	}
-			//}
 			return out;
 		}
 		
@@ -181,12 +200,10 @@ class SpatRasterStack {
 				return;
 			}
 			
-			//if (oneRes && ((ds[0].nrow() != x.nrow()) || (ds[0].ncol() != x.ncol()))) {
-			//	oneRes = false;
-			//	addWarning("resolution of new data is different from other sub-datasets");
-			//}
-
 			ds[i] = x;
+			names[i] = x.getNames()[0];
+			long_names[i] = x.getLongSourceNames()[0];
+			units[i] = x.getUnit()[0];
 		}
 		
 		SpatRaster collapse() {

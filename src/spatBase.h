@@ -113,9 +113,14 @@ class SpatOptions {
 		unsigned progress = 3;
 		unsigned blocksizemp = 4;
 		size_t steps = 0;
+		bool hasNAflag = false;
 		double NAflag = NAN;
 		bool def_verbose = false;
 		bool verbose = false;
+		int statistics = 1;
+		bool datatype_set = false;
+		//bool ncdfcopy = false;
+
 		std::string datatype = "";
 		//std::string bandorder = "";
 		std::string filetype = "";
@@ -144,9 +149,12 @@ class SpatOptions {
 		void set_def_filetype(std::string d);
 
 		// single use
+		
 		void set_verbose(bool v);
 		void set_def_verbose(bool v);
 		void set_NAflag(double flag);
+		//void set_ncdfcopy(bool x);
+		void set_statistics(int s);
 		//void set_filename(std::string f);
 		void set_filenames(std::vector<std::string> f);
 		void set_filetype(std::string d);
@@ -161,7 +169,10 @@ class SpatOptions {
 		std::string get_datatype();
 		//std::string get_bandorder();
 		bool get_verbose();
+		//bool get_ncdfcopy();
+		int get_statistics();
 		double get_NAflag();
+		bool has_NAflag(double &flag);
 		bool get_overwrite();
 		unsigned get_progress();
 		bool do_progress(unsigned n);
@@ -219,7 +230,7 @@ class SpatExtent {
 		}
 
 		bool valid() {
-			return ((xmax >= xmin) && (ymax >= ymin));
+			return ((xmax > xmin) && (ymax > ymin));
 		}
 
 		bool compare(SpatExtent e, std::string oper, double tolerance);
@@ -227,20 +238,27 @@ class SpatExtent {
 		SpatExtent round(int n);
 		SpatExtent floor();
 		SpatExtent ceil();
+		
+		std::vector<size_t> test_sample(size_t size, size_t N, bool replace, std::vector<double> w, unsigned seed);
+		std::vector<std::vector<double>> sampleRegular(size_t size, bool lonlat);
+		std::vector<std::vector<double>> sampleRandom(size_t size, bool lonlat, unsigned seed);
+		
 };
 
 
 
 class SpatSRS {
 	public:
+//		SpatSRS(std::string s);
 		std::string proj4, wkt;
 		bool set(std::string txt, std::string &msg);
-
 /*
 #ifdef useGDAL	
 		bool set(OGRSpatialReference *poSRS, std::string &msg);
 #endif		
 */
+		double to_meter();
+
 		std::string get(std::string x) {
 			return (x == "proj4" ? proj4 : wkt); 
 		}
@@ -256,6 +274,12 @@ class SpatSRS {
 		bool is_empty() {
 			return (wkt == "");
 		}
+
+		bool is_same(std::string other, bool ignoreempty);
+		bool is_same(SpatSRS x, bool ignoreempty);
+
+
+		bool is_geographic(); // as below, but using GDAL
 
 		bool is_lonlat() {
 			bool b1 = proj4.find("longlat") != std::string::npos;

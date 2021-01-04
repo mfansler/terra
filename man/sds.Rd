@@ -7,15 +7,15 @@
 \alias{sds,character-method}
 \alias{sds,list-method}
 \alias{sds,SpatRaster-method}
-\alias{[<-,SpatDataSet,numeric,missing-method}
+\alias{[<-,SpatRasterDataset,numeric,missing-method}
 
 
-\title{Create a SpatDataSet}
+\title{Create a SpatRasterDataset}
 
 \description{
-Methods to create a SpatDataSet. This is an object to hold "sub-datasets", each a SpatRaster that in most cases will have multiple layers. 
+Methods to create a SpatRasterDataset. This is an object to hold "sub-datasets", each a SpatRaster that in most cases will have multiple layers. 
 
-See \code{\link{desc}} for getting information about sub-datasets in a file.
+See \code{\link{describe}} for getting information about the sub-datasets present in a file.
 }
 
 \usage{
@@ -29,18 +29,18 @@ See \code{\link{desc}} for getting information about sub-datasets in a file.
 }
 
 \arguments{
-\item{x}{character (filename), or SpatRaster, or list of SpatRaster objects, or missing. If multiple filenames are provided, it is attempted to make SpatRasters from these, and combine them into a SpatDataSet}
+\item{x}{character (filename), or SpatRaster, or list of SpatRaster objects, or missing. If multiple filenames are provided, it is attempted to make SpatRasters from these, and combine them into a SpatRasterDataset}
 \item{ids}{optional. vector of integer subdataset ids. Ignored if the first value is not a postive integer}
 \item{...}{additional arguments. Can be other \code{SpatRaster} objects if \code{x} is a \code{SpatRaster}} 
 }
 
 
 \value{
-SpatDataSet
+SpatRasterDataset
 }
 
 \seealso{
-\code{\link{desc}}
+\code{\link{describe}}
 }
 
 \examples{

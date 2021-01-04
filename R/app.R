@@ -5,11 +5,11 @@ function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 	txtfun <- .makeTextFun(match.fun(fun))
 	if (inherits(txtfun, "character")) { 
 		if (txtfun %in% c("max", "min", "mean", "range", "prod", "sum", "any", "all")) {
-			opt <- .runOptions(filename, overwrite, wopt)
+			opt <- spatOptions(filename, overwrite, wopt)
 			na.rm <- isTRUE(list(...)$na.rm)
-			x@ptr <- x@ptr$summary(txtfun, na.rm, opt)	
-			return(show_messages(x, "app"))
-		}		
+			x@ptr <- x@ptr$summary(txtfun, na.rm, opt)
+			return(messages(x, "app"))
+		}
 	}
 
 	out <- rast(x)
@@ -23,15 +23,15 @@ function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 	#narg <- sum(sapply(f, as.character) == "", na.rm=TRUE)
 	#if (narg > 1) {
 	#	vv <- as.list(as.data.frame(v))
-	#	r <- do.call(fun, vv, ...)	
+	#	r <- do.call(fun, vv, ...)
 	#} else {
 	r <- apply(v, 1, fun, ...)
-	
+
 	#}
 	if (is.list(r)) {
-		stop("the function returns a list (should be numeric or matrix")
+		error("app", "the function returns a list (should be numeric or matrix")
 	}
-	trans <- FALSE			
+	trans <- FALSE
 	if (NCOL(r) > 1) {
 		#? if ((ncol(r) %% nc) == 0) {
 		if (ncol(r) == nc) {
@@ -42,7 +42,7 @@ function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 			nlyr(out) <- ncol(r)
 			nms <- colnames(r)
 		} else {
-			stop("cannot handle this function")
+			error("app", "cannot handle this function")
 		}
 		if (is.null(wopt$names)) {
 			wopt$names <- nms
@@ -61,7 +61,7 @@ function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 				r <- t(r)
 			}
 			writeValues(out, r, b$row[i], b$nrows[i])
-		}	
+		}
 	} else {
 		for (i in 1:b$n) {
 			v <- readValues(x, b$row[i], b$nrows[i], 1, nc, TRUE)
@@ -81,7 +81,7 @@ function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 
 .app_test_stack <- function(v, fun, ncols, ...) {
 # figure out the shape of the output
-	nms = ""	
+	nms = ""
 	nr <- nrow(v[[1]])
 	v <- lapply(v, as.vector)
 	v <- do.call(cbind, v)
@@ -89,8 +89,8 @@ function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 	if (inherits(r, "try-error")) {
 		nl <- -1
 	}
-	
-	trans <- FALSE			
+
+	trans <- FALSE
 	if (NCOL(r) > 1) {
 		#? if ((ncol(r) %% nc) == 0) {
 		if (ncol(r) == ncols) {
@@ -99,12 +99,12 @@ function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 		} else if (nrow(r) == ncols) {
 			nl <- ncol(r)
 		} else {
-			stop("cannot handle this function")
+			error("app", "cannot handle this function")
 		}
 	} else if (length(r) >= nr) {
 		if ((length(r) %% nr) == 0) {
 			nl <- length(r) / nr
-		} else {	
+		} else {
 			nl <- -1
 		}
 	} else {
@@ -120,7 +120,7 @@ function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 
 .app_test_stack <- function(v, fun, ncols, ...) {
 # figure out the shape of the output
-	nms = ""	
+	nms = ""
 	nr <- nrow(v[[1]])
 	v <- lapply(v, as.vector)
 	v <- do.call(cbind, v)
@@ -128,8 +128,8 @@ function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 	if (inherits(r, "try-error")) {
 		nl <- -1
 	}
-	
-	trans <- FALSE			
+
+	trans <- FALSE
 	if (NCOL(r) > 1) {
 		#? if ((ncol(r) %% nc) == 0) {
 		if (ncol(r) == ncols) {
@@ -138,12 +138,12 @@ function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 		} else if (nrow(r) == ncols) {
 			nl <- ncol(r)
 		} else {
-			stop("cannot handle this function")
+			error("app", "cannot handle this function")
 		}
 	} else if (length(r) >= nr) {
 		if ((length(r) %% nr) == 0) {
 			nl <- length(r) / nr
-		} else {	
+		} else {
 			nl <- -1
 		}
 	} else {
@@ -157,22 +157,23 @@ function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 
 
 
-setMethod("app", signature(x="SpatDataSet"), 
+setMethod("app", signature(x="SpatRasterDataset"), 
 function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 
 	txtfun <- .makeTextFun(match.fun(fun))
 	if (inherits(txtfun, "character")) { 
 		if (txtfun %in% c("max", "min", "mean", "range", "prod", "sum", "any", "all")) {
-			opt <- .runOptions(filename, overwrite, wopt)
-			narm <- isTRUE(list(...)$na.rm)	
+			opt <- spatOptions(filename, overwrite, wopt)
+			narm <- isTRUE(list(...)$na.rm)
 			r <- rast()
-			r@ptr <- x@ptr$summary(txtfun, narm, .terra_environment$options@ptr)
-			return (show_messages(r, "app") )
-		}		
+			opt <- spatOptions("", TRUE, list())
+			r@ptr <- x@ptr$summary(txtfun, narm, opt)
+			return (messages(r, "app") )
+		}
 	}
 
-	stopifnot(!missing(fun))
-	
+	if (missing(fun)) error("app", "fun is missing")
+
 	ncx <- ncol(x[1])
 	nrx <- nrow(x[1])
 	readStart(x)
@@ -180,7 +181,7 @@ function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 
 	v <- lapply(1:length(x), function(i) readValues(x[i], round(0.5*nrx), 1, 1, ncx, mat=TRUE))
 	test <- .app_test_stack(v, fun, ncx, ...)
-	if (test$nl < 1) stop("app is not having 'fun'")
+	if (test$nl < 1) error("app", "cannot find 'fun'")
 	out <- rast(x[1], nlyr=test$nl)
 	if (length(test$names == test$nl)) {
 		if (is.null(wopt$names)) wopt$names <- test$names
@@ -200,14 +201,14 @@ function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 			}
 			writeValues(out, r, b$row[i], b$nrows[i])
 
-		}	
+		}
 	} else {
 		for (i in 1:b$n) {
 			v <- lapply(1:length(x), function(s) as.vector(readValues(x[s], b$row[i], b$nrows[i], 1, ncx, mat=TRUE)))
 			r <- apply(do.call(cbind, v), 1, fun, ...) 
 			if (test$trans) {
 				r <- t(r)
-			}			
+			}
 			writeValues(out, r, b$row[i], b$nrows[i])
 		}
 	}

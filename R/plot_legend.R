@@ -1,4 +1,86 @@
 
+.get_breaks <- function(x, n, method, r=NULL) {
+	if (is.function(method)) {
+		if (!is.null(r)) {
+			x[x<r[1] | x>r[2]] <- NA
+		}
+		breaks <- method(x)
+	} else if (method=="cases") {
+		if (!is.null(r)) {
+			x[x<r[1] | x>r[2]] <- NA
+		}
+		n <- n+1
+		i <- seq(0, 1, length.out=n)
+		breaks <- quantile(x, i, na.rm=TRUE)
+		breaks[1] <- breaks[1] - 0.000001
+		breaks[n] <- breaks[n] + 0.000001
+	} else { # if (method=="eqint") {
+		if (is.null(r)) {
+			r <- c(min(x, na.rm=TRUE), max(x, na.rm=TRUE))
+		}
+		r <- r + c(-0.000001, 0.000001)
+		breaks <- seq(r[1] , r[2], length.out=n+1)
+	}
+	breaks
+}
+
+.get_nrnc <- function(nr, nc, nl) {
+	if (missing(nc)) {
+		nc <- ceiling(sqrt(nl))
+	} else {
+		nc <- max(1, min(nl, round(nc)))
+	}
+	if (missing(nr)) {
+		nr <- ceiling(nl / nc)
+	} else {
+		nr <- max(1, min(nl, round(nr)))
+		nc <- ceiling(nl / nr)
+	}
+	c(nr, nc)
+}
+
+
+.plot.axes <- function(x) {
+	if (is.null(x$axs$cex)) {
+		x$axs$cex.axis = 0.75
+	}
+	if (is.null(x$axs$mgp)) {
+		x$axs$mgp = c(2, .5, 0)
+	}
+	if (!is.null(x$axs$sides)) {
+		if (x$axs$sides[1] > 0) {
+			usr <- graphics::par("usr")
+			sides <- x$axs$sides
+			x$axs$sides <- NULL
+			sides <- round(unique(sides))
+			sides[sides > 1 & sides < 5]
+			for (s in sides) {
+				if (s %in% c(1,3)) {
+					ur <- usr[2] - usr[1]
+					at <- c(usr[1]-10*ur, usr[2]+10*ur)
+				} else {
+					ur <- usr[4] - usr[3]
+					at <- c(usr[3]-10*ur, usr[4]+10*ur)
+				}
+				graphics::axis(s, at=at, labels=c("",""), lwd.ticks=0, 
+					cex.axis=x$axs$cex.axis, mgp=x$axis$mgp)
+				x$axs$side <- s
+				do.call(graphics::axis, x$axs)
+			}
+			x$axs$sides <- x$sides
+		}
+	} else {
+		x$axs$side <- 1
+		do.call(graphics::axis, x$axs)
+		x$axs$side <- 2
+		do.call(graphics::axis, x$axs)
+		graphics::box()
+	}
+	x$axs$side <- NULL
+	x
+}
+
+
 .get.leg.coords <- function(x) {
 
 	if (is.null(x$leg$ext)) {
@@ -23,7 +105,7 @@
 		leg.shrink <- rep_len(x$leg$shrink,2)
 	}
 	if (!is.null(x$leg$main)) {
-		n <- length(x$leg$main)		
+		n <- length(x$leg$main)
 		leg.shrink[2] <- max(x$leg$shrink[2], (.05*n)) 
 	}
 
@@ -57,7 +139,7 @@
 
 .get.leg.extent <- function(x) {
 	usr <- graphics::par("usr")
-	dxy <- graphics::par("cxy") * graphics::par("cex")	
+	dxy <- graphics::par("cxy") * graphics::par("cex")
 	loc <- x$leg$loc
 	p <- NULL
 	if (is.character(loc)) {
@@ -72,7 +154,8 @@
 		} else if (loc == "top") {
 			p <- c(usr[1], usr[2], usr[4]+dxy[2], usr[4]+2*dxy[2])
 		} else {
-			stop(loc)
+			warn("plot", "invalid legend location:", loc)
+			p <- c(usr[1], usr[2], usr[4]+dxy[2], usr[4]+2*dxy[2])
 		}
 	}
 	x$leg$ext <- p
@@ -90,7 +173,7 @@
 		e <- leg$ext
 		n <- length(leg$title)
 		ymax <- e$ymax + 0.05 * e$dy
-			
+
 		for (i in 1:n) {
 			if (x$leg$loc == "right") {
 				text(x=e$xmax, y=ymax+(n-i)*0.05* e$dy,
@@ -101,7 +184,7 @@
 			} else {
 				ymax <- e$ymax + 2*e$dy
 				text(x=(e$xmin+e$xmax)/2, y=ymax+(n-i)*0.05* e$dy,
-					labels = leg$title[i], cex = leg$title.cex, xpd=TRUE)				
+					labels = leg$title[i], cex = leg$title.cex, xpd=TRUE)
 			}
 		}
 	}
@@ -111,16 +194,15 @@
 
 .plot.cont.legend <- function(x, ...) {
 
-
 	if (is.null(x$leg$ext)) {
 		x <- .get.leg.extent(x)
 	} else {
-		x <- .get.leg.coords(x)	
+		x <- .get.leg.coords(x)
 	}
 
 	cex <- x$leg$cex
-	if (is.null(cex)) cex <- 1
-	
+	if (is.null(cex)) cex <- 0.8
+
 	cols <- rev(x$cols)
 	nc <- length(cols)
 
@@ -130,7 +212,7 @@
 		if (is.null(x$levels)){
 			x$levels <- 5
 		}
-		zz <- pretty(zlim, n =(x$levels+1))	
+		zz <- pretty(zlim, n =(x$levels+1))
 		zz <- zz[zz >= zlim[1] & zz <= zlim[2]]
 	}
 	zztxt <- x$leg$labels
@@ -160,50 +242,33 @@
 			graphics::segments(xpos, e$ymin, xpos, e$ymax+e$dy*0.25, xpd=NA)
 			text(xpos, e$ymax+e$dy*0.25, zztxt, pos=3, xpd=NA, cex=cex)
 		}
-	}	
+	}
 	graphics::rect(e$xmin, e$ymin, e$xmax, e$ymax, border ="black", xpd=NA)
-	
+
 	x <- .leg.main(x)
 	x
-}	
+}
 
 
-
-.old.plot.class.legend <- function(x, 
-	# catching
-	y, xpd, title, lty, lwd, pch, angle, density, pt.bg, pt.cex, pt.lwd, seg.len, merge, trace, ...) {
-	
-	if (!is.null(x$leg$loc)) {
-		leg <- graphics::legend(x$leg$loc, legend=x$leg$labels, fill=x$cols, title=x$leg$main$text, ...)	
-	} else {
-		if (length(x$leg$ext) == 2) {
-			leg <- graphics::legend(x$leg$ext[1], x$leg$ext[2], legend=x$leg$labels, fill=x$cols, title=x$leg$main$text, xpd=TRUE, ...)
-		} else if (length(x$leg$ext) == 4) {	
-			leg <- graphics::legend(x$leg$ext[1], x$leg$ext[4], legend=x$leg$labels, fill=x$cols, xpd=TRUE, title=x$leg$main$text, ...)
-		} else {
-			stop(x$leg$ext)
-		}
-	}
-	x$leg$legend <- leg
-	x
-}	
-
-
-
-.plot.class.legend <- function(x, y, legend, fill, xpd=TRUE, ext=NULL, 
-	# catching
-	lty, lwd, pch, angle, density, pt.bg, pt.cex, pt.lwd, seg.len, merge, trace, bty="n", ...) {
-
-	#if (!is.null(ext)) {
-		# do something better
-	#}
+.plot.class.legend <- function(x, y, legend, fill, xpd=TRUE, cex=0.8, geomtype="", 
+	lty=1, lwd=1, pch=1, angle=45, density=NULL,
+	pt.cex = 1, pt.bg="black", pt.lwd=1, bty="n", border="black", seg.len=1,
+# catching
+	merge, trace,...) {
 
 	if (x == "top") {
 		usr <- graphics::par("usr")
 		x <- usr[c(2)]
 		y <- usr[c(4)]
 	}
-	leg <- legend(x, y, legend, fill, xpd=xpd, bty=bty, ...)	
+	if (grepl("points", geomtype)) {
+		leg <- legend(x, y, legend, col=fill, xpd=xpd, bty=bty, cex=cex, pch=pch, 
+		pt.cex=pt.cex, pt.bg=pt.bg, pt.lwd=pt.lwd, ...)
+	} else if (geomtype == "lines") {
+		leg <- legend(x, y, legend, col=fill, xpd=xpd, bty=bty, cex=cex, lty=lty, lwd=lwd, seg.len=seg.len, ...)
+	} else {
+		leg <- legend(x, y, legend, fill=fill, xpd=xpd, bty=bty, cex=cex, density=density*2, angle=angle, border=border, ...)
+	}
 	return(leg)
-}	
+}
 

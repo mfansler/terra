@@ -5,6 +5,40 @@
 
 using namespace Rcpp;
 
+// sameSRS
+bool sameSRS(std::string x, std::string y);
+RcppExport SEXP _terra_sameSRS(SEXP xSEXP, SEXP ySEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< std::string >::type x(xSEXP);
+    Rcpp::traits::input_parameter< std::string >::type y(ySEXP);
+    rcpp_result_gen = Rcpp::wrap(sameSRS(x, y));
+    return rcpp_result_gen;
+END_RCPP
+}
+// getCRSname
+std::string getCRSname(std::string s);
+RcppExport SEXP _terra_getCRSname(SEXP sSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< std::string >::type s(sSEXP);
+    rcpp_result_gen = Rcpp::wrap(getCRSname(s));
+    return rcpp_result_gen;
+END_RCPP
+}
+// getLinearUnits
+double getLinearUnits(std::string s);
+RcppExport SEXP _terra_getLinearUnits(SEXP sSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< std::string >::type s(sSEXP);
+    rcpp_result_gen = Rcpp::wrap(getLinearUnits(s));
+    return rcpp_result_gen;
+END_RCPP
+}
 // geotransform
 std::vector<double> geotransform(std::string fname);
 RcppExport SEXP _terra_geotransform(SEXP fnameSEXP) {
@@ -83,6 +117,16 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// gdal_drivers
+std::vector<std::vector<std::string>> gdal_drivers();
+RcppExport SEXP _terra_gdal_drivers() {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    rcpp_result_gen = Rcpp::wrap(gdal_drivers());
+    return rcpp_result_gen;
+END_RCPP
+}
 // set_gdal_warnings
 void set_gdal_warnings(int level);
 RcppExport SEXP _terra_set_gdal_warnings(SEXP levelSEXP) {
@@ -107,6 +151,9 @@ END_RCPP
 RcppExport SEXP _rcpp_module_boot_spat();
 
 static const R_CallMethodDef CallEntries[] = {
+    {"_terra_sameSRS", (DL_FUNC) &_terra_sameSRS, 2},
+    {"_terra_getCRSname", (DL_FUNC) &_terra_getCRSname, 1},
+    {"_terra_getLinearUnits", (DL_FUNC) &_terra_getLinearUnits, 1},
     {"_terra_geotransform", (DL_FUNC) &_terra_geotransform, 1},
     {"_terra_ginfo", (DL_FUNC) &_terra_ginfo, 3},
     {"_terra_sd_info", (DL_FUNC) &_terra_sd_info, 1},
@@ -114,6 +161,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_terra_metatdata", (DL_FUNC) &_terra_metatdata, 1},
     {"_terra_sdsmetatdata", (DL_FUNC) &_terra_sdsmetatdata, 1},
     {"_terra_sdsmetatdataparsed", (DL_FUNC) &_terra_sdsmetatdataparsed, 1},
+    {"_terra_gdal_drivers", (DL_FUNC) &_terra_gdal_drivers, 0},
     {"_terra_set_gdal_warnings", (DL_FUNC) &_terra_set_gdal_warnings, 1},
     {"_terra_gdal_init", (DL_FUNC) &_terra_gdal_init, 1},
     {"_rcpp_module_boot_spat", (DL_FUNC) &_rcpp_module_boot_spat, 0},

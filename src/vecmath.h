@@ -21,6 +21,7 @@
 #include <type_traits>
 #include <vector>
 #include "NA.h"
+#include <math.h>
 
 
 
@@ -143,7 +144,31 @@ T vsum(std::vector<T>& v, bool narm) {
 	return x;
 }
 
-
+template <typename T>
+T vsum2(std::vector<T>& v, bool narm) {
+	T x = v[0];
+	if (narm) {		
+		for (size_t i=1; i<v.size(); i++) {
+			if (is_NA(x)) {
+				x = v[i] * v[i];
+			} else if (!is_NA(v[i])) {
+				x += v[i] * v[i];
+			}
+		}
+	} else {
+		for (size_t i=1; i<v.size(); i++) {
+			if (!is_NA(x)) {
+				if (is_NA(v[i])) {
+					x = NA<T>::value;
+					break;
+				} else {
+					x += v[i] * v[i];
+				}
+			}
+		}
+	}
+	return x;
+}
 
 
 template <typename T>
@@ -207,6 +232,43 @@ double vmean(std::vector<T>& v, bool narm) {
 	return x;
 }
 
+template <typename T>
+double vsd(std::vector<T>& v, bool narm) {
+	double m = vmean(v, narm);
+	if (std::isnan(m)) return m;
+	double x = v[0];
+	size_t n = 0;
+	for (size_t i=0; i<v.size(); i++) {
+		if (!is_NA(v[i])) {
+			double d = (v[i] - m);
+			x += d * d;
+			n++;
+		}
+	}
+	n--;
+	if (n==0) return NAN;
+	x = sqrt(x / n);
+	return x;
+}
+
+
+
+template <typename T>
+double vsdpop(std::vector<T>& v, bool narm) {
+	double m = vmean(v, narm);
+	if (std::isnan(m)) return m;
+	double x = v[0];
+	size_t n = 0;
+	for (size_t i=0; i<v.size(); i++) {
+		if (!is_NA(v[i])) {
+			double d = (v[i] - m);
+			x += d * d;
+			n++;
+		}
+	}
+	x = sqrt(x / n);
+	return x;
+}
 
 
 

@@ -22,7 +22,7 @@
 
 
 
-bool SpatRaster::writeValuesMem(std::vector<double> &vals, uint_64 startrow, uint_64 nrows, uint_64 startcol, uint_64 ncols) {
+bool SpatRaster::writeValuesMem(std::vector<double> &vals, size_t startrow, size_t nrows, size_t startcol, size_t ncols) {
 
 	if (vals.size() == size()) {
 		source[0].values = vals;
@@ -42,8 +42,8 @@ bool SpatRaster::writeValuesMem(std::vector<double> &vals, uint_64 startrow, uin
 			size_t off2 = startrow * ncols + i * nc; 
 			std::copy( vals.begin()+off1, vals.begin()+off1+chunk, source[0].values.begin()+off2 );
 		}
-		
-	 // block writing	
+	
+	 // block writing
 	} else {
 		for (size_t i=0; i<nlyr(); i++) {
 			unsigned off = i*chunk;
@@ -60,14 +60,14 @@ bool SpatRaster::writeValuesMem(std::vector<double> &vals, uint_64 startrow, uin
 
 
 void SpatRaster::fill(double x) {
-	if (source[0].driver == "gdal") {	
+	if (source[0].driver == "gdal") {
 		#ifdef useGDAL
 		fillValuesGDAL(x);
 		#endif
 	} else {
 		source[0].values.resize(size(), x);
 	}
-		
+	
 }
 
 
@@ -118,8 +118,6 @@ bool SpatRaster::differentFilenames(std::vector<std::string> outf) {
 
 
 
-
-
 SpatRaster SpatRaster::writeRaster(SpatOptions &opt) {
 
 // here we could check if we can simple make a copy if
@@ -151,7 +149,7 @@ SpatRaster SpatRaster::writeRaster(SpatOptions &opt) {
 			for (size_t i=0; i<nl; i++) {
 				if (fnames[i] == "") {
 					out.setError("empty filename detected");
-					return(out);					
+					return(out);				
 				}
 				if (!can_write(fnames[i], overwrite, errmsg)) {
 					out.setError(errmsg + " (" + fnames[i] +")");
@@ -167,21 +165,31 @@ SpatRaster SpatRaster::writeRaster(SpatOptions &opt) {
 			}
 			SpatRaster out(fnames, {-1}, {""}, "");
 			return out;
-		}		
+		}	
 	} 
 
 	if (!readStart()) {
 		out.setError(getError());
 		return(out);
 	}
-	if (!out.writeStart(opt)) { return out; }
+
+	if (!out.writeStart(opt)) { 
+		readStop();
+		return out; 
+	}
 	for (size_t i=0; i<out.bs.n; i++) {
 		std::vector<double> v = readBlock(out.bs, i);
-		if (!out.writeValuesGDAL(v, out.bs.row[i], out.bs.nrows[i], 0, ncol())) return out;
+		if (!out.writeValuesGDAL(v, out.bs.row[i], out.bs.nrows[i], 0, ncol())) {
+			readStop();
+			out.writeStopGDAL();
+			return out;
+		}
 	}
-	if (!out.writeStopGDAL()) {
-		out.setError("cannot close file");
-	}
+	out.writeStopGDAL();
+	//if (!out.writeStopGDAL()) {
+	//	out.setError("cannot close file");
+	//}
+	readStop();
 	return out;
 }
 
@@ -208,15 +216,8 @@ bool SpatRaster::writeStart(SpatOptions &opt) {
 	}
 
 	if (filename != "") {
-		//std::string ext = getFileExt(filename);
-		//std::string dtype = opt.get_datatype();
-		//source[0].datatype = dtype;
-		//bool overwrite = opt.get_overwrite();
-
-		//lowercase(ext);
 		// open GDAL filestream
 		#ifdef useGDAL
-		//if (! writeStartGDAL(filename, opt.get_filetype(), dtype, overwrite, opt) ) {
 		if (! writeStartGDAL(opt) ) {
 			return false;
 		}
@@ -246,7 +247,7 @@ bool SpatRaster::writeStart(SpatOptions &opt) {
 		Rcpp::Rcout<< "n blocks      : " << bs.n << std::endl;
 		Rcpp::Rcout<< std::endl;
 	}
-	
+
 	pbar = new Progress(bs.n+2, opt.do_progress(bs.n));
 	pbar->increment();
 	#endif
@@ -255,7 +256,7 @@ bool SpatRaster::writeStart(SpatOptions &opt) {
 
 
 
-bool SpatRaster::writeValues(std::vector<double> &vals, uint_64 startrow, uint_64 nrows, uint_64 startcol, uint_64 ncols) {
+bool SpatRaster::writeValues(std::vector<double> &vals, size_t startrow, size_t nrows, size_t startcol, size_t ncols) {
 	bool success = true;
 
 	if (!source[0].open_write) {
@@ -263,8 +264,8 @@ bool SpatRaster::writeValues(std::vector<double> &vals, uint_64 startrow, uint_6
 		return false;
 	}
 
-	
-	if (source[0].driver == "gdal") {	
+
+	if (source[0].driver == "gdal") {
 		#ifdef useGDAL
 		success = writeValuesGDAL(vals, startrow, nrows, startcol, ncols);
 		#else
@@ -300,7 +301,7 @@ std::vector<T> flatten(const std::vector<std::vector<T>>& v) {
 }
 
 
-bool SpatRaster::writeValues2(std::vector<std::vector<double>> &vals, uint_64 startrow, uint_64 nrows, uint_64 startcol, uint_64 ncols) {
+bool SpatRaster::writeValues2(std::vector<std::vector<double>> &vals, size_t startrow, size_t nrows, size_t startcol, size_t ncols) {
     std::vector<double> vv = flatten(vals);
     return writeValues(vv, startrow, nrows, startcol, ncols);
 }
@@ -352,7 +353,7 @@ bool SpatRaster::setValues(std::vector<double> _values) {
 
 	if (_values.size() == g.size()) {
 
-		RasterSource s = g.source[0];
+		SpatRasterSource s = g.source[0];
 		s.values = _values;
 		s.hasValues = true;
 		s.memory = true;
@@ -369,7 +370,7 @@ bool SpatRaster::setValues(std::vector<double> _values) {
 }
 
 void SpatRaster::setRange() {
-	
+
 	SpatOptions opts;
 	for (size_t i=0; i<nsrc(); i++) {
 		if (source[i].hasRange[0]) continue;
@@ -386,7 +387,7 @@ void SpatRaster::setRange() {
 	}
 }
 
-void RasterSource::setRange() {
+void SpatRasterSource::setRange() {
 	double vmin, vmax;
 	size_t nc = ncol * nrow;
 	size_t start;

@@ -46,25 +46,25 @@ std::vector<double> get_focal(std::vector<double> &d, int nrow, int ncol, int wr
 	size_t n = nrow * ncol * wrows * wcols;
 	std::vector<double> out(n, fill);
 	int f = 0;
-	
+
 	int nrmax = nrow+offset-1;
 	for (int r=0; r < nrow; r++) {
 		for (int c=0; c < ncol; c++) {
 			for (int i = -wr; i <= wr; i++) {
-				int row = r+offset+i;			
+				int row = r+offset+i;		
 				if ((row < 0) || (row > nrmax)) {
 					f = f + wcols;
 				} else {
 					unsigned bcell = row * ncol;
 					for (int j = -wc; j <= wc; j++) {
-						int col = c + j;	
+						int col = c + j;
 						if ((col >= 0) && (col < ncol)) {
 							out[f] = d[bcell+col];
 						}
 						f++;
 					}
 				}
-			}	
+			}
 		}
 	}
 	return(out);
@@ -88,12 +88,12 @@ std::vector<double> SpatRaster::focal_values(std::vector<unsigned> w, double fil
 	int startrow = row-wr;
 	startrow = startrow < 0 ? 0 : startrow;
 	int offset = row-startrow;
-	
+
 	int readnrows = nrows+offset+wr;
 	readnrows = (startrow+readnrows) > nr ? (nr-startrow) : readnrows;
 
 //	Rcpp::Rcout << readnrows << ", " << offset << ", " << wr << std::endl;
-	
+
 	std::vector<double> d = readValues(startrow, readnrows, 0, nc);
 
 	std::vector<double> f = get_focal(d, nrows, nc, w[0], w[1], offset, fillvalue);
@@ -129,7 +129,10 @@ SpatRaster SpatRaster::focal(std::vector<unsigned> w, std::vector<double> m, dou
 		out.setError(getError());
 		return(out);
 	}
- 	if (!out.writeStart(opt)) { return out; }
+ 	if (!out.writeStart(opt)) {
+		readStop();
+		return out;
+	}
 
 	std::function<double(std::vector<double>&, bool)> fFun = getFun(fun);
 	std::vector<double> v;
@@ -159,23 +162,37 @@ SpatRaster SpatRaster::focal(std::vector<unsigned> w, std::vector<double> m, dou
 						v[j] = fFun(x, narm);
 					} else {
 						v[j] = midv;
-					}	
+					}
 				}
 			}
 			if (!out.writeValues(v, out.bs.row[i], out.bs.nrows[i], 0, ncol())) return out;
 		}
 	} else {
 		for (size_t i = 0; i < out.bs.n; i++) {
-		
-//			Rcpp::Rcout << i << ", " << out.bs.row[i] << ", " << out.bs.nrows[i] << std::endl;
-		
+	
+	
 			std::vector<double> fv = focal_values(w, fillvalue, out.bs.row[i], out.bs.nrows[i]);
 			v.resize(out.bs.nrows[i] * ncol());
 			if (wmat) {
-				for (size_t j=0; j<v.size(); j++) {
-					v[j] = 0;
-					for (size_t k=0; k<ww; k++) {
-						v[j] += fv[j*ww+k] * m[k];
+				if (narm) {
+					for (size_t j=0; j<v.size(); j++) {
+						v[j] = 0;
+						size_t cnt = 0;
+						for (size_t k=0; k<ww; k++) {
+							double vv = fv[j*ww+k] * m[k];
+							if (!std::isnan(vv)) {
+								v[j] += vv;
+								cnt++;
+							}
+						}
+						if (cnt == 0) v[j] = NAN;
+					}
+				} else {
+					for (size_t j=0; j<v.size(); j++) {
+						v[j] = 0;
+						for (size_t k=0; k<ww; k++) {
+							v[j] += fv[j*ww+k] * m[k];
+						}
 					}
 				}
 			} else {
@@ -194,7 +211,7 @@ SpatRaster SpatRaster::focal(std::vector<unsigned> w, std::vector<double> m, dou
 }
 
 
-/*	
+/*
 		v.resize(out.bs.nrows[i] * ncol());
 		for (size_t j = 0; j < v.size(); j++) {
 			double z = 0;

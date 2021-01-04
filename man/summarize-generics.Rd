@@ -4,8 +4,18 @@
 
 \alias{Summary-methods}
 
+\alias{median}
+\alias{mean}
+\alias{min}
+\alias{max}
+\alias{range}
+\alias{which.min}
+\alias{which.max}
+
+\alias{Summary,SpatExtent-method}
 \alias{Summary,SpatRaster-method}
 \alias{mean,SpatRaster-method}
+\alias{mean,SpatExtent-method}
 \alias{median,SpatRaster-method}
 \alias{stdev}
 \alias{stdev,SpatRaster-method}
@@ -20,7 +30,7 @@
 
 \description{
 
-Compute cell (pixel) level summary statistics across layers or between layers (parallel summary). 
+Compute summary statistics for cells, either across layers or between layers (parallel summary). 
 
 The following summary methods are available for SpatRaster: \code{any, all, max, min, mean, median, prod, range, stdev, sum, which.min, which.max}. See \code{\link{modal}} to compute the mode and \code{\link{app}} to compute summary statistics that are not included here.
  
@@ -47,7 +57,7 @@ This is different than the sample standard deviation returned by \code{sd} (whic
 
 \S4method{mean}{SpatRaster}(x, ..., trim=NA, na.rm=FALSE)
 
-\S4method{median}{SpatRaster}(x, na.rm=FALSE, ...)
+\S4method{median}{SpatRaster}(x, na.rm=FALSE)
 
 \S4method{stdev}{SpatRaster}(x, ..., na.rm=FALSE)
 

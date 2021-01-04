@@ -7,11 +7,11 @@ setMethod("zonal", signature(x="SpatRaster", z="SpatRaster"),
 				na.rm <- isTRUE(list(...)$na.rm)
 				opt <- .getOptions()
 				ptr <- x@ptr$zonal(z@ptr, txtfun, na.rm, opt)
-				show_messages(ptr, "zonal")
+				messages(ptr, "zonal")
 				return( .getSpatDF(ptr) )
-			}		
+			}
 		} 
-		
+
 		#else 
 		nl <- nlyr(x)
 		res <- list()
@@ -38,8 +38,7 @@ setMethod("global", signature(x="SpatRaster"),
 
 		nms <- names(x)
 		nms <- make.unique(nms)
-		txtfun <- .makeTextFun(match.fun(fun))
-		#if (txtfun == '.Primitive(\"range\")') txtfun <- "range" 
+		txtfun <- .makeTextFun(fun)
 
 		opt <- .getOptions()
 		if (!is.null(weights)) {
@@ -47,19 +46,18 @@ setMethod("global", signature(x="SpatRaster"),
 			stopifnot(txtfun %in% c("mean", "sum"))
 			na.rm <- isTRUE(list(...)$na.rm)
 			ptr <- x@ptr$global_weighted_mean(weights@ptr, txtfun, na.rm, opt)
-			show_messages(ptr, "global")
+			messages(ptr, "global")
 			res <- (.getSpatDF(ptr))
 			rownames(res) <- nms
 			return(res)
 		}
-		
-		txtfun <- .makeTextFun(match.fun(fun))
+
 		if (inherits(txtfun, "character")) { 
-			if (txtfun %in% c("max", "min", "mean", "sum", "range")) {
+			if (txtfun %in% c("max", "min", "mean", "sum", "range", "rms", "sd", "sdpop")) {
 				na.rm <- isTRUE(list(...)$na.rm)
 				ptr <- x@ptr$global(txtfun, na.rm, opt)
-				show_messages(ptr, "global")
-				res <- (.getSpatDF(ptr))
+				messages(ptr, "global")
+				res <- .getSpatDF(ptr)
 
 				rownames(res) <- nms
 				return(res)
@@ -74,7 +72,7 @@ setMethod("global", signature(x="SpatRaster"),
 		res <- do.call(rbind,res)
 		res <- data.frame(res)
 		if (ncol(res) > 1) {
-			colnames(res) <- paste0("global_", 1:ncol(res))			
+			colnames(res) <- paste0("global_", 1:ncol(res))
 		} else {
 			colnames(res) <- "global"
 		}
