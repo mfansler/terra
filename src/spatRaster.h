@@ -164,6 +164,7 @@ class SpatRaster {
 
 #ifdef useRcpp
 		Progress* pbar;
+		bool progressbar;
 #endif
 
 ////////////////////////////////////////////////////
@@ -564,7 +565,7 @@ class SpatRaster {
 		std::vector<std::vector<double>> sampleRandomValues(unsigned size, bool replace, unsigned seed);
 
 		SpatRaster scale(std::vector<double> center, bool docenter, std::vector<double> scale, bool doscale, SpatOptions &opt);
-		SpatRaster slope(unsigned neighbors, bool degrees, SpatOptions &opt);
+		SpatRaster terrain(std::vector<std::string> v, unsigned neighbors, bool degrees, unsigned seed, SpatOptions &opt);
 
 		SpatRaster selRange(SpatRaster x, int z, int recycleby, SpatOptions &opt);
 

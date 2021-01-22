@@ -534,16 +534,6 @@ setMethod("scale", signature(x="SpatRaster"),
 )
 
 
-setMethod("slope", signature(x="SpatRaster"), 
-	function(x, neighbors=8, unit="degrees", filename="", overwrite=FALSE, wopt=list(), ...) { 
-		opt <- spatOptions(filename, overwrite, wopt)
-		unit <- match.arg(unit, c("degrees", "radians"))
-		x@ptr <- x@ptr$slope(neighbors[1], unit=="degrees", opt)
-		messages(x, "slope")
-	}
-)
-
-
 
 setMethod("stretch", signature(x="SpatRaster"), 
 	function(x, minv=0, maxv=255, minq=0, maxq=1, smin=NA, smax=NA, filename="", overwrite=FALSE, wopt=list(), ...) {
@@ -588,11 +578,23 @@ setMethod("t", signature(x="SpatVector"),
 )
 
 
+setMethod("terrain", signature(x="SpatRaster"), 
+	function(x, v="slope", neighbors=8, unit="degrees", filename="", overwrite=FALSE, ...) { 
+		v <- match.arg(unique(v), c("aspect", "flowdir", "roughness", "slope", "TPI", "TRI"))
+		unit <- match.arg(unit, c("degrees", "radians"))
+		opt <- spatOptions(filename, overwrite, list(...))
+		seed <- ifelse("flowdirection" %in% v, .seed(), 0)
+		x@ptr <- x@ptr$terrain(v, neighbors[1], unit=="degrees", seed, opt)
+		messages(x, "terrain")
+	}
+)
+
+
 setMethod("trim", signature(x="SpatRaster"), 
 	function(x, padding=0, filename="", overwrite=FALSE, wopt=list(), ...) {
 		opt <- spatOptions(filename, overwrite, wopt)
 		x@ptr <- x@ptr$trim(padding[1], opt)
-		messages(x, "rasterize")
+		messages(x, "trim")
 	}
 )
 

@@ -9,6 +9,7 @@
 \alias{vect,missing-method}
 \alias{vect,Spatial-method}
 \alias{vect,sf-method}
+\alias{vect,sfc-method}
 \alias{vect,PackedSpatVector-method}
 
 
@@ -82,7 +83,7 @@ d <- data.frame(id=1:2, name=c("a", "b"))
 m <- vect(g, atts=d, crs="+proj=longlat +datum=WGS84")
 
 ### from a data.frame
-d$wkt = wkt
+d$wkt <- wkt
 x <- vect(d, geom="wkt")
 
 d$wkt <- NULL
