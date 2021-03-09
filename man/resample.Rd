@@ -12,8 +12,7 @@ If the origin and crs are the same, you should consider using these other functi
 }
 
 \usage{
-\S4method{resample}{SpatRaster,SpatRaster}(x, y, method="bilinear", 
-       filename="", overwrite=FALSE, wopt=list(), ...)
+\S4method{resample}{SpatRaster,SpatRaster}(x, y, method="bilinear", filename="", ...)
 }
 
 \arguments{
@@ -32,10 +31,8 @@ If the origin and crs are the same, you should consider using these other functi
 	\code{lanczos}: Lanczos windowed sinc resampling.
   }
   
-  \item{filename}{character. Output filename. Optional}
-  \item{overwrite}{logical. If \code{TRUE}, \code{filename} is overwritten}
-  \item{wopt}{list. Options for writing files as in \code{\link{writeRaster}}}
-  \item{...}{additional arguments. None implemented}  
+  \item{filename}{character. Output filename}
+  \item{...}{additional arguments for writing files as in \code{\link{writeRaster}}}
 }
 
 

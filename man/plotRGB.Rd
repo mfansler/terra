@@ -14,9 +14,9 @@ Make a Red-Green-Blue plot based on three layers in a SpatRaster. The layers (so
 
 
 \usage{
-\S4method{plotRGB}{SpatRaster}(x, r=1, g=2, b=3, scale, maxcell=500000, stretch=NULL, 
+\S4method{plotRGB}{SpatRaster}(x, r=1, g=2, b=3, scale, maxcell=500000, mar=0, stretch=NULL, 
 ext=NULL, interpolate=FALSE, colNA="white", alpha, bgalpha, addfun=NULL, zlim=NULL, 
-zlimcol=NULL, axes=FALSE, xlab="", ylab="", asp=NULL, add=FALSE, margins=FALSE, ...)
+zlimcol=NULL, axes=FALSE, xlab="", ylab="", asp=NULL, add=FALSE, ...)
 }
 
 \arguments{
@@ -26,6 +26,7 @@ zlimcol=NULL, axes=FALSE, xlab="", ylab="", asp=NULL, add=FALSE, margins=FALSE, 
   \item{b}{integer. Index of the Blue channel, between 1 and nlyr(x)}
   \item{scale}{integer. Maximum (possible) value in the three channels. Defaults to 255 or to the maximum value of \code{x} if that is known and larger than 255}
   \item{maxcell}{integer > 0. Maximum number of pixels to use}
+  \item{mar}{numeric vector recycled to length 4 to set the margins of the plot. Use \code{mar=NULL} or \code{mar=NA} to not set the margins}
   \item{stretch}{character. Option to stretch the values to increase the contrast of the image: "lin" or "hist"}
   \item{ext}{An \code{\link{SpatExtent}} object to zoom in to a region of interest (see \code{\link{draw}})}
   \item{interpolate}{logical. If \code{TRUE}, interpolate the image when drawing}
@@ -40,7 +41,6 @@ zlimcol=NULL, axes=FALSE, xlab="", ylab="", asp=NULL, add=FALSE, margins=FALSE, 
   \item{ylab}{character. Label of y-axis}
   \item{asp}{numeric. Aspect (ratio of x and y. If NULL, and appropriate value is computed to match data for the longitude/latitude coordinate reference system, and 1 for planar coordinate reference systems}
   \item{add}{logical. If \code{TRUE} add values to current plot}
-  \item{margins}{logical. If \code{TRUE} standard whitespace margins are used. If \code{FALSE}, graphics::par(plt=c(0,1,0,1)) is used}
   \item{...}{graphical parameters as in \code{\link{plot}} or \code{\link{rasterImage}}}
 }
 
@@ -50,7 +50,7 @@ zlimcol=NULL, axes=FALSE, xlab="", ylab="", asp=NULL, add=FALSE, margins=FALSE, 
 \examples{
 b <- rast(system.file("ex/logo.tif", package="terra"))   
 plotRGB(b)
-graphics::par(plt=c(0,1,0,1))
+plotRGB(b, mar=c(2,2,2,2))
 plotRGB(b, 3, 2, 1)
 plotRGB(b, 3, 2, 1, stretch='hist')
 }

@@ -63,7 +63,7 @@
 
 	n <- length(x)
 	y <- x[1]
-	if (isLonLat(y, perhaps=TRUE, warn=FALSE)) {
+	if (is.lonlat(y, perhaps=TRUE, warn=FALSE)) {
 		xname = "longitude"
 		yname = "latitude"
 		xunit = "degrees_east"
@@ -126,6 +126,8 @@
 	prj <- crs(x[1])
 	prj <- gsub("\n", "", prj)
 	if (prj != "") {
+		ncdf4::ncatt_put(ncobj, ncvars[[n+1]], "crs_wkt", prj, prec="text")
+		# need for older gdal?
 		ncdf4::ncatt_put(ncobj, ncvars[[n+1]], "spatial_ref", prj, prec="text")
 		ncdf4::ncatt_put(ncobj, ncvars[[n+1]], "proj4", .proj4(x[1]), prec='text')
 	}
@@ -135,7 +137,7 @@
 	ncdf4::ncatt_put(ncobj, ncvars[[n+1]], "GeoTransform", gt, prec="text")
 
 
-	opt <- spatOptions("", TRUE, list())
+	opt <- spatOptions()
 
 	for (i in 1:n) {
 		y = x[i]

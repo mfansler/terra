@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2020  Robert J. Hijmans
+// Copyright (c) 2018-2021  Robert J. Hijmans
 //
 // This file is part of the "spat" library.
 //
@@ -225,6 +225,7 @@ SpatVector SpatVector::remove_holes() {
 SpatVector SpatVector::get_holes() {
 
 	SpatVector out;
+	out.srs = srs;
 	size_t n = size();
 	if (n == 0) {
 		return out;

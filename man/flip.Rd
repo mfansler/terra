@@ -18,9 +18,9 @@ Flip the values of a SpatRaster by inverting the order of the rows (\code{vertic
 }
 
 \usage{
-\S4method{flip}{SpatRaster}(x, direction="vertical", filename="", overwrite=FALSE, wopt=list(), ...)
+\S4method{flip}{SpatRaster}(x, direction="vertical", filename="", ...)
 
-\S4method{flip}{SpatVector}(x, direction="vertical", ...)
+\S4method{flip}{SpatVector}(x, direction="vertical")
 
 \S4method{rev}{SpatRaster}(x)
 }
@@ -28,10 +28,8 @@ Flip the values of a SpatRaster by inverting the order of the rows (\code{vertic
 \arguments{
   \item{x}{SpatRaster or SpatVector}
   \item{direction}{character. Should (partially) match "vertical" to flip by rows, or "horizontal" to flip by columns}
-  \item{filename}{character. Output filename. Optional}
-  \item{overwrite}{logical. If \code{TRUE}, \code{filename} is overwritten}
-  \item{wopt}{list. Options for writing files as in \code{\link{writeRaster}}}
-  \item{...}{additional arguments. None implemented}  
+  \item{filename}{character. Output filename}
+  \item{...}{additional arguments for writing files as in \code{\link{writeRaster}}}
 }
 
 \value{

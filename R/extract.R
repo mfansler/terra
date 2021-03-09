@@ -43,14 +43,18 @@ wmean <- function(p) {
 
 
 setMethod("extract", signature(x="SpatRaster", y="SpatVector"), 
-function(x, y, fun=NULL, method="simple", list=FALSE, factors=TRUE, cells=FALSE, weights=FALSE, touches=is.lines(y), ...) { 
+function(x, y, fun=NULL, method="simple", list=FALSE, factors=TRUE, cells=FALSE, xy=FALSE, weights=FALSE, touches=is.lines(y), ...) { 
 	if (!is.null(fun)) {
 		cells <- FALSE
-	}
-	e <- x@ptr$extractVector(y@ptr, touches[1], method[1], isTRUE(cells[1]), isTRUE(weights[1]))
+		xy <- FALSE
+	} 
+	e <- x@ptr$extractVector(y@ptr, touches[1], method[1], isTRUE(cells[1]), isTRUE(xy[1]), isTRUE(weights[1]))
 	x <- messages(x, "extract")
+
+
 	#f <- function(i) if(length(i)==0) { NA } else { i }
 	#e <- rapply(e, f, how="replace")
+	cn <- names(x)
 	if (!is.null(fun)) {
 		if (weights) {
 			test1 <- isTRUE(try( deparse(fun)[2] == 'UseMethod(\"mean\")', silent=TRUE))
@@ -60,23 +64,33 @@ function(x, y, fun=NULL, method="simple", list=FALSE, factors=TRUE, cells=FALSE,
 		} else {
 			fun <- match.fun(fun) 
 			e <- rapply(e, fun, ...)
-			e <- matrix(e, nrow=nrow(y), byrow=TRUE)
 		}
-		colnames(e) <- names(x)
+		e <- matrix(e, nrow=nrow(y), byrow=TRUE)
+		colnames(e) <- cn
 		e <- cbind(ID=1:nrow(e), e)
-	} else if (!list) {
-		e <- lapply(1:length(e), function(i) {
-			ee <- unlist(e[[i]])
-			if (length(ee) == 0) ee <- NA
-			cbind(ID=i, matrix(ee, ncol=length(e[[i]])))
-		})
-		e <- do.call(rbind, e)
-		cn <- names(x)
-		if (cells) cn <- c(cn, "cell")
-		if (weights) cn <- c(cn, "weight")
-		colnames(e)[-1] <- cn
+	} else {
 		if (cells) {
-			e[,"cell"] <- e[,"cell"] + 1
+			cn <- c(cn, "cell")
+			i <- which(cn=="cell")
+			e <- lapply(e, function(j) {
+					j[[i]] <- j[[i]] + 1
+					#names(j) <- cn
+					j
+				}
+			)			
+		}
+		if (weights) cn <- c(cn, "weight")
+		if (xy) {
+			cn <- c(cn, "x", "y")
+		}	
+		if (!list) {
+			e <- lapply(1:length(e), function(i) {
+				ee <- unlist(e[[i]])
+				if (length(ee) == 0) ee <- NA
+				cbind(ID=i, matrix(ee, ncol=length(e[[i]])))
+			})
+			e <- do.call(rbind, e)
+			colnames(e)[-1] <- cn	
 		}
 	}
 	if (factors) {
@@ -126,7 +140,7 @@ function(x, y, ...) {
 	#	colnames(r) <- c("ID", names(x))
 	#} else {
 	y <- vect(y)
-	extract(x, y)[,-1,drop=FALSE]
+	extract(x, y, ...)[,-1,drop=FALSE]
 	#}
 })
 

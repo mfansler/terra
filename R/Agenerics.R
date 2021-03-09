@@ -8,6 +8,9 @@ if (!isGeneric("relate")) {setGeneric("relate", function(x, y, ...) standardGene
 if (!isGeneric("intersect")) {setGeneric("intersect", function(x, y, ...) standardGeneric("intersect"))}
 if (!isGeneric("erase")) {setGeneric("erase", function(x, y, ...) standardGeneric("erase"))}
 if (!isGeneric("near")) {setGeneric("near", function(x, ...) standardGeneric("near"))}
+if (!isGeneric("cartogram")) {setGeneric("cartogram", function(x, ...) standardGeneric("cartogram"))}
+if (!isGeneric("dots")) {setGeneric("dots", function(x, ...) standardGeneric("dots"))}
+if (!isGeneric("coords")) {setGeneric("coords", function(x, ...) standardGeneric("coords"))}
 
 if (!isGeneric("symdif")) {setGeneric("symdif", function(x, y, ...) standardGeneric("symdif"))}
 
@@ -66,6 +69,7 @@ if (!isGeneric("isFALSE")) { setGeneric("isFALSE", function(x) standardGeneric("
 if (!isGeneric("varnames")) {setGeneric("varnames", function(x,...) standardGeneric("varnames"))}
 if (!isGeneric("varnames<-")) {setGeneric("varnames<-", function(x, value) standardGeneric("varnames<-"))}
 
+if (!isGeneric("log")) {setGeneric("log", function(x,...) standardGeneric("log"))}
 if (!isGeneric("longnames")) {setGeneric("longnames", function(x,...) standardGeneric("longnames"))}
 if (!isGeneric("longnames<-")) {setGeneric("longnames<-", function(x, value) standardGeneric("longnames<-"))}
 

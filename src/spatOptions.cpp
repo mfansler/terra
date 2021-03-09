@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2020  Robert J. Hijmans
+// Copyright (c) 2018-2021  Robert J. Hijmans
 //
 // This file is part of the "spat" library.
 //
@@ -37,10 +37,15 @@ SpatOptions::SpatOptions(const SpatOptions &opt) {
 	//ncdfcopy = opt.ncdfcopy;
 }
 
-
-SpatOptions SpatOptions::deepCopy(const SpatOptions &opt) {
-	return SpatOptions(opt);
+SpatOptions SpatOptions::deepCopy() {
+	SpatOptions opt = *this;
+	return opt;
 }
+
+
+//SpatOptions SpatOptions::deepCopy(const SpatOptions &opt) {
+//	return SpatOptions(opt);
+//}
 
 //void SpatOptions::set_def_bandorder(std::string d) { def_bandorder = d; }
 //std::string SpatOptions::get_def_bandorder() { return def_bandorder; }

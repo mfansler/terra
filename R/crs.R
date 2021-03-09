@@ -7,12 +7,31 @@
 	x@ptr$get_crs("proj4")
 }
 
+.srs_describe <- function(srs) {
+	info <- .SRSinfo(srs)
+	names(info) <- c("name", "EPSG", "area", "extent")
+	d <- data.frame(t(info))
+	d$area <- gsub("\\.$", "", d$area)
+	d[d == ""] <- NA
+	if (is.na(d$extent)) {
+		d$extent <- list(c(NA, NA, NA, NA))
+	} else {
+		d$extent <- list(as.numeric(unlist(strsplit(d$extent, ","))))
+	}
+	d
+}
 
 setMethod("crs", signature("SpatRaster"), 
-	function(x, proj4=FALSE) {
-		if (proj4) {
+	function(x, proj4=FALSE, describe=FALSE) {
+		if (describe) {
+			d <- .srs_describe(x@ptr$get_crs("wkt"))
+			if (proj4) {
+				d$proj4 <- x@ptr$get_crs("proj4")		
+			}
+			d
+		} else if (proj4) {
 			x@ptr$get_crs("proj4")		
-		} else {
+		}  else {
 			x@ptr$get_crs("wkt")
 		}
 	}
@@ -39,7 +58,7 @@ setMethod("crs", signature("SpatRaster"),
 }
 
 setMethod("crs<-", signature("SpatRaster", "ANY"), 
-	function(x, ..., value) {
+	function(x, value) {
 		value <- .txtCRS(value)
 		x@ptr <- x@ptr$deepcopy()
 		x@ptr$set_crs(value)
@@ -56,8 +75,14 @@ setMethod("crs<-", signature("SpatRaster", "ANY"),
 
 
 setMethod("crs", signature("SpatVector"), 
-	function(x, proj4=FALSE) {
-		if (proj4) {
+	function(x, proj4=FALSE, describe=FALSE) {
+		if (describe) {
+			d <- .srs_describe(x@ptr$get_crs("wkt"))
+			if (proj4) {
+				d$proj4 <- x@ptr$get_crs("proj4")		
+			}
+			d
+		} else if (proj4) {
 			x@ptr$get_crs("proj4")		
 		} else {
 			x@ptr$get_crs("wkt")
@@ -66,7 +91,7 @@ setMethod("crs", signature("SpatVector"),
 )
 
 setMethod("crs<-", signature("SpatVector", "ANY"), 
-	function(x, ..., value) {
+	function(x, value) {
 		value <- .txtCRS(value)
 		x@ptr <- x@ptr$deepcopy()
 		x@ptr$set_crs(value)
@@ -77,7 +102,7 @@ setMethod("crs<-", signature("SpatVector", "ANY"),
 
 
 setMethod("is.lonlat", signature("SpatRaster"), 
-	function(x, perhaps=FALSE, warn=TRUE, global=FALSE, ...) {
+	function(x, perhaps=FALSE, warn=TRUE, global=FALSE) {
 		if (perhaps) {
 			ok <- x@ptr$isGeographic()
 			if (ok) {
@@ -109,7 +134,7 @@ setMethod("is.lonlat", signature("SpatRaster"),
 
 
 setMethod("is.lonlat", signature("SpatVector"), 
-	function(x, perhaps=FALSE, warn=TRUE, ...) {
+	function(x, perhaps=FALSE, warn=TRUE) {
 		ok <- x@ptr$isGeographic()
 		if (ok) return(ok)
 		if (perhaps) {

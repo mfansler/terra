@@ -20,8 +20,8 @@ setMethod("lines", signature(x="SpatVector"),
 				error("lines", "when supplying two SpatVectors, both must have point geometry")
 			}
 			stopifnot(nrow(x) == nrow(y))	
-			p1 <- geom(x)[, c("x", "y")]
-			p2 <- geom(y)[, c("x", "y")]
+			p1 <- geom(x)[, c("x", "y"), drop=FALSE]
+			p2 <- geom(y)[, c("x", "y"), drop=FALSE]
 			if (arrows) {
 				arrows(p1[,1], p1[,2], p2[,1], p2[,2], col=col, lwd=lwd, lty=lty, ...)
 			} else {
@@ -74,6 +74,7 @@ setMethod("points", signature(x="SpatVector"),
 	}
 )
 
+
 setMethod("polys", signature(x="SpatVector"), 
 	function(x, col, border="black", lwd=1, lty=1, ...)  {
 		gtype <- geomtype(x)
@@ -84,7 +85,7 @@ setMethod("polys", signature(x="SpatVector"),
 			col <- NULL
 		}
 		cols <- .getCols(size(x), col)
-		out <- list(main_cols=col)
+		out <- list(main_cols=cols)
 		out$leg$border <- border
 		.plotPolygons(x, out, lwd=lwd, lty=lty, ...)
 	}

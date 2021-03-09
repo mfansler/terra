@@ -19,7 +19,7 @@ With "cuts" the values are sorted, so that the order in which they are provided 
 
 \usage{
 \S4method{classify}{SpatRaster}(x, rcl, include.lowest=FALSE, right=TRUE, 
-     othersNA=FALSE, filename="", overwrite=FALSE, wopt=list(), ...)
+     othersNA=FALSE, filename="", ...)
 }
 
 \arguments{
@@ -35,11 +35,9 @@ With "cuts" the values are sorted, so that the order in which they are provided 
  \item{right}{logical, indicating if the intervals should be closed on the right (and open on the left) or vice versa. The default is \code{TRUE}. A special case is to use right=NA. In this case both the left and right intervals are open}
  \item{othersNA}{logical. If \code{TRUE}, values that are not matched become \code{NA}. If \code{FALSE}, they retain their original value.} 
  
-  \item{filename}{character. Output filename. Optional}
-  \item{overwrite}{logical. If \code{TRUE}, \code{filename} is overwritten}
-  \item{wopt}{list. Options for writing files as in \code{\link{writeRaster}}}
+  \item{filename}{character. Output filename}
+  \item{...}{Additional arguments for writing files as in \code{\link{writeRaster}}}
 
- \item{...}{additional arguments. None implemented}  
 }
 
 \value{
@@ -86,3 +84,4 @@ unique(rcx2)
 }
 
 \keyword{spatial}
+

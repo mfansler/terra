@@ -5,7 +5,7 @@
     .Call(`_terra_sameSRS`, x, y)
 }
 
-.getSRSname <- function(s) {
+.SRSinfo <- function(s) {
     .Call(`_terra_getCRSname`, s)
 }
 
@@ -51,5 +51,9 @@
 
 .gdalinit <- function(path) {
     invisible(.Call(`_terra_gdal_init`, path))
+}
+
+.precRank <- function(x, y, minc, maxc, tail) {
+    .Call(`_terra_percRank`, x, y, minc, maxc, tail)
 }
 

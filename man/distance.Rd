@@ -16,7 +16,7 @@
 
 If \code{y} is \code{missing} this method computes the distance, for all cells that are \code{NA} in SpatRaster \code{x} to the nearest cell that is not \code{NA}. If argument \code{grid=TRUE}, the distance is computed using a path that goes through the centers of the 8 neighboring cells.
 
-If \code{y} is a SpatVector, the distance to that SpatVector is computed for all cells. For lines and polygons this is done after rasterization (for now).
+If \code{y} is a SpatVector, the distance to that SpatVector is computed for all cells. For lines and polygons this is done after rasterization; and only the overlapping areas of the vector and raster are considered (for now).
 
 \bold{If \code{x} is a SpatVector:}
 
@@ -26,27 +26,25 @@ If \code{y} is a SpatVector the geographic distance between all objects is compu
 }
 
 \usage{
-\S4method{distance}{SpatRaster,missing}(x, y, grid=FALSE, filename="", overwrite=FALSE, wopt=list(), ...)
+\S4method{distance}{SpatRaster,missing}(x, y, grid=FALSE, filename="", ...)
 
-\S4method{distance}{SpatRaster,SpatVector}(x, y, filename="", overwrite=FALSE, wopt=list(), ...)
+\S4method{distance}{SpatRaster,SpatVector}(x, y, filename="", ...)
 
-\S4method{distance}{SpatVector,ANY}(x, y, sequential=FALSE, pairs=FALSE, symmetrical=TRUE, ...)
+\S4method{distance}{SpatVector,ANY}(x, y, sequential=FALSE, pairs=FALSE, symmetrical=TRUE)
 
-\S4method{distance}{SpatVector,SpatVector}(x, y, pairwise=FALSE, ...)
+\S4method{distance}{SpatVector,SpatVector}(x, y, pairwise=FALSE)
 
-\S4method{distance}{matrix,matrix}(x, y, lonlat, pairwise=FALSE, ...)
+\S4method{distance}{matrix,matrix}(x, y, lonlat, pairwise=FALSE)
 
-\S4method{distance}{matrix,ANY}(x, y, lonlat, sequential=FALSE, ...)
+\S4method{distance}{matrix,ANY}(x, y, lonlat, sequential=FALSE)
 }
 
 \arguments{
   \item{x}{SpatRaster, SpatVector, or two-column matrix (x,y) or (lon,lat)}
   \item{y}{missing or SpatVector, or two-column matrix}
   \item{grid}{logical. If \code{TRUE}, distance is computed using a path that goes through the centers of the 8 neighboring cells}
-  \item{filename}{character. Output filename. Optional}
-  \item{overwrite}{logical. If \code{TRUE}, \code{filename} is overwritten}
-  \item{wopt}{list. Options for writing files as in \code{\link{writeRaster}}}
-  \item{...}{additional arguments. None implemented}  
+  \item{filename}{character. Output filename}
+  \item{...}{additional arguments for writing files as in \code{\link{writeRaster}}}
   \item{sequential}{logical. If \code{TRUE}, the distance between sequential geometries is returned}
   \item{pairwise}{logical. If \code{TRUE} and if x and y have the same size (number of rows), the pairwise distances are returned instead of the distances between all elements} 
   \item{lonlat}{logical. If \code{TRUE} the coordinates are interpreted as angular (longitude/latitude). If \code{FALSE} they are interpreted as planar}

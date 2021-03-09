@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2020  Robert J. Hijmans
+// Copyright (c) 2018-2021  Robert J. Hijmans
 //
 // This file is part of the "spat" library.
 //
@@ -179,13 +179,13 @@ SpatRaster SpatRaster::writeRaster(SpatOptions &opt) {
 	}
 	for (size_t i=0; i<out.bs.n; i++) {
 		std::vector<double> v = readBlock(out.bs, i);
-		if (!out.writeValuesGDAL(v, out.bs.row[i], out.bs.nrows[i], 0, ncol())) {
+		if (!out.writeValues(v, out.bs.row[i], out.bs.nrows[i], 0, ncol())) {
 			readStop();
-			out.writeStopGDAL();
+			out.writeStop();
 			return out;
 		}
 	}
-	out.writeStopGDAL();
+	out.writeStop();
 	//if (!out.writeStopGDAL()) {
 	//	out.setError("cannot close file");
 	//}
@@ -250,7 +250,8 @@ bool SpatRaster::writeStart(SpatOptions &opt) {
 	}
 
 	if (opt.progressbar) {
-		pbar = new Progress(bs.n+2, opt.show_progress(bs.n));
+		unsigned long steps = bs.n+2;
+		pbar = new Progress(steps, opt.show_progress(bs.n));
 		pbar->increment();
 		progressbar = true;
 	} else {
@@ -270,6 +271,10 @@ bool SpatRaster::writeValues(std::vector<double> &vals, size_t startrow, size_t 
 		return false;
 	}
 
+	if ((startrow + nrows) > nrow()) {
+		setError("incorrect start and/or nrows value");
+		return false;
+	}
 
 	if (source[0].driver == "gdal") {
 		#ifdef useGDAL

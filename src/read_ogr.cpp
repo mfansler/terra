@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2020  Robert J. Hijmans
+// Copyright (c) 2018-2021  Robert J. Hijmans
 //
 // This file is part of the "spat" library.
 //
@@ -92,8 +92,8 @@ SpatDataFrame readAttributes(OGRLayer *poLayer) {
 					break;
 			}
 		}
+		OGRFeature::DestroyFeature( poFeature );
 	}
-    OGRFeature::DestroyFeature( poFeature );
 	return df;
 }
 
@@ -323,13 +323,30 @@ bool SpatVector::read_ogr(GDALDataset *poDS) {
 	df = readAttributes(poLayer);
 	OGRwkbGeometryType wkbgeom = wkbFlatten(poLayer->GetGeomType());
 	OGRFeature *poFeature;
+	
+	poLayer->ResetReading();
+	poFeature = poLayer->GetNextFeature();
+	if (poFeature != NULL) {
+		OGRGeometry *poGeometry = poFeature->GetGeometryRef();
+		if (poGeometry != NULL) {
+			if (poGeometry->Is3D()) {
+				addWarning("Z coordinates ignored");
+			}
+			if (poGeometry->IsMeasured()) {
+				addWarning("M coordinates ignored");
+			}
+		}
+	}
+	OGRFeature::DestroyFeature( poFeature );
 	poLayer->ResetReading();
 	SpatGeom g;
+	
 	if ((wkbgeom == wkbPoint) | (wkbgeom == wkbMultiPoint)) {
 		//SpatPart p(0,0);
 		while( (poFeature = poLayer->GetNextFeature()) != NULL ) {
 			OGRGeometry *poGeometry = poFeature->GetGeometryRef();
 			if (poGeometry != NULL) {
+				
 				if ( wkbFlatten(poGeometry->getGeometryType()) == wkbPoint ) {
 					g = getPointGeom(poGeometry);			
 				} else {
@@ -340,6 +357,7 @@ bool SpatVector::read_ogr(GDALDataset *poDS) {
 				g.addPart(p);
 			}
 			addGeom(g);
+			OGRFeature::DestroyFeature( poFeature );
 		}
 	} else if (wkbgeom == wkbLineString || wkbgeom == wkbMultiLineString) {
 		while ( (poFeature = poLayer->GetNextFeature()) != NULL ) {
@@ -352,6 +370,7 @@ bool SpatVector::read_ogr(GDALDataset *poDS) {
 				}
 			}
 			addGeom(g);
+			OGRFeature::DestroyFeature( poFeature );
 		}
 	} else if ( wkbgeom == wkbPolygon || wkbgeom == wkbMultiPolygon) {
 		while ( (poFeature = poLayer->GetNextFeature()) != NULL ) {
@@ -366,6 +385,7 @@ bool SpatVector::read_ogr(GDALDataset *poDS) {
 				}
 			} 
 			addGeom(g);
+			OGRFeature::DestroyFeature( poFeature );
 		}
 	} else {				
 		const char *geomtypechar = OGRGeometryTypeToName(wkbgeom);
@@ -374,7 +394,7 @@ bool SpatVector::read_ogr(GDALDataset *poDS) {
 		setError(s);
 		return false;			
 	}
-	OGRFeature::DestroyFeature( poFeature );
+	
  	return true;
 }
 
@@ -401,10 +421,11 @@ SpatVector SpatVector::fromDS(GDALDataset *poDS) {
 SpatVector::SpatVector(std::vector<std::string> wkt) {
 
 	OGRGeometryFactory ogr;
-	OGRGeometry *poGeometry;
 
 	SpatGeom g;
 	for (size_t i=0; i<wkt.size(); i++) {
+
+		OGRGeometry *poGeometry;
 
 #if GDAL_VERSION_MAJOR <= 2 && GDAL_VERSION_MINOR <= 2
 		char *cstring = &wkt[i][0];
@@ -439,6 +460,8 @@ SpatVector::SpatVector(std::vector<std::string> wkt) {
 					return;
 				}
 				addGeom(g);
+				OGRGeometryFactory::destroyGeometry(poGeometry);
+
 			}
 		} else {
 			setError("not WKT");

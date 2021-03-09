@@ -338,7 +338,9 @@ RCPP_MODULE(spat){
 		.method("symdif", &SpatVector::symdif)
 		.method("cover", &SpatVector::cover)
 
-		.method("union", &SpatVector::unite)
+		.method("union", ( SpatVector (SpatVector::*)(SpatVector))( &SpatVector::unite ))
+		.method("union_self", ( SpatVector (SpatVector::*)())( &SpatVector::unite ))
+		.method("union_unary", &SpatVector::unaryunion)
 		.method("intersect", &SpatVector::intersect)
 		.method("delauny", &SpatVector::delauny)
 		.method("voronoi", &SpatVector::voronoi)
@@ -354,6 +356,7 @@ RCPP_MODULE(spat){
 		//.method("knearest", &SpatVector::knearest)
 		
 		.method("sample", &SpatVector::sample)
+		.method("sampleGeom", &SpatVector::sample_geom)
 	;
 
 

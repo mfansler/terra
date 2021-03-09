@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2020  Robert J. Hijmans
+// Copyright (c) 2018-2021  Robert J. Hijmans
 //
 // This file is part of the "spat" library.
 //
@@ -323,10 +323,10 @@ SpatRaster SpatRaster::apply(std::vector<unsigned> ind, std::string fun, bool na
 		return out;
 	}
 	out.bs = getBlockSize(opt);
-    #ifdef useRcpp
-	out.pbar = new Progress(out.bs.n+2, opt.show_progress(bs.n));
-	out.pbar->increment();
-	#endif
+//	#ifdef useRcpp
+//	out.pbar = new Progress(out.bs.n+2, opt.show_progress(bs.n));
+//	out.pbar->increment();
+//	#endif
 
 	std::vector<std::vector<double>> v(nl);
 	std::vector<unsigned> ird(ind.size());
@@ -474,31 +474,27 @@ SpatRaster SpatRaster::mask(SpatRaster x, bool inverse, std::vector<double> mask
 		recycle(v, m);
 		if (inverse) {
 			for (size_t i=0; i < v.size(); i++) {
-				if (!std::isnan(m[i])) {
-					if (maskNA) {
-						v[i] = updatevalue;
-					}
-					break;
-				}	
-				for (size_t j=0; j < maskvalues.size(); j++) {
-					if (m[i] != maskvalues[j]) {
-						v[i] = updatevalue;
-						break;
+				if (maskNA && std::isnan(m[i])) {
+					v[i] = updatevalue;
+				} else {
+					for (size_t j=0; j < maskvalues.size(); j++) {
+						if (m[i] != maskvalues[j]) {
+							v[i] = updatevalue;
+							break;
+						}
 					}
 				}
 			}
 		} else {
 			for (size_t i=0; i < v.size(); i++) {
-				if (std::isnan(m[i])) {
-					if (maskNA) {
-						v[i] = updatevalue;
-					}
-					break;
-				}
-				for (size_t j=0; j < maskvalues.size(); j++) {
-					if (m[i] == maskvalues[j]) {
-						v[i] = updatevalue;
-						break;
+				if (maskNA && std::isnan(m[i])) {
+					v[i] = updatevalue;
+				} else {
+					for (size_t j=0; j < maskvalues.size(); j++) {
+						if (m[i] == maskvalues[j]) {
+							v[i] = updatevalue;
+							break;
+						}
 					}
 				}
 			}
@@ -528,7 +524,7 @@ SpatRaster SpatRaster::mask(SpatVector x, bool inverse, double updatevalue, Spat
 	}
 	std::string filename = opt.get_filename();
 	opt.set_filenames({""});
-	SpatRaster m = rasterize(x, "", {1}, {""}, 0, false, false, false, opt);
+	SpatRaster m = rasterize(x, "", {1}, {""}, 0, false, false, false, false, opt);
 	opt.set_filenames({filename});
 	out = mask(m, inverse, 0, updatevalue, opt);
 	return(out);
@@ -1563,7 +1559,13 @@ SpatRaster SpatRaster::crop(SpatExtent e, std::string snap, SpatOptions &opt) {
 	unsigned row1 = rowFromY(outext.ymax - 0.5 * yr);
 	unsigned row2 = rowFromY(outext.ymin + 0.5 * yr);
 
-	if ((row1==0) && (row2==nrow()-1) && (col1==0) && (col2==ncol()-1)) {
+	std::vector<bool> hw = hasWindow();
+	bool haswin = hw[0];
+	for (size_t i=1; i<nsrc(); i++) {
+		haswin = (haswin | hw[i]);
+	}
+
+	if ((row1==0) && (row2==nrow()-1) && (col1==0) && (col2==ncol()-1) && (!haswin)) {
 		// same extent
 		if (opt.get_filename() != "") {
 			out = writeRaster(opt);
@@ -1702,6 +1704,8 @@ bool SpatRaster::compare_origin(std::vector<double> x, double tol) {
 	return true;
 }
 
+
+/*
 SpatRaster SpatRasterCollection::merge(SpatOptions &opt) {
 
 	SpatRaster out;
@@ -1754,10 +1758,10 @@ SpatRaster SpatRasterCollection::merge(SpatOptions &opt) {
 
 		for (size_t j=0; j<bs.n; j++) {
             std::vector<double> v = r.readValues(bs.row[j], bs.nrows[j], 0, r.ncol());
-            unsigned row1 = out.rowFromY(r.yFromRow(bs.row[j]));
-            unsigned row2 = out.rowFromY(r.yFromRow(bs.row[j]+bs.nrows[j]-1));
-            unsigned col1 = out.colFromX(r.xFromCol(0));
-            unsigned col2 = out.colFromX(r.xFromCol(r.ncol()-1));
+            unsigned row1  = out.rowFromY(r.yFromRow(bs.row[j]));
+            unsigned row2  = out.rowFromY(r.yFromRow(bs.row[j]+bs.nrows[j]-1));
+            unsigned col1  = out.colFromX(r.xFromCol(0));
+            unsigned col2  = out.colFromX(r.xFromCol(r.ncol()-1));
 			unsigned ncols = col2-col1+1;
 			unsigned nrows = row2-row1+1;
 			recycle(v, ncols * nrows * nl);
@@ -1770,6 +1774,15 @@ SpatRaster SpatRasterCollection::merge(SpatOptions &opt) {
 	out.writeStop();
 	return(out);
 }
+*/
+
+
+
+
+SpatRaster SpatRasterCollection::merge(SpatOptions &opt) {
+	return mosaic("first", opt);
+}
+
 
 
 
@@ -1777,7 +1790,7 @@ SpatRaster SpatRasterCollection::mosaic(std::string fun, SpatOptions &opt) {
 
 	SpatRaster out;
 
-	std::vector<std::string> f {"sum", "mean", "median", "min", "max"};
+	std::vector<std::string> f {"first", "sum", "mean", "median", "min", "max"};
 	if (std::find(f.begin(), f.end(), fun) == f.end()) {
 		out.setError("not a valid function");
 		return out;
@@ -1869,8 +1882,8 @@ SpatRaster SpatRasterCollection::mosaic(std::string fun, SpatOptions &opt) {
 
 
 
-
 void do_stats(std::vector<double> &v, std::string fun, bool narm, double &stat, double &stat2,double &n, size_t i) {
+	if (v.size() == 0) return;
 	if (fun == "sum") {
 		stat += vsum(v, narm);
 	} else if (fun == "mean") {
@@ -1931,15 +1944,12 @@ SpatDataFrame SpatRaster::global(std::string fun, bool narm, SpatOptions &opt) {
 		return(out);
 	}
 
-	std::vector<double> stats2;
 	std::string sdfun = fun;
-	if (fun=="range") {
-		stats2.resize(nlyr());
-	} else if ((fun == "sdpop") || (fun == "sd")) {
-		stats2.resize(nlyr());
+	if ((fun == "sdpop") || (fun == "sd")) {
 		fun = "sd";
 	}
 	std::vector<double> stats(nlyr());
+	std::vector<double> stats2(nlyr());
 	std::vector<double> n(nlyr());
 	if (!readStart()) {
 		out.setError(getError());
@@ -1951,7 +1961,7 @@ SpatDataFrame SpatRaster::global(std::string fun, bool narm, SpatOptions &opt) {
 		unsigned off = bs.nrows[i] * ncol() ;
 		for (size_t lyr=0; lyr<nlyr(); lyr++) {
 			unsigned offset = lyr * off;
-			std::vector<double> vv = { v.begin()+offset, v.begin()+offset+off};
+			std::vector<double> vv = { v.begin()+offset, v.begin()+offset+off };
 			do_stats(vv, fun, narm, stats[lyr], stats2[lyr], n[lyr], i);
 		}
 	}
@@ -2026,7 +2036,7 @@ SpatDataFrame SpatRaster::global_weighted_mean(SpatRaster &weights, std::string 
 	}
 
 	std::vector<double> stats(nlyr());
-	double stats2;
+	double stats2 = 0;
 	std::vector<double> n(nlyr());
 	std::vector<double> w(nlyr());
 	if (!readStart()) {

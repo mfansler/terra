@@ -246,6 +246,7 @@ class SpatVector {
 		SpatVector convexhull();
 		SpatVector intersect(SpatVector v);
 		SpatVector unite(SpatVector v);
+		SpatVector unite();
 		SpatVector erase(SpatVector v);
 		SpatVector cover(SpatVector v, bool identity);
 		SpatVector symdif(SpatVector v);
@@ -257,7 +258,8 @@ class SpatVector {
 
 		SpatVector nearest_point(SpatVector v, bool parallel);
 		SpatVector nearest_point();
-		SpatVector sample(unsigned n, std::string method, bool by_geom, std::string strata, unsigned seed);
+		SpatVector sample(unsigned n, std::string method, unsigned seed);
+		SpatVector sample_geom(std::vector<unsigned> n, std::string method, unsigned seed);
 
 		SpatVector unaryunion();
 

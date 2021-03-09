@@ -10,6 +10,7 @@
 \alias{vect,Spatial-method}
 \alias{vect,sf-method}
 \alias{vect,sfc-method}
+\alias{vect,XY-method}
 \alias{vect,PackedSpatVector-method}
 
 
@@ -26,7 +27,7 @@ Create a new SpatVector
 
 \S4method{vect}{data.frame}(x, geom=c("lon", "lat"), crs="", ...)
 
-\S4method{vect}{sf}(x, ...)
+\S4method{vect}{sf}(x)
 }
 
 \arguments{

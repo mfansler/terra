@@ -21,12 +21,12 @@ bool sameSRS(std::string x, std::string y) {
 }
 
 
-// [[Rcpp::export(name = ".getSRSname")]]
-std::string getCRSname(std::string s) {
+// [[Rcpp::export(name = ".SRSinfo")]]
+std::vector<std::string> getCRSname(std::string s) {
 	OGRSpatialReference x;
 	OGRErr erro = x.SetFromUserInput(s.c_str());
 	if (erro != OGRERR_NONE) {
-		return "";
+		return {"unknown", "", "", ""};
 	}
 	std::string node;
 	if (x.IsGeographic()) {
@@ -34,7 +34,33 @@ std::string getCRSname(std::string s) {
 	} else {
 		node = "projcs";
 	}
-	return x.GetAttrValue(node.c_str());
+
+	const char *value;
+	std::string name = "";
+	value = x.GetAttrValue(node.c_str());
+	if (value != NULL) {
+		name = value;
+	}
+	std::string epsg = "";
+	value = x.GetAuthorityCode(node.c_str());
+	if (value != NULL) {
+		epsg = value;
+	}
+		
+	double west, south, east, north;
+	west = -10000;
+	std::string aoi="", box="";
+	#if GDAL_VERSION_MAJOR >= 3
+	if (x.GetAreaOfUse(&west, &south, &east, &north, &value)) {
+		if (value != NULL) {
+			if (west > -1000) {
+				aoi	= value;
+				box = std::to_string(west) + ", " + std::to_string(east) + ", " + std::to_string(north) + ", " + std::to_string(south);	
+			}
+		}
+	}
+	#endif
+	return {name, epsg, aoi, box};
 }
 
 // [[Rcpp::export(name = ".getLinearUnits")]]
@@ -111,17 +137,16 @@ std::vector<std::vector<std::string>> sdsmetatdataparsed(std::string filename) {
 // [[Rcpp::export(name = ".gdaldrivers")]]
 std::vector<std::vector<std::string>> gdal_drivers() {
 	size_t n = GetGDALDriverManager()->GetDriverCount();
-	std::vector<std::vector<std::string>> s(4);
-	s[0].reserve(n);
-	s[1].reserve(n);
-	s[2].reserve(n);
-	s[3].reserve(n);
+	std::vector<std::vector<std::string>> s(5);
+	for (size_t i=0; i<s.size(); i++) {
+		s[i].reserve(n);
+	}
     GDALDriver *poDriver;
     char **papszMetadata;
 	for (size_t i=0; i<n; i++) {
 	    poDriver = GetGDALDriverManager()->GetDriver(i);
 		s[0].push_back(poDriver->GetDescription());
-		s[3].push_back(poDriver->GetMetadataItem( GDAL_DMD_LONGNAME ) );
+		s[4].push_back(poDriver->GetMetadataItem( GDAL_DMD_LONGNAME ) );
 
 		papszMetadata = poDriver->GetMetadata();
 		bool rst = CSLFetchBoolean( papszMetadata, GDAL_DCAP_RASTER, FALSE);
@@ -129,6 +154,9 @@ std::vector<std::vector<std::string>> gdal_drivers() {
 		bool create = CSLFetchBoolean( papszMetadata, GDAL_DCAP_CREATE, FALSE);
 		bool copy = CSLFetchBoolean( papszMetadata, GDAL_DCAP_CREATECOPY, FALSE);
 		s[2].push_back(std::to_string(create + copy));
+		bool vsi = CSLFetchBoolean( papszMetadata, GDAL_DCAP_VIRTUALIO, FALSE);
+		s[3].push_back(std::to_string(vsi));
+
 	}
 	return s;
 }
@@ -235,4 +263,60 @@ void gdal_init(std::string path) {
 	}
 #endif
 }
+
+
+
+
+
+// [[Rcpp::export(name = ".precRank")]]
+
+std::vector<double> percRank(std::vector<double> x, std::vector<double> y, double minc, double maxc, int tail) {
+					
+	std::vector<double> out;
+	out.reserve(y.size());
+	size_t nx = x.size();
+	for (size_t i=0; i<y.size(); i++) {
+		if (std::isnan(y[i]) ) {
+			out.push_back( NAN );
+		} else if ((y[i] < minc) | (y[i] > maxc )) {
+			out.push_back( 0 ); 
+		} else {
+			size_t b = 0;
+			size_t t = 0;
+			for (size_t j=0; j<x.size(); j++) {
+				if (y[i] > x[j]) {
+					b++;
+				} else if (y[i] == x[j]) {
+					t++;
+				} else {
+				// y is sorted, so we need not continue
+					break;
+				}
+			}
+			double z = (b + 0.5 * t) / nx;
+			if (tail == 1) { // both
+				if (z > 0.5) {
+					z = 2 * (1 - z); 
+				} else {
+					z = 2 * z;
+				}
+			} else if (tail == 2) { // high
+				if (z < 0.5) {
+					z = 1;
+				} else {
+					z = 2 * (1 - z);
+				}
+			} else { // if (tail == 3) { // low
+				if (z > 0.5) {
+					z = 1;
+				} else {
+					z = 2 * z;
+				}
+			}
+			out.push_back(z);
+		} 
+	}
+	return(out);
+}
+
 

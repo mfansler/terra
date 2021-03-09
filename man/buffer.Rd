@@ -14,18 +14,16 @@ Note that the distance unit of the buffer \code{width} parameter is meters if th
 }
 
 \usage{
-\S4method{buffer}{SpatRaster}(x, width, filename="", overwrite=FALSE, wopt=list(), ...)
+\S4method{buffer}{SpatRaster}(x, width, filename="", ...)
 
-\S4method{buffer}{SpatVector}(x, width, quadsegs=10, capstyle="round", ...)
+\S4method{buffer}{SpatVector}(x, width, quadsegs=10, capstyle="round")
 }
 
 \arguments{
 \item{x}{SpatRaster or SpatVector}
 \item{width}{numeric. Unit is meter if \code{x} has a longitude/latitude CRS, or mapunits in other cases. Should be > 0 for SpatRaster}
-  \item{filename}{character. Output filename. Optional}
-  \item{overwrite}{logical. If \code{TRUE}, \code{filename} is overwritten}
-  \item{wopt}{list. Options for writing files as in \code{\link{writeRaster}}}
-  \item{...}{additional arguments. None implemented}  
+  \item{filename}{character. Output filename}
+  \item{...}{additional arguments for writing files as in \code{\link{writeRaster}}}
   \item{quadsegs}{postive integer. Number of line segments to use to draw a quart circle}  
   \item{capstyle}{character. Style of cap to use at the ends of the geometry. Allowed values: "round", "flat", "square" (ignored for now) }  
 }

@@ -18,8 +18,7 @@ setMethod("rast", signature(x="missing"),
 
 		if (missing(crs)) {
 			if (e[1] > -360.01 & e[2] < 360.01 & e[3] > -90.01 & e[4] < 90.01) {
-				crs <- "+proj=longlat +datum=WGS84"
-				#crs <- 'GEOGCS["WGS 84", DATUM["WGS_1984", SPHEROID["WGS 84",6378137,298.257223563]], PRIMEM["Greenwich",0], UNIT["degree",0.0174532925199433]]'
+				crs <- "EPSG:4326"
 			} else {
 				crs <- ""
 			}
@@ -46,19 +45,27 @@ setMethod("rast", signature(x="missing"),
 	}
 )
 
+
+
 setMethod("rast", signature(x="list"),
 	function(x) {
 		i <- sapply(x, function(i) inherits(i, "SpatRaster"))
-		if (!any(i)) {
-			error("rast,list", "none of the elements of x are a SpatRaster")
-		}
 		if (!all(i)) {
-			warn("rast", sum(!i), " out of ", length(x), " elements of x are a SpatRaster")
+			if (!any(i)) {
+				error("rast,list", "none of the elements of x are a SpatRaster")
+			} else {
+				warn("rast", sum(!i), " out of ", length(x), " elements of x are a SpatRaster")
+				x <- x[i]
+			}
 		}
-		names(x) <- NULL
-		do.call(c, x[i])
+		out <- rast(x[[1]])
+		for (i in 1:length(x)) {
+			out@ptr$addSource(x[[i]]@ptr)
+		}
+		out
 	}
 )
+
 
 
 setMethod("rast", signature(x="SpatExtent"),
@@ -84,7 +91,9 @@ setMethod("rast", signature(x="SpatVector"),
 		dots$xmax=e[2]
 		dots$ymin=e[3]
 		dots$ymax=e[4]
-		if (all(is.na(pmatch(names(dots), "resolution")))) {
+		i <- pmatch(names(dots), "resolution")
+		j <- pmatch(names(dots), "nrow")
+		if (all(c(is.na(i), is.na(j)))) {
 			dots$resolution <- min(range(e)) / 100
 		}
 		if (all(is.na(pmatch(names(dots), "crs")))) {
@@ -144,7 +153,7 @@ setMethod("rast", signature(x="character"),
 
 		if (crs(r) == "") {
 			if (is.lonlat(r, perhaps=TRUE, warn=FALSE)) {
-				crs(r) <- "+proj=longlat +datum=WGS84"
+				crs(r) <- "EPSG:4326"
 			}
 		}
 		r
@@ -268,7 +277,7 @@ setMethod("rast", signature(x="matrix"),
 
 
 setMethod("NAflag<-", signature(x="SpatRaster"), 
-	function(x, ..., value)  {
+	function(x, value)  {
 		value <- as.numeric(value)
 		if (!(x@ptr$setNAflag(value))) {
 			error("NAflag<-", "cannot set this value")
@@ -278,7 +287,7 @@ setMethod("NAflag<-", signature(x="SpatRaster"),
 )
 
 setMethod("NAflag", signature(x="SpatRaster"), 
-	function(x, ...)  {
+	function(x)  {
 		x@ptr$getNAflag()
 	}
 )

@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2020  Robert J. Hijmans
+// Copyright (c) 2018-2021  Robert J. Hijmans
 //
 // This file is part of the "spat" library.
 //
@@ -98,7 +98,7 @@ SpatRaster::SpatRaster() {
 	s.datatype = "";
 	s.names = {"lyr.1"};
 	s.srs.proj4 = "+proj=longlat +datum=WGS84";
-	s.srs.wkt = "GEOGCS[\"WGS 84\", DATUM[\"WGS_1984\", SPHEROID[\"WGS 84\",6378137,298.257223563]], PRIMEM[\"Greenwich\",0], UNIT[\"degree\",0.0174532925199433]]";
+	s.srs.wkt = "GEOGCRS[\"WGS 84\", DATUM[\"World Geodetic System 1984\", ELLIPSOID[\"WGS 84\",6378137,298.257223563, LENGTHUNIT[\"metre\",1]]], PRIMEM[\"Greenwich\",0, ANGLEUNIT[\"degree\",0.0174532925199433]], CS[ellipsoidal,2], AXIS[\"geodetic latitude (Lat)\",north, ORDER[1], ANGLEUNIT[\"degree\",0.0174532925199433]], AXIS[\"geodetic longitude (Lon)\",east, ORDER[2], ANGLEUNIT[\"degree\",0.0174532925199433]], USAGE[ SCOPE[\"Horizontal component of 3D system.\"], AREA[\"World.\"], BBOX[-90,-180,90,180]], ID[\"EPSG\",4326]]";
 	setSource(s);
 }
 
@@ -208,7 +208,7 @@ SpatRaster SpatRaster::geometry(long nlyrs, bool properties) {
 	s.memory = true;
 	s.hasValues = false;
 	long nl = nlyr();
-	bool keepnlyr = ((nlyrs == nl) | (nlyrs < 1));
+	bool keepnlyr = ((nlyrs == nl) || (nlyrs < 1));
 	nlyrs = (keepnlyr) ? nlyr(): nlyrs;
 	if (properties) {
 		s.hasColors = hasColors();
@@ -549,7 +549,7 @@ bool SpatRaster::setNAflag(std::vector<double> flag) {
 		}
 	}
 	return true;
-};
+}
 
 
 std::vector<double> SpatRaster::getNAflag() {

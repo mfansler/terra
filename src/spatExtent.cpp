@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2020  Robert J. Hijmans
+// Copyright (c) 2018-2021  Robert J. Hijmans
 //
 // This file is part of the "spat" library.
 //
@@ -236,7 +236,8 @@ bool SpatRaster::compare_geom(SpatRaster x, bool lyrs, bool crs, bool warncrs, b
 
 	if (ext) {
 		SpatExtent extent = getExtent();
-		if (extent.compare(x.getExtent(), "!=", 100)) {
+		double res = std::max(xres(), yres());
+		if (extent.compare(x.getExtent(), "!=", 0.1 * res)) {
 			setError("extents do not match");
 			return false;
 		}

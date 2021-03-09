@@ -114,8 +114,6 @@ GEOSContextHandle_t geos_init2(void) {
 
 
 
-
-
 GEOSGeometry* geos_line(const std::vector<double> &x, const std::vector<double> &y, GEOSContextHandle_t hGEOSCtxt) {
 	GEOSCoordSequence *pseq;
 	size_t n = x.size();
@@ -148,9 +146,13 @@ GEOSGeometry* geos_linearRing(const std::vector<double> &x, const std::vector<do
 GEOSGeometry* geos_polygon(const std::vector<double> &x, const std::vector<double> &y, std::vector<std::vector<double>> &hx, std::vector<std::vector<double>> &hy, GEOSContextHandle_t hGEOSCtxt) {
 	GEOSGeometry* shell = geos_linearRing(x, y, hGEOSCtxt);
 	size_t nh = hx.size();
-	std::vector<GEOSGeometry*> holes(nh);
+	std::vector<GEOSGeometry*> holes;
+	holes.reserve(nh);
 	for (size_t i=0; i<nh; i++) {
-		holes[i] = geos_linearRing(hx[i], hy[i], hGEOSCtxt);
+		GEOSGeometry* glr = geos_linearRing(hx[i], hy[i], hGEOSCtxt);
+		if (glr != NULL) {
+			holes.push_back(glr);
+		}
 	}
 	GEOSGeometry* g = GEOSGeom_createPolygon_r(hGEOSCtxt, shell, &holes[0], nh);
 	return g;
@@ -440,13 +442,13 @@ SpatVectorCollection coll_from_geos(std::vector<GeomPtr> &geoms , GEOSContextHan
 	std::string msg;
 	//Rcpp::Rcout << ng << " geoms" << std::endl;
 	for(size_t i = 0; i < ng; i++) {
-		GEOSGeometry* g = geoms[i].get();
-		std::string gt = GEOSGeomType_r(hGEOSCtxt, g);
+		const GEOSGeometry* g = geoms[i].get();
+		char* geostype = GEOSGeomType_r(hGEOSCtxt, g);
+		std::string gt = geostype;
+		free(geostype);
 		size_t np = GEOSGetNumGeometries_r(hGEOSCtxt, g);
 
-		//Rcpp::Rcout << gt << std::endl;
-		//Rcpp::Rcout << np << " parts" << std::endl;
-		
+
 		if (gt == "Point" || gt == "MultiPoint") {
 			for(size_t j = 0; j<np; j++) {
 				const GEOSGeometry* part = GEOSGetGeometryN_r(hGEOSCtxt, g, j);
@@ -476,7 +478,11 @@ SpatVectorCollection coll_from_geos(std::vector<GeomPtr> &geoms , GEOSContextHan
 			//Rcpp::Rcout << GEOSGeom_getDimensions_r(hGEOSCtxt, g) << std::endl;
 			for(size_t j = 0; j<np; j++) {
 				const GEOSGeometry* gg = GEOSGetGeometryN_r(hGEOSCtxt, g, j);
-				std::string ggt = GEOSGeomType_r(hGEOSCtxt, gg);
+
+				char* geostype = GEOSGeomType_r(hGEOSCtxt, gg);
+				std::string ggt = geostype;
+				free(geostype);
+
 				const GEOSGeometry* part = GEOSGetGeometryN_r(hGEOSCtxt, gg, j);
 				if (ggt == "Polygon" || ggt == "MultiPolygon") {
 					if (!polysFromGeom(hGEOSCtxt, part, i, j, pl_x, pl_y, pl_gid, pl_gp, pl_hole, msg)) {

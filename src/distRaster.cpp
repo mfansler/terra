@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2020  Robert J. Hijmans
+// Copyright (c) 2018-2021  Robert J. Hijmans
 //
 // This file is part of the "spat" library.
 //
@@ -53,7 +53,7 @@ SpatRaster SpatRaster::distance(SpatVector p, SpatOptions &opt) {
 	if (gtype != "points") {
 		SpatOptions ops;
 		std::vector<double> feats(p.size(), 1) ;
-		SpatRaster x = rasterize(p, "", feats, {""}, NAN, false, false, false, ops);
+		SpatRaster x = rasterize(p, "", feats, {""}, NAN, false, false, false, false, ops);
 		if (gtype == "polygons") {
 			std::string etype = "inner";
 			x = x.edges(false, etype, 8, ops);
@@ -61,6 +61,12 @@ SpatRaster SpatRaster::distance(SpatVector p, SpatOptions &opt) {
 		p = x.as_points(false, true, opt);
 	}
 
+
+	if (p.size() == 0) {
+		out.setError("no overlap between the vector and raster data");
+		return(out);
+	}
+	
 	bool lonlat = is_geographic(); // m == 0
 	unsigned nc = ncol();
 	if (!readStart()) {
@@ -386,21 +392,412 @@ SpatRaster SpatRaster::gridDistance(SpatOptions &opt) {
 }
 
 
-
-std::vector<double> do_edge(std::vector<double> &d, std::vector<size_t> dim, bool classes, bool outer, unsigned dirs) {
+/*
+std::vector<double> do_edge(std::vector<double> &d, size_t nrow, size_t ncol, bool before, bool after, bool classes, bool inner, unsigned dirs) {
 
 	bool falseval = 0;
 
-	size_t nrow = dim[0];
-	size_t ncol = dim[1];
 	size_t n = nrow * ncol;
 	std::vector<double> val(n, NAN);
 
+	// main
 	int r[8] = { -1,0,0,1 , -1,-1,1,1};
 	int c[8] = { 0,-1,1,0 , -1,1,-1,1};
+		// first col
+	int fr[5] = {-1,0,1,-1,1};
+	int fc[5] = { 0,1,0, 1,1};
+		// last col
+	int lr[5] = { -1, 0,1, -1, 1};
+	int lc[5] = {  0,-1,0, -1,-1};
+
+
+	// first row
+	int br[5] = {  0,0,1 , 1,1};
+	int bc[5] = { -1,1,0 ,-1,1};
+		// first col
+	int bfr[3] = { 0,1 ,1};
+	int bfc[3] = { 1,0 ,1};
+		// last col
+	int blr[3] = {  0,1 , 1};
+	int blc[3] = { -1,0 ,-1};
+
+
+	// last row
+	int ar[5] = { -1,0,0, -1,-1};
+	int ac[5] = { 0,-1,1, -1, 1};
+		// first col
+	int afr[3] = { -1,0,-1};
+	int afc[3] = { 0 ,1, 1};
+		// last col
+	int alr[3] = { -1,0, -1};
+	int alc[3] = { 0,-1, -1};
+	
+
+	size_t rowoff = 0;
+	size_t nrows = nrow;
+	if (before) {
+		rowoff = 1;
+	}
+	if (after) {
+		nrows++;
+	}
+	size_t hrdirs = dirs == 4 ? 3 : 5;
+	size_t hcdirs = dirs == 4 ? 2 : 3;
+
+	if (classes) {  // by class
+
+		for (size_t i = 1; i < (nrows); i++) {
+			for (size_t j = 1; j < (ncol-1); j++) {
+				size_t cell = i * ncol+j ;
+				double test = d[cell + r[0] * ncol + c[0]];
+				val[cell] = std::isnan(test) ? NAN : falseval;
+				for (size_t k=1; k<dirs; k++) {
+					double v = d[cell+r[k]*ncol +c[k]];
+					if (std::isnan(test)) {
+						if (!std::isnan(v)) {
+							val[cell] = 1;
+							break;
+						}
+					} else if (test != v) {
+						val[cell] = 1;
+						break;
+					}
+				}
+			}
+		}		
+	} else { // not by class
+		if (inner) {  ////// inner //// 	
+			if (!before) { // no row above
+				for (size_t j = 1; j < (ncol-1); j++) {
+					// cell = j
+					if (!std::isnan(d[j])) {
+						val[j] = 0;
+						for (size_t k=0; k < hrdirs; k++) {		
+							if ( std::isnan(d[j + br[k] * ncol + bc[k] ])) {
+								val[j] = 1;
+								break;
+							}
+						}
+					}
+				} // first column of first row
+				// cell = j = 0
+				if (!std::isnan(d[0])) {
+					val[0] = 0;
+					for (size_t k=0; k < hcdirs; k++) {		
+						if ( std::isnan(d[bfr[k] * ncol + bfc[k] ])) {
+							val[0] = 1;
+							break;
+						}
+					}
+				} // last column of first row
+				size_t cell = ncol-1;
+				if (!std::isnan(d[cell])) {
+					val[cell] = 0;
+					for (size_t k=0; k < hcdirs; k++) {		
+						if ( std::isnan(d[cell + blr[k] * ncol + blc[k] ])) {
+							val[cell] = 1;
+							break;
+						}
+					}
+				}
+			}
+			if (!after) { // no row below
+				size_t i = nrows-1;
+				for (size_t j = 1; j < (ncol-1); j++) {
+					size_t cell = i * ncol + j;
+					size_t outcell = (i-rowoff) * ncol + j;
+					if (!std::isnan(d[cell])) {
+						val[outcell] = 0;
+						for (size_t k=0; k < hrdirs; k++) {		
+							if ( std::isnan(d[cell+ ar[k] * ncol + ac[k] ])) {
+								val[outcell] = 1;
+								break;
+							}
+						}
+					}
+				} // first cell for last row
+				size_t cell = (nrows-1) * ncol;
+				size_t outcell = (nrows-1-rowoff) * ncol;
+				if (!std::isnan(d[cell])) {
+					val[outcell] = 0;
+					for (size_t k=0; k < hcdirs; k++) {		
+						if ( std::isnan(d[cell + afr[k] * ncol + afc[k] ])) {
+							val[outcell] = 1;
+							break;
+						}
+					}
+				} // last cell for last row
+				cell += ncol-1;
+				outcell += ncol-1;
+				if (!std::isnan(d[cell])) {
+					val[outcell] = 0;
+					for (size_t k=0; k < hcdirs; k++) {		
+						if ( std::isnan(d[cell+ alr[k] * ncol + alc[k] ])) {
+							val[outcell] = 1;
+							break;
+						}
+					}
+				}	
+			} // other rows 
+
+			
+			for (size_t i = 1; i < nrows; i++) {
+				for (size_t j = 1; j < (ncol-1); j++) {
+					size_t cell = i * ncol + j;
+					if (!std::isnan(d[cell])) {
+						size_t outcell = (i-rowoff) * ncol + j;
+						val[outcell] = 0;
+						for (size_t k=0; k < dirs; k++) {		
+							if ( std::isnan(d[cell+ r[k] * ncol + c[k] ])) {
+								val[outcell] = 1;
+								break;
+							}
+						}
+					}
+				}
+
+				// first column
+				size_t cell = i * ncol;
+				size_t outcell = (i-rowoff) * ncol;
+				if (!std::isnan(d[cell])) {
+					val[outcell] = 0;
+					for (size_t k=0; k < hrdirs; k++) {		
+						if ( std::isnan(d[cell + fr[k] * ncol + fc[k] ])) {
+							val[outcell] = 1;
+							break;
+						}
+					}
+				}
+				// last column
+				cell += ncol - 1;
+				outcell += ncol - 1;
+				if (!std::isnan(d[cell])) {
+					val[outcell] = 0;
+					for (size_t k=0; k < hrdirs; k++) {		
+						if ( std::isnan( d[cell + lr[k] * ncol + lc[k] ])) {
+							val[outcell] = 1;
+							break;
+						}
+					}
+				}
+			}
+
+		} else { ////// outer //// 	
+
+	
+			if (!before) {
+				for (size_t j = 1; j < (ncol-1); j++) {
+					size_t cell = j;
+					if (std::isnan(d[cell])) {
+						val[cell] = NAN;
+						for (size_t k=0; k < hcdirs; k++) {		
+							if ( !std::isnan(d[j + br[k] * ncol + bc[k] ])) {
+								val[cell] = 1;
+								break;
+							}
+						}
+					} else {
+						val[cell] = 0;
+					}
+				}
+			}
+			if (!after) {
+				size_t i = (nrow - 1) * ncol;
+				for (size_t j = 1; j < (ncol-1); j++) {
+					size_t cell = (i-rowoff) * ncol + j;
+					if (std::isnan(d[cell])) {
+						val[cell] = NAN;
+						for (size_t k=0; k < hcdirs; k++) {		
+							if (!std::isnan(d[cell+ ar[k] * ncol + ac[k] ])) {
+								val[cell] = 1;
+								break;
+							}
+						}
+					} else {
+						val[cell] = 0;
+					}
+				}
+			}
+
+			for (size_t i = 1; i < nrows; i++) {
+				for (size_t j = 1; j < (ncol-1); j++) {
+					size_t cell = (i-rowoff) * ncol + j;
+					if (std::isnan(d[cell])) {
+						val[cell] = NAN;
+						for (size_t k=0; k<dirs; k++) {
+							if (!std::isnan(d[cell + r[k] * ncol + c[k]])) {
+								val[cell] = 1;
+								break;
+							}
+						}
+					} else {
+						val[cell] = 0;
+					}
+				}
+			}
+		}
+	
+	}
+//	val.erase(val.begin(), val.begin()+ncol);
+//	val.erase(val.end()-ncol, val.end());	
+	return(val);
+}
+
+*/
+
+/*
+std::vector<double> get_border(std::vector<double> xd, size_t nrows, size_t ncols, bool classes, std::string edgetype, unsigned dirs) {
+
+	size_t n = nrows * ncols;
+
+	std::vector<double> xval(n, 0);
+	Rcpp::Rcout << "hello" << std::endl;
+
+	int r[8] = {-1,0,0,1, -1,-1,1,1};
+	int c[8] = {0,-1,1,0, -1,1,-1,1};
+	int falseval = 0;
 
 	if (!classes) {
-		if (!outer) { // inner
+		if (edgetype == "inner") { 
+			for (size_t i = 1; i < (nrows-1); i++) {
+				for (size_t j = 1; j < (ncols-1); j++) {
+					size_t cell = i*ncols+j;
+					if (std::isnan(xd[cell])) {
+						xval[cell] = NAN;
+					} else {
+						xval[cell] = falseval;
+						for (size_t k=0; k< dirs; k++) {
+							if (std::isnan (xd[cell + r[k] * ncols + c[k]])) {
+								xval[cell] = 1;
+								break;
+							}
+						}
+					}
+				}
+			}
+	
+		} else { // if (edgetype == "outer"
+			for (size_t i = 1; i < (nrows-1); i++) {
+				for (size_t j = 1; j < (ncols-1); j++) {
+					size_t cell = i*ncols+j;
+					xval[cell] = falseval;
+					if (std::isnan(xd[cell])) {
+						xval[cell] = NAN;
+					} else {
+						for (size_t k=0; k < dirs; k++) {		
+							if (std::isnan(xd[cell+ r[k] * ncols + c[k] ])) {
+								xval[cell] = 1;
+								break;
+							}
+						}
+					}
+				}
+			}
+		} 
+	} else { // by class
+		for (size_t i = 1; i < (nrows-1); i++) {
+			for (size_t j = 1; j < (ncols-1); j++) {
+				size_t cell = i*ncols+j;
+				double test = xd[ cell + r[0]*ncols + c[0] ];
+				if (std::isnan(test)) {
+					xval[cell] = NAN;
+				} else {
+					xval[cell] = falseval;
+					for (size_t k=1; k < dirs; k++) {
+						if (test != xd[ cell+r[k]*ncols +c[k] ]) {
+							xval[cell] = 1;
+							break;
+						}
+					}
+				}
+			}
+		}
+
+	}
+	return(xval);
+}
+*/
+
+
+/*
+SpatRaster SpatRaster::edges(bool classes, std::string type, unsigned directions, SpatOptions &opt) {
+
+	SpatRaster out = geometry();
+	if (nlyr() > 1) {
+		out.setError("boundary detection can only be done for one layer at a time --- to be improved");
+		return(out);
+	}
+	if (!hasValues()) {
+		out.setError("SpatRaster has no values");
+		return out;
+	}
+
+	
+	if ((directions != 4) && (directions != 8)) {
+		out.setError("directions should be 4 or 8");
+		return(out);	
+	}
+	if ((type != "inner") && (type != "outer")) {
+		out.setError("directions should be 'inner' or 'outer'");
+		return(out);	
+	}
+	bool inner = type == "inner";
+
+	size_t nc = ncol();
+
+	if (!readStart()) {
+		out.setError(getError());
+		return(out);
+	}
+
+ 	if (!out.writeStart(opt)) {
+		readStop();
+		return out;
+	}
+	
+	for (size_t i = 0; i < out.bs.n; i++) {
+		std::vector<double> v;
+		bool before = false;
+		bool after = false;
+		if (i == 0) {
+			if (out.bs.n == 1) {
+				v = readValues(out.bs.row[i], out.bs.nrows[i], 0, nc);
+			} else {
+				v = readValues(out.bs.row[i], out.bs.nrows[i]+1, 0, nc);
+				after = true;
+			}	
+		} else {
+			before = true;
+			if (i == out.bs.n) {
+				v = readValues(out.bs.row[i]-1, out.bs.nrows[i]+1, 0, nc);
+			} else {
+				v = readValues(out.bs.row[i]-1, out.bs.nrows[i]+2, 0, nc);
+				after = true;
+			}
+		}
+		std::vector<double> vv = do_edge(v, out.bs.nrows[i], nc, before, after, classes, inner, directions);
+		if (!out.writeValues(vv, out.bs.row[i], out.bs.nrows[i], 0, nc)) return out;
+	}
+	out.writeStop();
+	readStop();
+
+	return(out);
+}
+*/
+
+std::vector<double> do_edge(const std::vector<double> &d, const size_t nrow, const size_t ncol, const bool classes, const bool inner, const unsigned dirs) {
+
+	bool falseval = 0;
+	
+	
+	size_t n = nrow * ncol;
+	std::vector<double> val(n);
+	
+	int r[8] = { -1,0,0,1 , -1,-1,1,1};
+	int c[8] = { 0,-1,1,0 , -1,1,-1,1};	
+	
+	if (!classes) {
+		if (inner) { // inner
 			for (size_t i = 1; i < (nrow-1); i++) {
 				for (size_t j = 1; j < (ncol-1); j++) {
 					size_t cell = i*ncol+j;
@@ -416,7 +813,7 @@ std::vector<double> do_edge(std::vector<double> &d, std::vector<size_t> dim, boo
 					}
 				}
 			}
-	
+		
 		} else { //outer
 			for (size_t i = 1; i < (nrow-1); i++) {
 				for (size_t j = 1; j < (ncol-1); j++) {
@@ -424,7 +821,7 @@ std::vector<double> do_edge(std::vector<double> &d, std::vector<size_t> dim, boo
 					val[cell] = falseval;
 					if (std::isnan(d[cell])) {
 						val[cell] = NAN;
-						for (size_t k=0; k < dirs; k++) {		
+						for (size_t k=0; k < dirs; k++) {			
 							if ( !std::isnan(d[cell+ r[k] * ncol + c[k] ])) {
 								val[cell] = 1;
 								break;
@@ -461,74 +858,41 @@ std::vector<double> do_edge(std::vector<double> &d, std::vector<size_t> dim, boo
 
 
 
-
-std::vector<double> get_border(std::vector<double> xd, std::vector<unsigned> dim, bool classes, std::string edgetype, unsigned dirs) {
-
-	unsigned nrows = dim[0];
-	unsigned ncols = dim[1];
-	unsigned n = nrows * ncols;
-
-	std::vector<double> xval(n, NAN);
-
-	int r[8] = {-1,0,0,1, -1,-1,1,1};
-	int c[8] = {0,-1,1,0, -1,1,-1,1};
-	int falseval = 0;
-
-	if (!classes) {
-		if (edgetype == "inner") { 
-			for (size_t i = 1; i < (nrows-1); i++) {
-				for (size_t j = 1; j < (ncols-1); j++) {
-					size_t cell = i*ncols+j;
-					if (!std::isnan(xd[cell])) {
-						xval[cell] = falseval;
-						for (size_t k=0; k< dirs; k++) {
-							if (std::isnan (xd[cell + r[k] * ncols + c[k]])) {
-								xval[cell] = 1;
-								break;
-							}
-						}
-					}
-				}
-			}
+void addrowcol(std::vector<double> &v, size_t nr, size_t nc, bool rowbefore, bool rowafter, bool cols) {
 	
-		} else { // if (edgetype == "outer"
-			for (size_t i = 1; i < (nrows-1); i++) {
-				for (size_t j = 1; j < (ncols-1); j++) {
-					size_t cell = i*ncols+j;
-					xval[cell] = falseval;
-					if (std::isnan(xd[cell])) {
-						for (size_t k=0; k < dirs; k++) {		
-							if (std::isnan(xd[cell+ r[k] * ncols + c[k] ])) {
-								xval[cell] = 1;
-								break;
-							}
-						}
-					}
-				}
-			}
-		} 
-	} else { // by class
-		for (size_t i = 1; i < (nrows-1); i++) {
-			for (size_t j = 1; j < (ncols-1); j++) {
-				size_t cell = i*ncols+j;
-				double test = xd[ cell+r[0]*ncols+c[0] ];
-				if (!std::isnan(test)) {
-					xval[cell] = falseval;
-				}
-				for (size_t k=1; k < dirs; k++) {
-					if (test != xd[ cell+r[k]*ncols +c[k] ]) {
-						xval[cell] = 1;
-						break;
-					}
-				}
-			}
-		}
-
+	if (rowbefore) {
+		v.insert(v.begin(), v.begin(), v.begin()+nc);
+		nr++;
 	}
-	return(xval);
+	if (rowafter) {
+		v.insert(v.end(), v.end()-nc, v.end());
+		nr++;
+	}
+	if (cols) {
+		for (size_t i=0; i<nr; i++) {
+			size_t j = i*(nc+2);
+			v.insert(v.begin()+j+nc, v[j+nc-1]);
+			v.insert(v.begin()+j, v[j]);
+		}
+	}
 }
 
 
+void striprowcol(std::vector<double> &v, size_t nr, size_t nc, bool rows, bool cols) {
+	if (rows) {
+		v.erase(v.begin(), v.begin()+nc);
+		v.erase(v.end()-nc, v.end());
+		nr -= 2;
+	}
+	if (cols) {
+		nc -= 2;
+		for (size_t i=0; i<nr; i++) {
+			size_t j = i*nc;
+			v.erase(v.begin()+j);
+			v.erase(v.begin()+j+nc);
+		}
+	}
+}
 
 
 SpatRaster SpatRaster::edges(bool classes, std::string type, unsigned directions, SpatOptions &opt) {
@@ -552,10 +916,11 @@ SpatRaster SpatRaster::edges(bool classes, std::string type, unsigned directions
 		out.setError("directions should be 'inner' or 'outer'");
 		return(out);	
 	}
-	bool do_outer = type == "outer";
+	bool inner = type == "inner";
 
 	size_t nc = ncol();
-	std::vector<size_t> dim = {nrow(), nc}; 
+	size_t nr = nrow();
+	
 
 	if (!readStart()) {
 		out.setError(getError());
@@ -566,9 +931,34 @@ SpatRaster SpatRaster::edges(bool classes, std::string type, unsigned directions
 		readStop();
 		return out;
 	}
+	
 	for (size_t i = 0; i < out.bs.n; i++) {
-		std::vector<double> v = readValues(out.bs.row[i], out.bs.nrows[i], 0, nc);
-		std::vector<double> vv = do_edge(v, dim, classes, do_outer, directions);
+		std::vector<double> v;
+		//bool before = false;
+		//bool after = false;
+		if (i == 0) {
+			if (out.bs.n == 1) {
+				v = readValues(out.bs.row[i], out.bs.nrows[i], 0, nc);
+				addrowcol(v, nr, nc, true, true, true);			
+			} else {
+				v = readValues(out.bs.row[i], out.bs.nrows[i]+1, 0, nc);
+				addrowcol(v, nr, nc, true, false, true);			
+				//after = true;
+			}	
+		} else {
+			//before = true;
+			if (i == out.bs.n) {
+				v = readValues(out.bs.row[i]-1, out.bs.nrows[i]+1, 0, nc);
+				addrowcol(v, nr, nc, false, true, true);			
+			} else {
+				v = readValues(out.bs.row[i]-1, out.bs.nrows[i]+2, 0, nc);
+				addrowcol(v, nr, nc, false, false, true);			
+				//after = true;
+			}
+		}
+		//before, after, 
+		std::vector<double> vv = do_edge(v, out.bs.nrows[i]+2, nc+2, classes, inner, directions);
+		striprowcol(vv, out.bs.nrows[i]+2, nc+2, true, true);
 		if (!out.writeValues(vv, out.bs.row[i], out.bs.nrows[i], 0, nc)) return out;
 	}
 	out.writeStop();
@@ -608,8 +998,6 @@ SpatVector SpatVector::point_buffer(double d, unsigned quadsegs) {
 	SpatVector out;
 	out.srs = srs;
 	size_t n = quadsegs * 4;
-	std::vector<double> px(n);
-	std::vector<double> py(n);
 	double step = 360.0 / n;
 	SpatGeom g(polygons);
 	g.addPart(SpatPart(0, 0));
@@ -623,14 +1011,23 @@ SpatVector SpatVector::point_buffer(double d, unsigned quadsegs) {
 			brng[i] = i * step;
 		}
 		for (size_t i=0; i<npts; i++) {
-			std::vector<std::vector<double>> dp = destpoint_lonlat(xy[0][i], xy[1][i], brng, d, a, f);
-			g.setPart(SpatPart(dp[0], dp[1]), 0);
-			out.addGeom(g);
+			if (std::isnan(xy[0][i]) || std::isnan(xy[1][i])) {
+				out.addGeom(SpatGeom(polygons));
+			} else {
+				std::vector<std::vector<double>> dp = destpoint_lonlat(xy[0][i], xy[1][i], brng, d, a, f);
+				//close polygons
+				dp[0].push_back(dp[0][0]);
+				dp[1].push_back(dp[1][0]);
+				g.setPart(SpatPart(dp[0], dp[1]), 0);
+				out.addGeom(g);
+			}
 		}
 
 	} else {
 		std::vector<double> cosb(n);
 		std::vector<double> sinb(n);
+		std::vector<double> px(n+1);
+		std::vector<double> py(n+1);
 		for (size_t i=0; i<n; i++) {
 			double brng = i * step;
 			brng = toRad(brng);
@@ -638,12 +1035,18 @@ SpatVector SpatVector::point_buffer(double d, unsigned quadsegs) {
 			sinb[i] = d * sin(brng);
 		}
 		for (size_t i=0; i<npts; i++) {
-			for (size_t j=0; j<n; j++) {
-				px[j] = xy[0][i] + cosb[j];
-				py[j] = xy[1][i] + sinb[j];
+			if (std::isnan(xy[0][i]) || std::isnan(xy[1][i])) {
+				out.addGeom(SpatGeom(polygons));
+			} else {
+				for (size_t j=0; j<n; j++) {
+					px[j] = xy[0][i] + cosb[j];
+					py[j] = xy[1][i] + sinb[j];
+				}
+				px[n] = px[0];
+				py[n] = py[0];
+				g.setPart(SpatPart(px, py), 0);
+				out.addGeom(g);
 			}
-			g.setPart(SpatPart(px, py), 0);
-			out.addGeom(g);
 		}
 	}
 	return(out);

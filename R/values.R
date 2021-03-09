@@ -4,16 +4,18 @@
 # License GPL v3
 
 setMethod("hasValues", signature(x="SpatRaster"), 
-	function(x, ...) {
+	function(x) {
 		x@ptr$hasValues
 	}
 )
 
 setMethod("readValues", signature(x="SpatRaster"), 
-function(x, row=1, nrows=nrow(x), col=1, ncols=ncol(x), mat=FALSE, dataframe=FALSE, ...) {
-	stopifnot(row > 0)
-	stopifnot(col > 0)
+function(x, row=1, nrows=nrow(x), col=1, ncols=ncol(x), mat=FALSE, dataframe=FALSE) {
+	stopifnot(row > 0 && nrows > 0)
+	stopifnot(col > 0 && ncols > 0)
+	
 	v <- x@ptr$readValues(row-1, nrows, col-1, ncols)
+	messages(x, "readValues")
 	if (dataframe || mat) {
 		v <- matrix(v, ncol = nlyr(x))
 		colnames(v) <- names(x)
@@ -37,17 +39,10 @@ function(x, row=1, nrows=nrow(x), col=1, ncols=ncol(x), mat=FALSE, dataframe=FAL
 
 
 setMethod("values", signature(x="SpatRaster"), 
-function(x, mat=TRUE, ...) {
-	if (hasValues(x)) {
-		v <- x@ptr$getValues(-1)
-		messages(x, "values")
-	} else {
-		v <- matrix(NA, nrow=ncell(x), ncol=nlyr(x))
-	}
-	if (mat) {
-		v <- matrix(v, ncol=nlyr(x))
-		colnames(v) <- names(x)
-	}
+function(x, mat=TRUE, dataframe=FALSE, row=1, nrows=nrow(x), col=1, ncols=ncol(x)) {
+	readStart(x)
+	on.exit(readStop(x))
+	v <- readValues(x, row, nrows, col, ncols, mat=mat, dataframe=dataframe)
 	return(v)
 }
 )
@@ -59,7 +54,7 @@ setMethod("values<-", signature("SpatRaster", "ANY"),
 )
 
 setMethod("setValues", signature("SpatRaster", "ANY"), 
-	function(x, values, ...) {
+	function(x, values) {
 
 		if (is.matrix(values)) { 
 			if (nrow(values) == nrow(x)) {
@@ -117,7 +112,7 @@ setMethod("setValues", signature("SpatRaster", "ANY"),
 
 
 setMethod("sources", signature(x="SpatRaster"), 
-	function(x, ...) {
+	function(x) {
 		src <- x@ptr$filenames
 		src[src == ""] <= "memory"
 		data.frame(source=src, nlyr=x@ptr$nlyrBySource(), stringsAsFactors=FALSE)
@@ -168,8 +163,8 @@ setMethod("compareGeom", signature(x="SpatRaster", y="SpatRaster"),
 
 
 setMethod("values", signature("SpatVector"), 
-	function(x, ...) {
-		as.data.frame(x, ...)
+	function(x) {
+		as.data.frame(x)
 	}
 )
 
@@ -202,3 +197,4 @@ setMethod("values<-", signature("SpatVector", "NULL"),
 		x
 	}
 )
+

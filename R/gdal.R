@@ -15,8 +15,9 @@ gdal <- function(warn=NA, drivers=FALSE) {
 		x <- do.call(cbind, x)
 		x[,2] = c("vector", "raster")[as.integer(x[,2])+1]
 		x[,3] = c("read", "read/copy-write", "read/write")[as.integer(x[,3])+1]
-		colnames(x) <- c("name", "type", "can", "long.name")
+		colnames(x) <- c("name", "type", "can", "vsi", "long.name")
 		x <- data.frame(x)
+		x[,4] <- x[,4] == 1
 		x <- x[order(x$type, x$name), ]
 		rownames(x) <- NULL
 		x
@@ -27,7 +28,7 @@ gdal <- function(warn=NA, drivers=FALSE) {
 
 
 
-.describe_sds <- function(x, print=FALSE, ...) {
+.describe_sds <- function(x, print=FALSE) {
 	x <- .sdinfo(x)
 	if (length(x[[1]]) == 1 & length(x[[2]]) == 0) {
 		error("gdal (sds)", "not working for: ", x[[1]])
@@ -66,7 +67,7 @@ gdal <- function(warn=NA, drivers=FALSE) {
 
 
 setMethod("describe", signature(x="character"), 
-	function(x, sds=FALSE, meta=FALSE, parse=FALSE, options="", print=FALSE, open_opt="", ...) {
+	function(x, sds=FALSE, meta=FALSE, parse=FALSE, options="", print=FALSE, open_opt="") {
 
 		if (meta) {
 			if (sds) {

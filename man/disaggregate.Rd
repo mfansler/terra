@@ -15,19 +15,17 @@
 }
 
 \usage{
-\S4method{disaggregate}{SpatRaster}(x, fact, method="near", filename="", overwrite=FALSE, wopt=list(), ...)
+\S4method{disaggregate}{SpatRaster}(x, fact, method="near", filename="", ...)
 
-\S4method{disaggregate}{SpatVector}(x, ...)
+\S4method{disaggregate}{SpatVector}(x)
 }
 
 \arguments{
   \item{x}{SpatRaster or SpatVector}
   \item{fact}{positive integer. Aggregation factor expressed as number of cells in each direction (horizontally and vertically). Or two integers (horizontal and vertical aggregation factor) or three integers (when also aggregating over layers)}  
   \item{method}{character. Either "near" for nearest or "bilinear" for bilinear interpolation}
-  \item{filename}{character. Output filename. Optional}
-  \item{overwrite}{logical. If \code{TRUE}, \code{filename} is overwritten}
-  \item{wopt}{list. Options for writing files as in \code{\link{writeRaster}}}
-  \item{...}{additional arguments. None implemented}
+  \item{filename}{character. Output filename}
+  \item{...}{additional arguments for writing files as in \code{\link{writeRaster}}}
 }
 
 

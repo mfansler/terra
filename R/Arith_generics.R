@@ -52,6 +52,29 @@ setMethod("Arith", signature(e1="SpatExtent", e2="numeric"),
 )
 
 
+setMethod("Arith", signature(e1="numeric", e2="SpatExtent"),
+    function(e1, e2) {
+		oper <- as.vector(.Generic)[1]
+		if (oper == "%%") { 
+			stop("only 'Spatextent %% numeric' (in that order) is supported")
+		} else if (oper == "+") {
+			return(e2 + e1)
+		} else if (oper == "-") {
+			stop("only 'Spatextent - numeric' (in that order) is supported")
+		} else if (oper == "*") {
+			return(e2 * e1)
+		} else if (oper == "/") {
+			stop("only 'Spatextent / numeric' (in that order) is supported")
+		} else {
+			error(oper, "only +, -, *, / and %% are supported")
+		}
+		if (!e1@ptr$valid) {
+			error(oper, "this would create an invalid extent")
+		}
+		e1
+	}
+)
+
 
 setMethod("Arith", signature(e1="SpatExtent", e2="SpatExtent"),
     function(e1, e2){ 
@@ -81,15 +104,15 @@ setMethod("Arith", signature(e1="SpatVector", e2="SpatVector"),
     function(e1, e2){ 
 		oper <- as.vector(.Generic)[1]
 		if (oper == "+") { 
-			e1@ptr$union(e2@ptr)
+			e1@ptr <- e1@ptr$union(e2@ptr)
 		} else if (oper == "*") {
-			e1@ptr$intersect(e2@ptr)
+			e1@ptr <- e1@ptr$intersect(e2@ptr)
 		} else if (oper == "-") {
-			e1@ptr$erase(e2@ptr)
+			e1@ptr <- e1@ptr$erase(e2@ptr)
 		} else {
-			error(oper, "only +, *, and - are supported for SpatVector")
+			error(oper, "only operators +, *, and - are supported for SpatVector")
 		}
-		e1
+		messages(e1, oper)
 	}
 )
 
@@ -98,7 +121,7 @@ setMethod("Arith", signature(e1="SpatVector", e2="SpatVector"),
 
 setMethod("Arith", signature(e1="SpatRaster", e2="SpatRaster"),
     function(e1, e2){ 
-		opt <- spatOptions("", TRUE, list())
+		opt <- spatOptions()
 		oper <- as.vector(.Generic)[1]
 		stopifnot(oper %in% c("+", "-", "^", "*", "/", "%%")) 
 		oper <- ifelse(oper == "%%", "%", oper)
@@ -110,7 +133,7 @@ setMethod("Arith", signature(e1="SpatRaster", e2="SpatRaster"),
 
 setMethod("Arith", signature(e1="SpatRaster", e2="numeric"),
     function(e1, e2){ 
-		opt <- spatOptions("", TRUE, list())
+		opt <- spatOptions()
 		oper <- as.vector(.Generic)[1]
 		stopifnot(oper %in% c("+", "-", "^", "*", "/", "%%")) 
 		oper <- ifelse(oper == "%%", "%", oper)
@@ -128,7 +151,7 @@ setMethod("Arith", signature(e1="SpatRaster", e2="missing"),
 
 setMethod("Arith", signature(e1="numeric", e2="SpatRaster"),
     function(e1, e2){ 
-		opt <- spatOptions("", TRUE, list())
+		opt <- spatOptions()
 		oper <- as.vector(.Generic)[1]
 		stopifnot(oper %in% c("+", "-", "^", "*", "/", "%%")) 
 		oper <- ifelse(oper == "%%", "%", oper)
@@ -140,7 +163,7 @@ setMethod("Arith", signature(e1="numeric", e2="SpatRaster"),
 
 setMethod("Compare", signature(e1="SpatRaster", e2="SpatRaster"),
     function(e1, e2){ 
-		opt <- spatOptions("", TRUE, list())
+		opt <- spatOptions()
 		oper <- as.vector(.Generic)[1]
 		e1@ptr <- e1@ptr$arith_rast(e2@ptr, oper, opt)
 		messages(e1, oper)
@@ -150,7 +173,7 @@ setMethod("Compare", signature(e1="SpatRaster", e2="SpatRaster"),
 
 setMethod("Compare", signature(e1="SpatRaster", e2="numeric"),
     function(e1, e2){ 
-		opt <- spatOptions("", TRUE, list())
+		opt <- spatOptions()
 		oper <- as.vector(.Generic)[1]
 		e1@ptr <- e1@ptr$arith_numb(e2, oper, FALSE, opt)
 		messages(e1, oper)
@@ -160,7 +183,7 @@ setMethod("Compare", signature(e1="SpatRaster", e2="numeric"),
 
 setMethod("Compare", signature(e1="numeric", e2="SpatRaster"),
     function(e1, e2){ 
-		opt <- spatOptions("", TRUE, list())
+		opt <- spatOptions()
 		oper <- as.vector(.Generic)[1]
 		e2@ptr <- e2@ptr$arith_numb(e1, oper, TRUE, opt)
 		messages(e2, oper)
@@ -170,7 +193,7 @@ setMethod("Compare", signature(e1="numeric", e2="SpatRaster"),
 
 setMethod("Logic", signature(e1="SpatRaster", e2="SpatRaster"),
     function(e1, e2){ 
-		opt <- spatOptions("", TRUE, list())
+		opt <- spatOptions()
 		oper <- as.vector(.Generic)[1]
 		e1@ptr <- e1@ptr$logic_rast(e2@ptr, oper, opt)
 		messages(e1, oper)
@@ -179,7 +202,7 @@ setMethod("Logic", signature(e1="SpatRaster", e2="SpatRaster"),
 
 setMethod("Logic", signature(e1="SpatRaster", e2="numeric"),
     function(e1, e2){ 
-		opt <- spatOptions("", TRUE, list())
+		opt <- spatOptions()
 		oper <- as.vector(.Generic)[1]
 		e2 <- as.logical(e2)
 		e1@ptr <- e1@ptr$logic_numb(e2, oper, opt)
@@ -190,7 +213,7 @@ setMethod("Logic", signature(e1="SpatRaster", e2="numeric"),
 
 setMethod("Logic", signature(e1="numeric", e2="SpatRaster"),
     function(e1, e2){ 
-		opt <- spatOptions("", TRUE, list())
+		opt <- spatOptions()
 		oper <- as.vector(.Generic)[1]
 		e1 <- as.logical(e1)
 		e2@ptr <- e2@ptr$logic_numb(e1, oper, opt)
@@ -200,7 +223,7 @@ setMethod("Logic", signature(e1="numeric", e2="SpatRaster"),
 
 setMethod("Logic", signature(e1="SpatRaster", e2="logical"),
     function(e1, e2){ 
-		opt <- spatOptions("", TRUE, list())
+		opt <- spatOptions()
 		oper <- as.vector(.Generic)[1]
 		e1@ptr <- e1@ptr$logic_numb(e2, oper, opt)
 		messages(e1, oper)
@@ -210,7 +233,7 @@ setMethod("Logic", signature(e1="SpatRaster", e2="logical"),
 
 setMethod("Logic", signature(e1="logical", e2="SpatRaster"),
     function(e1, e2){ 
-		opt <- spatOptions("", TRUE, list())
+		opt <- spatOptions()
 		oper <- as.vector(.Generic)[1]
 		e2@ptr <- e2@ptr$logic_numb(e1, oper, opt)
 		messages(e2, oper)
@@ -248,7 +271,7 @@ setMethod("as.logical", signature(x="SpatRaster"),
 
 setMethod("is.na", signature(x="SpatRaster"),
 	function(x) {
-		opt <- spatOptions("", TRUE, list())
+		opt <- spatOptions()
 		x@ptr <- x@ptr$isnan(opt)
 		messages(x, "is.na")
 	}
@@ -257,7 +280,7 @@ setMethod("is.na", signature(x="SpatRaster"),
 
 setMethod("is.nan", signature(x="SpatRaster"),
 	function(x) {
-		opt <- spatOptions("", TRUE, list())
+		opt <- spatOptions()
 		x@ptr <- x@ptr$isnan(opt)
 		messages(x, "is.nan")
 	}
@@ -266,7 +289,7 @@ setMethod("is.nan", signature(x="SpatRaster"),
 
 setMethod("is.finite", signature(x="SpatRaster"),
 	function(x) {
-		opt <- spatOptions("", TRUE, list())
+		opt <- spatOptions()
 		x@ptr <- x@ptr$isfinite(opt)
 		messages(x, "is.finite")
 	}
@@ -274,7 +297,7 @@ setMethod("is.finite", signature(x="SpatRaster"),
 
 setMethod("is.infinite", signature(x="SpatRaster"),
 	function(x) {
-		opt <- spatOptions("", TRUE, list())
+		opt <- spatOptions()
 		x@ptr <- x@ptr$isinfinite(opt)
 		messages(x, "is.infinite")
 	}
@@ -297,7 +320,7 @@ setMethod("is.infinite", signature(x="SpatRaster"),
 		x <- sds(c(list(x), dots[cls]))
 	} 
 
-	opt <- spatOptions("", TRUE, list())
+	opt <- spatOptions()
 	r <- rast()
 	if (is.null(add)) {
 		r@ptr <- x@ptr$summary(fun, na.rm, opt)
@@ -311,7 +334,7 @@ setMethod("is.infinite", signature(x="SpatRaster"),
 
 setMethod("which.max", "SpatRaster",  
 	function(x) { 
-		opt <- spatOptions("", TRUE, list())
+		opt <- spatOptions()
 		x@ptr <- x@ptr$summary("which.max", TRUE, opt)
 		messages(x, "which.max")
 	}
@@ -319,7 +342,7 @@ setMethod("which.max", "SpatRaster",
 
 setMethod("which.min", "SpatRaster",  
 	function(x) { 
-		opt <- spatOptions("", TRUE, list())
+		opt <- spatOptions()
 		x@ptr <- x@ptr$summary("which.min", TRUE, opt)
 		messages(x, "which.min")
 	}
@@ -393,7 +416,7 @@ setMethod("stdev", signature(x="SpatRaster"),
 
 setMethod("modal", signature("SpatRaster"), 
 	function(x, ..., ties="first", na.rm=FALSE, filename="", overwrite=FALSE, wopt=list()) { 
-		opt <- spatOptions(filename, overwrite,wopt)
+		opt <- spatOptions(filename, overwrite, wopt=wopt)
 		dots <- list(...)
 		add <- NULL
 		if (length(dots) > 0) {

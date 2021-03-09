@@ -14,7 +14,7 @@ Merge SpatRaster or SpatExtent objects, or a SpatVector with a data.frame
 \description{
 Merge SpatRasters to form a new SpatRaster object with a larger spatial extent. If objects overlap, the values get priority in the same order as the arguments. See \code{\link{classify}} to merge a \code{SpatRaster} and a \code{data.frame}. You can also merge SpatExtent objects.
 
-There is a also a method for merging SpatVector with a data.frame.
+There is a also a method for merging SpatVector with a data.frame; that is, to join the data.frame to the attribute table of the SpatVector..
 }
 
 \usage{
@@ -29,9 +29,9 @@ There is a also a method for merging SpatVector with a data.frame.
   \item{x}{SpatRaster or SpatExtent}
   \item{y}{object of same class as \code{x}}
   \item{...}{if \code{x} is a SpatRaster or SpatVector: additional objects of the same class as \code{x}. If \code{x} is a SpatVector, the same arguments as in \code{\link[base]{merge}}}
-  \item{filename}{character. Output filename. Optional}
+  \item{filename}{character. Output filename}
   \item{overwrite}{logical. If \code{TRUE}, \code{filename} is overwritten}
-  \item{wopt}{list. Options for writing files as in \code{\link{writeRaster}}}
+  \item{wopt}{list with named options for writing files as in \code{\link{writeRaster}}}
 } 
 
 \details{
