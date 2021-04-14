@@ -2,14 +2,16 @@
 
 \docType{methods}
 
+\alias{sapp}
+\alias{sapp,SpatRaster-method}
 \alias{lapp}
 \alias{lapp,SpatRaster-method}
 \alias{lapp,SpatRasterDataset-method}
 
-\title{Apply a function to layers of a SpatRaster, or to sub-datasets of a SpatRasterDataset}
+\title{Apply a function to layers of a SpatRaster, or sub-datasets of a SpatRasterDataset}
 
 \description{
-Apply a function to layers of a SpatRaster ("overlay"). 
+Apply a function to each cell of a SpatRaster, using layers as arguments.
 
 The number of arguments in function \code{fun} must match the number of layers in the SpatRaster (or the number of sub-datasets in the SpatRasterDataset). For example, if you want to multiply two layers, you could use this function : \code{fun=function(x,y){return(x*y)}} percentage: \code{fun=function(x,y){return(100 * x / y)}}. If you combine three layers you could use \code{fun=function(x,y,z){return((x + y) * z)}}
 
@@ -17,17 +19,20 @@ Before you use the function, test it to make sure that it works for vectors (not
 
 Use \code{\link{app}} for summarize functions such as \code{sum}, that take any number of arguments; and \code{\link{tapp}} to so for groups of layers. 
 
+Use \code{\link{sapp}} to apply to all layers of a SpatRaster a functio that only takes a single layer SpatRaster (these are rare). 
 }
 
 \usage{
 \S4method{lapp}{SpatRaster}(x, fun, ..., usenames=FALSE, filename="", overwrite=FALSE, wopt=list())
 
 \S4method{lapp}{SpatRasterDataset}(x, fun, ..., recycle=FALSE, filename="", overwrite=FALSE, wopt=list())
+
+\S4method{sapp}{SpatRaster}(x, fun, ..., filename="", overwrite=FALSE, wopt=list())
 }
 
 \arguments{
   \item{x}{SpatRaster or SpatRasterDataset}
-  \item{fun}{function to be applied}
+  \item{fun}{for \code{lapp}, a function that takes a vector and can be applied to each cell of \code{x}; for \code{sapp}, a function that takes a SpatRaster argument and can be applied to each layer of \code{x};}
   \item{...}{additional arguments to be passed to \code{fun}} 
   \item{usenames}{logical. Use the layer names to match the function arguments? If \code{FALSE} matching is by position}
   \item{recycle}{logical. Recycle layers to match the subdataset with the largest number of layers}
@@ -42,8 +47,12 @@ SpatRaster
 
 \seealso{\code{ \link{app}, \link[terra]{tapp},  \link[terra]{math}} }
 
+\note{
+Use \code{lapply} to apply a function that takes a SpatRaster as argument to each layer of a SpatRaster.
+}
+
 \examples{
-s <- rast(system.file("ex/logo.tif", package="terra"))   
+s <- rast(system.file("ex/logo.tif", package="terra")) + 1  
 ss <- s[[2:1]]
 
 fvi <- function(x, y){ (x - y ) / (x + y) } 
@@ -69,7 +78,7 @@ x2 <- lapp(s[[2:1]], fvi2, usenames=TRUE)
 x3 <- lapp(s[[2:1]], fvi2, usenames=FALSE)
 x4 <- lapp(s, fvi2, usenames=TRUE)
 
-# while this would give an error because 
+# while this would fail because 
 # there are too many layers in s
 # x5 <- lapp(s, fvi2, usenames=FALSE)
 
@@ -78,6 +87,10 @@ pairs(c(x1, x2, x3, x4))
 ## SpatRasterDataset
 x <- sds(s, s[[1]]+50)
 lapp(x, function(x, y) x/y, recycle=TRUE)
+
+## sapp -- rarely needed 
+x <- sapp(s, terrain)
+
 }
  
 \keyword{methods}

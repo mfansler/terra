@@ -31,9 +31,11 @@ SpatOptions::SpatOptions(const SpatOptions &opt) {
 	filenames = {""};
 	overwrite = false;
 	progress = opt.progress;
-	blocksizemp = opt.blocksizemp;
+	ncopies = opt.ncopies;
 	verbose = opt.verbose;
 	statistics = opt.statistics;
+	steps = opt.steps;
+	minrows = opt.minrows;
 	//ncdfcopy = opt.ncdfcopy;
 }
 
@@ -108,12 +110,6 @@ bool SpatOptions::show_progress(unsigned n) {
 }
 
 
-
-unsigned SpatOptions::get_blocksizemp() { return blocksizemp; }
-void SpatOptions::set_blocksizemp(unsigned x) { 
-	blocksizemp = x; 
-}
-
 //void SpatOptions::set_filename(std::string f) { 
 //	f = lrtrim_copy(f); 
 //	filenames = {f}; 
@@ -165,6 +161,8 @@ bool SpatOptions::get_todisk() { return todisk; }
 void SpatOptions::set_todisk(bool b) { todisk = b; }
 
 
-void SpatOptions::set_steps(size_t n) { steps = n; }
+void SpatOptions::set_steps(size_t n) { steps = std::max((size_t)1, n); }
 size_t SpatOptions::get_steps(){ return steps; }
 
+void SpatOptions::set_ncopies(size_t n) { ncopies = std::max((size_t)1, n); }
+size_t SpatOptions::get_ncopies(){ return ncopies; }

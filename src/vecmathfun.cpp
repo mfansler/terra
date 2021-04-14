@@ -22,6 +22,15 @@
 #include "vecmath.h"
 
 
+bool haveFun(std::string fun) {
+	std::vector<std::string> f {"sum", "mean", "median", "modal", "which", "which.min", "which.max", "min", "max", "prod", "any", "all", "sd", "std", "first"};
+	auto it = std::find(f.begin(), f.end(), fun);
+	if (it == f.end()) {
+		return false;
+	}
+	return true;
+}
+
 std::function<double(std::vector<double>&, bool)> getFun(std::string fun) {
 	std::function<double(std::vector<double>&, bool)> theFun;
 	if (fun == "mean") {
@@ -40,6 +49,8 @@ std::function<double(std::vector<double>&, bool)> getFun(std::string fun) {
 		theFun = vmodal<double>;
 	} else if (fun == "prod") {
 		theFun = vprod<double>;
+	} else if (fun == "which") {
+		theFun = vwhich<double>;
 	} else if (fun == "which.min") {
 		theFun = vwhichmin<double>;
 	} else if (fun == "which.max") {

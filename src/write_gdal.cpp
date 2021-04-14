@@ -31,67 +31,35 @@
 #include "gdalio.h"
 
 
-void getGDALdriver(std::string &filename, std::string &driver) {
-
-	lrtrim(filename);
-	lrtrim(driver);
-
-	if (driver != "") {
-		if (driver == "RST") {
-			filename = noext(filename) + ".rst";
-		}
-
-		return;
+bool setCats(GDALRasterBand *poBand, std::vector<std::string> &labels) {
+	char **labs = NULL;
+	for (size_t i = 0; i < labels.size(); i++) {
+		labs = CSLAddString(labs, labels[i].c_str());
 	}
-
-	std::string ext = getFileExt(filename);
-    lowercase(ext);
-
-	std::unordered_map<std::string, std::string>
-	drivers = {
-		{".tif","GTiff"}, {".tiff","GTiff"},
-		{".nc","netCDF"}, {".cdf","netCDF"}, 
-		{".img","HFA"}, {".ige","HFA"},
-		{".bmp","BMP"},
-		{".flt","EHdr"},
-		{".grd","RRASTER"}, {".gri","RRASTER"},
-		{".sgrd","SAGA"}, {".sdat","SAGA"},
-		{".rst","RST"}, {".rdc","RST"},
-		{".envi","ENVI"},
-		{".asc","AAIGrid"},
-		{".bmp","BMP"},
-//		{".jpg","JPEG"}, or JPEG2000?
-		{".png","PNG"},
-		{".gif","GIF"},
-	};
-
-    auto i = drivers.find(ext);
-    if (i != drivers.end()) {
-		driver = i->second;
-	}
-}
-
-
-
-bool setCats(GDALRasterBand *poBand, SpatCategories &cats) {
-	char **names = NULL;
-	for (size_t i = 0; i < cats.labels.size(); i++) {
-		names = CSLAddString(names, cats.labels[i].c_str());
-	}
-	CPLErr err = poBand->SetCategoryNames(names);
+	CPLErr err = poBand->SetCategoryNames(labs);
 	return (err == CE_None);
 }
 
 
 bool setCT(GDALRasterBand *poBand, SpatDataFrame &d) {
 	CPLErr err = poBand->SetColorInterpretation(GCI_PaletteIndex);
+	if (err != CE_None) {
+		return false;
+	}
 	GDALColorTable *poCT = new GDALColorTable(GPI_RGB);
 	GDALColorEntry col;
 	for (size_t j=0; j< d.nrow(); j++) {
-		col.c1 = (short)d.iv[0][j];
-		col.c2 = (short)d.iv[1][j];
-		col.c3 = (short)d.iv[2][j];
-		col.c4 = (short)d.iv[3][j];
+	if (d.iv[3][j] == 0) { // maintain transparaency in gtiff
+			col.c1 = 255;
+			col.c2 = 255;
+			col.c3 = 255;
+			col.c4 = 0;
+		} else {
+			col.c1 = (short)d.iv[0][j];
+			col.c2 = (short)d.iv[1][j];
+			col.c3 = (short)d.iv[2][j];
+			col.c4 = (short)d.iv[3][j];
+		}
 		poCT->SetColorEntry(j, &col);
 	}
 	err = poBand->SetColorTable(poCT);
@@ -113,12 +81,12 @@ SpatDataFrame grayColorTable() {
 }
 
 
-bool SpatRaster::checkFormatRequirements(const std::string &driver, std::string &filename, std::string &datatype) {
+bool checkFormatRequirements(const std::string &driver, std::string &filename, std::string &msg) {
 
 	if (driver == "SAGA") {
 		std::string ext = getFileExt(filename);
 		if (ext != ".sdat") {
-			setError("SAGA filenames must end on '.sdat'");
+			msg = "SAGA filenames must end on '.sdat'";
 			return false;
 		}
 	}
@@ -152,8 +120,11 @@ void stat_options(int sstat, bool &compute_stats, bool &gdal_stats, bool &gdal_m
 
 
 
+
+
 bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 
+	bool writeRGB = false;
 
 	std::string filename = opt.get_filename();
 	if (filename == "") {
@@ -171,10 +142,14 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 		return(false);
 	}
 	std::string datatype = opt.get_datatype();
-	if (!checkFormatRequirements(driver, filename, datatype)) {
-		return false;
+	if (writeRGB) {
+		datatype = "INT1U";
 	}
 	std::string errmsg;
+	if (!checkFormatRequirements(driver, filename, errmsg)) {
+		setError(errmsg);
+		return false;
+	}
 	if (file_exists(filename) & (!opt.get_overwrite())) {
 		setError("file exists. You can use 'overwrite=TRUE' to overwrite it");
 		return(false);
@@ -215,6 +190,7 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 		return(false);		
 	}
 
+
 	stat_options(opt.get_statistics(), compute_stats, gdal_stats, gdal_minmax, gdal_approx);
 
     GDALDriver *poDriver;
@@ -225,10 +201,57 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 	}
 
 	char **papszOptions = NULL;
+	
+	if (driver == "GTiff") {
+		bool lzw = true;
+		bool compressed = true;
+		for (size_t i=0; i<opt.gdal_options.size(); i++) {
+			if (opt.gdal_options[i].substr(0, 8) == "COMPRESS") {
+				lzw = false;
+				if (opt.gdal_options[i].substr(9, 4) == "NONE") {
+					compressed = false;
+				}
+				break;
+			}
+		}
+		if (lzw) {
+			papszOptions = CSLSetNameValue( papszOptions, "COMPRESS", "LZW");			
+		}
+		if (opt.verbose) {
+			Rcpp::Rcout<< "LZW           : " << lzw << std::endl;
+		}
+
+		// ~ 4GB 
+		if (compressed & (diskNeeded > 4194304000)) { 
+			bool big = true;
+			for (size_t i=0; i<opt.gdal_options.size(); i++) {
+				if (opt.gdal_options[i].substr(0, 7) == "BIGTIFF") {
+					big = false;
+					break;
+				}
+			}
+			if (big) {
+				papszOptions = CSLSetNameValue( papszOptions, "BIGTIFF", "YES");
+				if (opt.verbose) {
+					Rcpp::Rcout<< "BIGTIFF       : yes" << std::endl;
+				}
+			} else {
+				if (opt.verbose) {
+					Rcpp::Rcout<< "BIGTIFF       : as requested" << std::endl;
+				}
+			}
+		}
+	}
 	for (size_t i=0; i<opt.gdal_options.size(); i++) {
 		std::vector<std::string> gopt = strsplit(opt.gdal_options[i], "=");
 		if (gopt.size() == 2) {
 			papszOptions = CSLSetNameValue( papszOptions, gopt[0].c_str(), gopt[1].c_str() );
+		}
+	}
+	if (writeRGB) {
+		papszOptions = CSLSetNameValue( papszOptions, "PHOTOMETRIC", "RGB");
+		if (driver == "GeoTIFF") {
+			papszOptions = CSLSetNameValue( papszOptions, "PROFILE", "GeoTIFF");
 		}
 	}
 
@@ -316,7 +339,7 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 			}
 		}
 		if (hasCats[i]) {
-			SpatCategories cats = getLayerCategories(i);
+			std::vector<std::string> cats = getLabels(i);
 			if (!setCats(poBand, cats)) {
 				addWarning("could not write categories");
 			}
@@ -331,7 +354,7 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 		} else {
 		*/
 		poBand->SetDescription(nms[i].c_str());
-	
+		
 		if ((i==0) || (driver != "GTiff")) {
 			// to avoid "Setting nodata to nan on band 2, but band 1 has nodata at nan." 
 			if (hasNAflag) {
@@ -352,6 +375,17 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 				poBand->SetNoDataValue(NAN); 
 			}
 		}
+		
+		if (writeRGB) {
+			if (i==0) {
+				poBand->SetColorInterpretation(GCI_RedBand);
+			} else if (i==1) {
+				poBand->SetColorInterpretation(GCI_GreenBand);
+			} else if (i==2) {
+				poBand->SetColorInterpretation(GCI_BlueBand);
+			}
+		}
+		
 	}
 
 	std::vector<double> rs = resolution();

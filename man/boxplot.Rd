@@ -24,6 +24,10 @@ Box plot of layers in a SpatRaster
 \item{...}{additional arguments passed to \code{graphics::\link[graphics]{boxplot}}}
 }
 
+\value{
+boxplot returns a list (invisibly) that can be used with \code{\link{bxp}}
+}
+
 \seealso{
 \code{\link{pairs}, \link{hist}}
 }
@@ -45,6 +49,13 @@ boxplot(s, horizontal=TRUE, col="lightskyblue", axes=FALSE)
 axis(1)
 axis(2, at=0:3, labels=c("", names(s)), las=1, cex.axis=.9, lty=0)
 par(op)
+
+## boxplot with 2 layers
+v <- vect(system.file("ex/lux.shp", package="terra"))
+r <- rast(system.file("ex/elev.tif", package="terra"))
+#y <- rasterize(v, r, "NAME_2")
+#b <- boxplot(r, y)
+#bxp(b)
 }
 
 

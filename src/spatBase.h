@@ -105,13 +105,13 @@ class SpatOptions {
 		double memfrac = 0.6;
 
 	public:
-		unsigned ncopies = 2;
+		unsigned ncopies = 4;
+		unsigned minrows = 1;
 		std::string def_datatype = "FLT4S";
 		std::string def_filetype = "GTiff";
 		//std::string def_bandorder = "BIL";
 		bool overwrite = false;
 		unsigned progress = 3;
-		unsigned blocksizemp = 4;
 		size_t steps = 0;
 		bool hasNAflag = false;
 		double NAflag = NAN;
@@ -163,7 +163,6 @@ class SpatOptions {
 		//void set_bandorder(std::string d);
 		void set_overwrite(bool b);
 		void set_progress(unsigned p);
-		void set_blocksizemp(unsigned x);
 		std::string get_filename();
 		std::vector<std::string> get_filenames();
 		std::string get_filetype();
@@ -178,9 +177,10 @@ class SpatOptions {
 		unsigned get_progress();
 		bool show_progress(unsigned n);
 		bool progressbar=true;
-		unsigned get_blocksizemp();
 		void set_steps(size_t n);
 		size_t get_steps();
+		void set_ncopies(size_t n);
+		size_t get_ncopies();
 
 		SpatMessages msg;
 };
@@ -300,10 +300,8 @@ class SpatSRS {
 		}
 
 		bool is_global_lonlat(SpatExtent e) {
-			if (could_be_lonlat(e)) {
-                if (std::abs(e.xmax - e.xmin - 360) < 0.001) {
-                    return true;
-                }
+			if (is_geographic()) {
+                return (std::abs(e.xmax - e.xmin - 360) < 0.001);
 				//double halfres = xres()/ 180;
 				//if (((e.xmin - halfres) <= -180) && ((e.xmax + halfres) >= 180)) {
 				//	return true;

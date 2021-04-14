@@ -4,9 +4,7 @@
 # License GPL v3
 
 
-setMethod("rast", signature(x="missing"),
-	function(x, nrows=180, ncols=360, nlyrs=1, xmin=-180, xmax=180, ymin=-90, ymax=90, crs, extent, resolution, vals) {
-
+new_rast <- function(nrows=10, ncols=10, nlyrs=1, xmin=0, xmax=1, ymin=0, ymax=1, crs, extent, resolution, vals, names) {
 		if (missing(extent)) {
 			e <- c(xmin, xmax, ymin, ymax) 
 		} else {
@@ -33,6 +31,9 @@ setMethod("rast", signature(x="missing"),
 		if (!missing(resolution)) {
 			res(r) <- resolution
 		}
+		if (!missing(names)) {
+			names(r) <- names
+		}
 
 		if (!missing(vals)) {
 			if (length(vals) == ncell(r)) {
@@ -42,6 +43,12 @@ setMethod("rast", signature(x="missing"),
 			}
 		}
 		r
+}
+
+
+setMethod("rast", signature(x="missing"),
+	function(x, nrows=180, ncols=360, nlyrs=1, xmin=-180, xmax=180, ymin=-90, ymax=90, crs, extent, resolution, vals, names) {
+		new_rast(nrows, ncols, nlyrs, xmin, xmax, ymin, ymax, crs, extent, resolution, vals, names)
 	}
 )
 
@@ -75,10 +82,7 @@ setMethod("rast", signature(x="SpatExtent"),
 		dots$xmax=x[2]
 		dots$ymin=x[3]
 		dots$ymax=x[4]
-		if (all(is.na(pmatch(names(dots), "resolution")))) {
-			dots$resolution <- min(range(x)) / 100
-		}
-		do.call(rast, dots)
+		do.call(new_rast, dots)
 	}
 )
 
@@ -91,15 +95,10 @@ setMethod("rast", signature(x="SpatVector"),
 		dots$xmax=e[2]
 		dots$ymin=e[3]
 		dots$ymax=e[4]
-		i <- pmatch(names(dots), "resolution")
-		j <- pmatch(names(dots), "nrow")
-		if (all(c(is.na(i), is.na(j)))) {
-			dots$resolution <- min(range(e)) / 100
-		}
 		if (all(is.na(pmatch(names(dots), "crs")))) {
 			dots$crs <- crs(x)
 		}
-		do.call(rast, dots)
+		do.call(new_rast, dots)
 	}
 )
 
@@ -139,9 +138,9 @@ setMethod("rast", signature(x="character"),
 		f <- .fullFilename(x)
 		#subds <- subds[1]
 		if (is.character(subds)) { 
-			r@ptr <- SpatRaster$new(f, -1, subds, "")
+			r@ptr <- SpatRaster$new(f, -1, subds, FALSE, 0[])
 		} else {
-			r@ptr <- terra:::SpatRaster$new(f, subds-1, "", "")
+			r@ptr <- SpatRaster$new(f, subds-1, "", FALSE, 0[])
 		}
 		if (r@ptr$getMessage() == "ncdf extent") {
 			test <- try(r <- .ncdf_extent(r), silent=TRUE)
@@ -159,6 +158,38 @@ setMethod("rast", signature(x="character"),
 		r
 	}
 )
+
+
+multi <- function(x, subds=0, xyz=c(1,2,3)) {
+
+		x <- trimws(x)
+		x <- x[x!=""]
+		if (length(x) == 0) {
+			error("rast,character", "provide a valid filename")
+		}
+		r <- methods::new("SpatRaster")
+		f <- .fullFilename(x)
+		#subds <- subds[1]
+		if (is.character(subds)) { 
+			r@ptr <- SpatRaster$new(f, -1, subds, TRUE, xyz-1)
+		} else {
+			r@ptr <- SpatRaster$new(f, subds-1, "", TRUE, xyz-1)
+		}
+		if (r@ptr$getMessage() == "ncdf extent") {
+			test <- try(r <- .ncdf_extent(r), silent=TRUE)
+			if (inherits(test, "try-error")) {
+				warn("rast", "GDAL did not find an extent. Cells not equally spaced?") 
+			}
+		}
+		r <- messages(r, "rast")
+
+		if (crs(r) == "") {
+			if (is.lonlat(r, perhaps=TRUE, warn=FALSE)) {
+				crs(r) <- "EPSG:4326"
+			}
+		}
+		r
+	}
 
 
 setMethod("rast", signature(x="SpatRaster"),
@@ -265,6 +296,7 @@ setMethod("rast", signature(x="ANY"),
 
 setMethod("rast", signature(x="matrix"),
 	function(x, type="", crs="", digits=6) {
+		stopifnot(prod(dim(x)) > 0)
 		if (type == "xyz") {
 			r <- .rastFromXYZ(x, crs=crs, digits=digits)
 		} else {

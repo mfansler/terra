@@ -206,7 +206,7 @@ SpatRaster SpatRaster::arith(SpatRaster x, std::string oper, SpatOptions &opt) {
 		} else if (oper == "==") {
 			a == b;
 		} else if (oper == "!=") {
-			a == b;
+			a != b;
 		} else if (oper == ">=") {
 			a >= b;
 		} else if (oper == "<=") {
@@ -327,6 +327,12 @@ SpatRaster SpatRaster::arith(double x, std::string oper, bool reverse, SpatOptio
 
 
 SpatRaster SpatRaster::arith(std::vector<double> x, std::string oper, bool reverse, SpatOptions &opt) {
+
+	if (x.size() == 0) {
+		SpatRaster out;
+		out.setError("cannot compute with nothing");
+		return out;
+	}
 
 	if (x.size() == 1) {
 		return(arith(x[0], oper, reverse, opt));
@@ -788,8 +794,12 @@ SpatRaster SpatRaster::logic(bool x, std::string oper, SpatOptions &opt) {
 			for(double& d : a)  d = (d==1) & x;
 		} else if (oper == "|") {
 			for(double& d : a)  d = (d==1) | x;
+		} else if (oper == "istrue") {
+			for(double& d : a)  d = d==1 ? 1 : 0;
+		} else if (oper == "isfalse") {
+			for(double& d : a)  d = d!=1 ? 1 : 0;
 		} else {
-			out.setError("?");
+			out.setError("unknown operator: " + oper);
 			return out;
 		}
 		if (!out.writeValues(a, out.bs.row[i], out.bs.nrows[i], 0, ncol())) return out;
@@ -865,29 +875,27 @@ double vstdev(std::vector<double> v, bool narm) {
 
 
 
+
 SpatRaster SpatRaster::summary_numb(std::string fun, std::vector<double> add, bool narm, SpatOptions &opt) {
 
 	SpatRaster out = geometry(1);
-
-	std::vector<std::string> f {"sum", "mean", "median", "which.min", "which.max", "min", "max", "range", "prod", "any", "all", "stdev", "first"};
-	if (std::find(f.begin(), f.end(), fun) == f.end()) {
-		out.setError("unknown summary function");
-		return out;
-	}
+  	if (!hasValues()) { return out; }
 
 	if (fun == "range") {
 		return range(add, narm, opt);
 	} 
 	out.source[0].names[0] = fun;
-  	if (!hasValues()) { return out; }
-
-
 	std::function<double(std::vector<double>&, bool)> sumFun;
 	if (fun == "stdev") {
 		sumFun = vstdev;
 	} else {
+		if (!haveFun(fun)) {
+			out.setError("unknown function argument");
+			return out;
+		}
 		sumFun = getFun(fun);
 	}
+	
 	if (!readStart()) {
 		out.setError(getError());
 		return(out);
@@ -1031,12 +1039,6 @@ SpatRaster SpatRasterStack::summary_numb(std::string fun, std::vector<double> ad
 	SpatRaster out = ds[0].geometry(nl);
 	unsigned ns = nsds();
 
-	std::vector<std::string> f {"sum", "mean", "median", "which.min", "which.max", "min", "max", "range", "prod", "any", "all", "stdev", "first"};
-	if (std::find(f.begin(), f.end(), fun) == f.end()) {
-		out.setError("unknown summary function");
-		return out;
-	}
-
 	if (fun == "range") {
 		out.setError("parallel range not implemented, use min and max");
 		return out;
@@ -1047,8 +1049,13 @@ SpatRaster SpatRasterStack::summary_numb(std::string fun, std::vector<double> ad
 	if (fun == "stdev") {
 		sumFun = vstdev;
 	} else {
+		if (!haveFun(fun)) {
+			out.setError("unknown function argument");
+			return out;
+		}
 		sumFun = getFun(fun);
 	}
+
 	for (size_t i=0; i < ns; i++) {
 		if (!ds[i].readStart()) {
 			out.setError(ds[i].getError());

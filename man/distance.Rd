@@ -66,17 +66,13 @@ A distance matrix can be coerced into a matrix with \code{as.matrix}
 \examples{
 #lonlat
 r <- rast(ncol=36,nrow=18, crs="+proj=longlat +datum=WGS84")
-v <- rep(NA, ncell(r))
-v[500] <- 1
-values(r) <- v
+r[500] <- 1
 d <- distance(r) 
 plot(d / 100000)
 
 #planar
 r <- rast(ncol=36,nrow=18, crs="+proj=utm +zone=1 +datum=WGS84")
-v <- rep(NA, ncell(r))
-v[500] <- 1
-values(r) <- v
+r[500] <- 1
 d <- distance(r) 
 
 p1 <- vect(rbind(c(0,0), c(90,30), c(-90,-30)), crs="+proj=longlat +datum=WGS84")
@@ -99,11 +95,11 @@ crs <- "+proj=utm +zone=1"
 p1 <- vect("POLYGON ((0 0, 8 0, 8 9, 0 9, 0 0))", crs=crs)
 p2 <- vect("POLYGON ((5 6, 15 6, 15 15, 5 15, 5 6))", crs=crs)
 p3 <- vect("POLYGON ((2 12, 3 12, 3 13, 2 13, 2 12))", crs=crs)
-p <- c(p1, p2, p3)
+p <- rbind(p1, p2, p3)
 L1 <- vect("LINESTRING(1 11, 4 6, 10 6)", crs=crs)
 L2 <- vect("LINESTRING(8 14, 12 10)", crs=crs)
 L3 <- vect("LINESTRING(1 8, 12 14)", crs=crs)
-lns <- c(L1, L2, L3)
+lns <- rbind(L1, L2, L3)
 pts <- vect(cbind(c(7,10,10), c(3,5,6)), crs=crs)
 
 distance(p1,p3)

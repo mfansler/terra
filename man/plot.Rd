@@ -19,10 +19,10 @@ Plot the values of a SpatRaster or SpatVector to make a map. See \code{\link{lin
 
 \usage{
 \S4method{plot}{SpatRaster,numeric}(x, y=1, col, type, mar=NULL, legend=TRUE, axes=TRUE, plg=list(), 
-     pax=list(), maxcell=50000, smooth=FALSE, range=NULL, levels=NULL, fun=NULL, 
+     pax=list(), maxcell=500000, smooth=FALSE, range=NULL, levels=NULL, fun=NULL, 
      colNA=NULL, alpha=NULL, ...)
 
-\S4method{plot}{SpatRaster,missing}(x, y, maxcell=50000, main, mar=NULL, nc, nr, maxnl=16, ...)
+\S4method{plot}{SpatRaster,missing}(x, y, maxcell=500000, main, mar=NULL, nc, nr, maxnl=16, ...)
 
 \S4method{plot}{SpatVector,character}(x, y, col, type, mar=NULL, legend=TRUE,
      add=FALSE, axes=!add, main=y,
@@ -42,7 +42,7 @@ Plot the values of a SpatRaster or SpatVector to make a map. See \code{\link{lin
  
   \item{type}{character. Type of map/legend. One of "continuous", "classes", or "interval"}
   \item{mar}{numeric vector of lenght 4 to set the margins of the plot (to make space for the legend). The default is (3.1, 3.1, 2.1, 7.1) for a single plot with a legend and (3.1, 3.1, 2.1, 2.1) otherwise. Use \code{mar=NA} to not set the margins}
-  \item{legend}{logical. Draw a legend?}
+  \item{legend}{logical or character. If not \code{FALSE} a legend is drawn. The character value can be used to indicate where the legend is to be draw. For example "topright" or "bottomleft". Use \code{plg} for more refined placement (SpatVector data only)}
   \item{axes}{logical. Draw axes?}
   \item{plg}{list with parameters for drawing the legend. See the arguments for \code{\link{legend}}}
   \item{pax}{list with parameters for drawing axes. See the arguments for \code{\link{axis}}}  
@@ -86,7 +86,6 @@ plot(d, type="interval", breaks=c(1,4,5), plg=list(legend=c("1-4", "4-5")))
 plot(d, type="classes", plg=list(legend=c("Mr", "Xx", "As", "Zx", "Bb"), x="bottomright"))
 
 x <- trunc(r/200)
-x <- as.factor(x)
 levels(x) <- c("earth", "wind", "fire")
 plot(x, plg=list(x="topright"),mar=c(2,2,2,2))
 

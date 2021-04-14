@@ -5,7 +5,9 @@
 	cls <- sapply(d, class)
 	nms <- colnames(d)
 	for (i in 1:length(cls)) { 
-		if (cls[i] == "character") {
+		if (cls[i] == "factor") {
+			x$add_column_string(as.character(d[[i]]), nms[i])
+		} else if (cls[i] == "character") {
 			x$add_column_string(d[[i]], nms[i])
 		} else if (cls[i] == "integer") {
 			x$add_column_long(d[[i]], nms[i])
@@ -19,6 +21,6 @@
 
 
 .getSpatDF <- function(x) {
-	data.frame(x$values(), stringsAsFactors=FALSE)
+	data.frame(x$values(), check.names = FALSE, stringsAsFactors=FALSE)
 }
 

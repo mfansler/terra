@@ -20,7 +20,11 @@ setMethod("dots", signature(x="SpatVector"),
 		stopifnot(size > 0)
 		d <- round(field / size)
 		d[d < 1 | is.na(d)] <- 0
-		s <- spatSample(x, d, method="random")
+		i <- d > 0;
+		if (sum(i) == 0) {
+			error("dots", "'size' is too small")
+		}
+		s <- spatSample(x[i], d[i], method="random")
 		if (.Device  != "null device") {
 			try(points(s, ...), silent=TRUE)
 		}
@@ -435,6 +439,10 @@ setMethod("plot", signature(x="SpatVector", y="character"),
 			old.par <- graphics::par(no.readonly =TRUE)
 			on.exit(graphics::par(old.par))   
 			graphics::par(mfrow=nrnc)
+		}
+		if (is.character(legend)) {
+			plg$x <- legend
+			legend <- TRUE
 		}
 
 		for (i in 1:length(y)) {

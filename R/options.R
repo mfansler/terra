@@ -10,7 +10,7 @@
 }
  
 .options_names <- function() {
-	c("progress", "tempdir", "memfrac", "datatype", "filetype", "filenames", "overwrite", "todisk", "names", "verbose", "NAflag", "statistics") 
+	c("progress", "tempdir", "memfrac", "datatype", "filetype", "filenames", "overwrite", "todisk", "names", "verbose", "NAflag", "statistics", "steps", "ncopies") 
 }
 
  
@@ -84,9 +84,9 @@ spatOptions <- function(filename="", overwrite=FALSE, ..., wopt=NULL) {
 	opt
 }
 
-.getOptions <- function() {
-	spatOptions("", TRUE, list())
-}
+#..getOptions <- function() {
+#	spatOptions("", TRUE, list())
+#}
 
 #..showOptions <- function(opt) {
 #	cat("Options for package 'terra'\n")
@@ -111,7 +111,7 @@ spatOptions <- function(filename="", overwrite=FALSE, ..., wopt=NULL) {
 
 
 .default_option_names <- function() {
-	c("datatype", "filetype", "verbose") 
+	c("datatype", "filetype") #, "verbose") 
 }
 
 

@@ -1,4 +1,19 @@
 
+setMethod("sapp", signature(x="SpatRaster"), 
+function(x, fun, ..., filename="", overwrite=FALSE, wopt=list())  {
+	#x <- lapply(as.list(x), fun, ..., wopt=wopt)
+	#x <- lapply(x, messages)
+	#x <- rast(x)
+	x <- rast(lapply(as.list(x), function(i, ...) messages(fun(i, ..., wopt=wopt))))
+	if (filename != "") {
+		writeRaster(x, filename, overwrite, wopt=wopt)
+	} else {
+		collapse(x)
+	}
+}
+)
+
+
 setMethod("app", signature(x="SpatRaster"), 
 function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 
@@ -17,19 +32,21 @@ function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 	nc <- ncol(x)
 	readStart(x)
 	on.exit(readStop(x))
-
+	nl <- nlyr(x)
+	
 # figure out the shape of the output by testing with one row
-	v <- readValues(x, round(0.5*nrow(x)), 1, 1, nc, mat=TRUE)
-	#narg <- sum(sapply(f, as.character) == "", na.rm=TRUE)
-	#if (narg > 1) {
-	#	vv <- as.list(as.data.frame(v))
-	#	r <- do.call(fun, vv, ...)
-	#} else {
-	r <- apply(v, 1, fun, ...)
-
-	#}
+	v <- readValues(x, round(0.51*nrow(x)), 1, 1, nc, mat=TRUE)
+	if (nl==1) {
+		r <- fun(v, ...)
+	} else {
+		r <- apply(v, 1, fun, ...)
+	}
 	if (is.list(r)) {
-		error("app", "the function returns a list (should be numeric or matrix")
+		if (length(unique(sapply(r, length))) >  1) {
+			error("app", "'fun' returns a list (should be numeric or matrix).\nPerhaps because returned values have different lenghts due to NAs in input?")
+		} else {
+				error("app", "'fun' returns a list (should be numeric or matrix)")
+		}
 	}
 	trans <- FALSE
 	if (NCOL(r) > 1) {
@@ -42,14 +59,15 @@ function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 			nlyr(out) <- ncol(r)
 			nms <- colnames(r)
 		} else {
-			error("app", "cannot handle this function")
+			error("app", "'fun' is not appropriate")
 		}
 		if (is.null(wopt$names)) {
 			wopt$names <- nms
 		}
 	}
 
-	b <- writeStart(out, filename, overwrite, wopt=wopt)
+	b <- writeStart(out, filename, overwrite, wopt=wopt, n=max(nlyr(x), nlyr(out))*2)
+
 	if (cores > 1) {
 		cls <- parallel::makeCluster(cores)
 		on.exit(parallel::stopCluster(cls))
@@ -63,14 +81,22 @@ function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 			writeValues(out, r, b$row[i], b$nrows[i])
 		}
 	} else {
-		for (i in 1:b$n) {
-			v <- readValues(x, b$row[i], b$nrows[i], 1, nc, TRUE)
-			r <- apply(v, 1, fun, ...)
-			if (trans) {
-				r <- t(r)
-				#r <- as.vector(r)
+		if ((nl == 1) && !trans) {
+			for (i in 1:b$n) {
+				v <- readValues(x, b$row[i], b$nrows[i], 1, nc, TRUE)
+				r <- fun(v, ...)
+				writeValues(out, r, b$row[i], b$nrows[i])
 			}
-			writeValues(out, r, b$row[i], b$nrows[i])
+		} else {
+			for (i in 1:b$n) {
+				v <- readValues(x, b$row[i], b$nrows[i], 1, nc, TRUE)
+				r <- apply(v, 1, fun, ...)
+				if (trans) {
+					r <- t(r)
+					#r <- as.vector(r)
+				}
+				writeValues(out, r, b$row[i], b$nrows[i])
+			}
 		}
 	}
 	writeStop(out)
@@ -99,7 +125,7 @@ function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 		} else if (nrow(r) == ncols) {
 			nl <- ncol(r)
 		} else {
-			error("app", "cannot handle this function")
+			error("app", "cannot handle 'fun'")
 		}
 	} else if (length(r) >= nr) {
 		if ((length(r) %% nr) == 0) {
@@ -138,7 +164,7 @@ function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 		} else if (nrow(r) == ncols) {
 			nl <- ncol(r)
 		} else {
-			error("app", "cannot handle this function")
+			error("app", "'fun' is not appropriate")
 		}
 	} else if (length(r) >= nr) {
 		if ((length(r) %% nr) == 0) {
@@ -172,21 +198,21 @@ function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 		}
 	}
 
-	if (missing(fun)) error("app", "fun is missing")
+	if (missing(fun)) error("app", "'fun' is missing")
 
 	ncx <- ncol(x[1])
 	nrx <- nrow(x[1])
 	readStart(x)
 	on.exit(readStop(x))
 
-	v <- lapply(1:length(x), function(i) readValues(x[i], round(0.5*nrx), 1, 1, ncx, mat=TRUE))
+	v <- lapply(1:length(x), function(i) readValues(x[i], round(0.51*nrx), 1, 1, ncx, mat=TRUE))
 	test <- .app_test_stack(v, fun, ncx, ...)
 	if (test$nl < 1) error("app", "cannot find 'fun'")
 	out <- rast(x[1], nlyr=test$nl)
 	if (length(test$names == test$nl)) {
 		if (is.null(wopt$names)) wopt$names <- test$names
 	}
-	b <- writeStart(out, filename, overwrite, wopt=wopt)
+	b <- writeStart(out, filename, overwrite, wopt=wopt, n=nlyr(x[1])*2)
 
 	if (cores > 1) {
 		cls <- parallel::makeCluster(cores)

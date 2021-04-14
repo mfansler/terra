@@ -1,50 +1,4 @@
 
-setMethod ("rats" , "SpatRaster", 
-	function(x) {
-		att <- x@ptr$hasAttributes()
-		if (any(att)) {
-			d <- x@ptr$getAttributes()
-			d <- lapply(d, .getSpatDF)
-		} else {
-			d <- vector("list", length(att))
-		}
-		d
-	}
-)
-
-
-
-setMethod ("rats<-" , "SpatRaster", 
-	function(x, layer=1, value) {
-		if (missing(value)) {
-			value <- layer
-			layer <- 1
-		}
-		if (is.character(layer)) {
-			i <- match(layer, names(x))[1]
-			if (length(i) == 0) {
-				error("rats<-", layer, " is not in names(x)")
-			}
-			layer <- i
-		} else {
-			stopifnot(layer > 0 && layer <= nlyr(x))
-		}
-		rat <- .makeSpatDF(rat)
-		x@ptr$setAttributes(layer-1, rat)
-		x
-	}
-)
-
-
-
-setMethod("as.factor", signature(x="SpatRaster"), 
-	function(x) {
-		stopifnot(hasValues(x))
-		opt <- spatOptions()
-		x@ptr <- x@ptr$makeCategorical(0, opt)
-		messages(x, "as.factor")
-	}
-)
 
 setMethod("is.factor", signature(x="SpatRaster"), 
 	function(x) {
@@ -55,57 +9,124 @@ setMethod("is.factor", signature(x="SpatRaster"),
 
 setMethod("levels", signature(x="SpatRaster"), 
 	function(x) {
-		x@ptr$getCategories()
-	}
-)
-
-setMethod("cats", signature(x="SpatRaster"), 
-	function(x) {
-		levels(x)
+		x <- x@ptr$getCategories()
+		lapply(x, function(i) {
+			d <- .getSpatDF(i$df)
+			if (ncol(d) == 0) return("")
+			d[,max(1, i$index+1)]
+		})
 	}
 )
 
 
 setMethod("levels<-", signature(x="SpatRaster"), 
 	function(x, value) {
-		cats(x, 1) <- value
+		if (is.null(value)) {
+			x@ptr$removeCategories(0)
+			return(messages(x, "levels<-"))
+		} else if (inherits(value, "list")) {
+			for (i in 1:length(value)) {
+				setCats(x, i, value[[i]])
+			}
+		} else {
+			setCats(x, 1, value, 2)		
+		}
 		x
 	}
 )
 
 
-setMethod ("cats<-" , "SpatRaster", 
-	function(x, layer=1, value) {
-		stopifnot(hasValues(x))
-		if (missing(value)) {
-			value <- layer
-			layer <- 1
-		}
+setMethod ("setCats" , "SpatRaster", 
+	function(x, layer=1, value, index) {
+		layer = layer[1]
 		if (is.character(layer)) {
 			i <- match(layer, names(x))[1]
 			if (length(i) == 0) {
-				error("cats<-", layer, " is not in names(x)")
+				error("setLevels", layer, " is not in names(x)")
 			}
 			layer <- i
 		} else {
 			stopifnot(layer > 0 && layer <= nlyr(x))
 		}
-		if (is.null(value) | is.na(value[[1]][1])) {
+
+		if (missing(value)) {
+			if (missing(index)) {
+				return(x@ptr$getCatIndex(layer-1) + 1)
+			} else {
+				return(invisible(x@ptr$setCatIndex(layer-1, index-1)))
+			}
+		} 
+		if (missing(index)) {
+			index <- 2
+		}
+		if (is.null(value)) {
 			x@ptr$removeCategories(layer-1)
-			return(messages(x, "levels<-"))
+			return(messages(x, "setCats"))
 		}
-		if (!is.factor(x)) {
-			opt <- spatOptions()
-			x@ptr <- x@ptr$makeCategorical(layer-1, opt)
-			x <- messages(x, "as.factor<-")
+
+
+		if (inherits(value, "list")) {
+			value <- value[[1]]		
 		}
-		if (is.data.frame(value)) {
-			stopifnot(NCOL(value) == 2)
-			x@ptr$setCategories(layer-1, value[,1], value[,2])
-		} else if (is.vector(value)){
-			x@ptr$setCategories(layer-1, 0:(length(value)-1), as.character(value))
+		setname <- FALSE
+		if (!is.data.frame(value)) {
+			if (is.vector(value) || is.factor(value)) {
+				value <- data.frame(ID=0:(length(value)-1), category=value)
+			} else {
+				error("setCats", "value should be a data.frame or a vector")
+			}
+		} else {
+			setname <- TRUE
+			if (nrow(value) > 256) {
+				error("setCats", "you can set no more than 256 categories")
+			}
+			if (ncol(value) == 1) {
+				value <- data.frame(ID=1:nrow(value), value)
+			} else {
+				value[,1] <- round(value[,1])
+				if (length(unique(value[,1])) != nrow(value)) {
+					error("setCats", "duplicate IDs supplied")
+				}
+				r <- range(value[,1])
+				if (r[1] < 0 || r[2] > 255) {
+					error("seCats", "ID values must be between 0 and 255")
+				}
+			}
 		}
-		messages(x, "levels<-")
+		v <- data.frame(ID=0:255)
+		value <- merge(v, value, by=1, all.x=TRUE)		
+		
+		index <- max(1, min(ncol(value), index))
+#		if (is.data.frame(value)) {
+		if (setname) {
+			names(x)[layer] <- colnames(value)[index]
+		}
+
+		value <- .makeSpatDF(value)
+		ok <- x@ptr$setCategories(layer-1, value, index-1)
+#		} else {
+#			value <- as.character(value)
+#			x@ptr$setLabels(layer-1, value)
+#		}
+		x <- messages(x, "setCats")
+		invisible(ok)
 	}
 )
+
+
+setMethod ("cats" , "SpatRaster", 
+	function(x, layer) {
+		x <- x@ptr$getCategories()
+		x <- lapply(x, function(i) {
+			if (is.null(i)) return( NULL)
+			.getSpatDF(i$df)
+		})
+		if (!missing(layer)) {
+			x[[layer]]
+		} else {
+			x
+		}
+	}
+)
+
 

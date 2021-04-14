@@ -4,6 +4,7 @@
 
 \alias{extract}
 \alias{extract,SpatRaster,SpatVector-method}
+\alias{extract,SpatRaster,SpatExtent-method}
 \alias{extract,SpatRaster,matrix-method}
 \alias{extract,SpatRaster,data.frame-method}
 \alias{extract,SpatRaster,numeric-method}
@@ -28,6 +29,8 @@ Extract values from a SpatRaster for a set of locations. The locations can be a 
 \S4method{extract}{SpatRaster,SpatVector}(x, y, fun=NULL, method="simple", list=FALSE, factors=TRUE, 
         cells=FALSE, xy=FALSE, weights=FALSE, touches=is.lines(y), ...)
 
+\S4method{extract}{SpatRaster,SpatExtent}(x, y, factors=TRUE, cells=FALSE, xy=FALSE)
+
 \S4method{extract}{SpatRaster,matrix}(x, y, ...)
 
 \S4method{extract}{SpatRaster,numeric}(x, y, ...)
@@ -38,7 +41,7 @@ Extract values from a SpatRaster for a set of locations. The locations can be a 
 \item{y}{SpatVector (for points, lines, polygons), or for points, 2-column matrix or data.frame (x, y) or (lon, lat), or a vector with cell numbers}
 \item{fun}{function to summarize the data by geometry (e.g. polygon)}
 \item{...}{additional arguments to \code{fun} if \code{y} is a SpatVector or arguments passed to the \code{SpatRaster,SpatVector} method if \code{y} is a matrix (i.e., the \code{method} and \code{cells} arguments)}
-\item{method}{character. method for extracting values with points. The default is "simple", the alternative is "bilinear"}
+\item{method}{character. method for extracting values with points ("simple" or "bilinear"). With "simple" values for the cell a point falls in are returned. With "bilinear" the returned values are interpolated from the values of the four nearest raster cells}
 \item{list}{logical. If \code{FALSE} the output is simplified to a matrix (if \code{fun=NULL})}
 \item{factors}{logical. If \code{TRUE} the categories are returned as factors instead of their numerical representation. The value returned becomes a data.frame if it otherwise would have been a matrix, even if there are no factors}
 \item{cells}{logical. If \code{TRUE} the cell numbers are also returned, unless \code{fun} is not \code{NULL}. Also see \code{\link{cells}}}
@@ -93,7 +96,7 @@ y[i]
 f <- system.file("ex/lux.shp", package="terra")
 v <- vect(f)
 v <- v[1:2,]
-z <- rast(v, res=.1)
+z <- rast(v, res=.1, names="test")
 values(z) <- 1:ncell(z)
 #e <- extract(z, v)
 #e
@@ -104,6 +107,8 @@ values(z) <- 1:ncell(z)
 
 #x <- c(z, z*2, z/3)
 #names(x) <- letters[1:3]
+
+#extract(x, v, mean)
 
 #e <- extract(x, v)
 #de <- data.frame(e)

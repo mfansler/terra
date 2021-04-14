@@ -66,7 +66,7 @@ setMethod("vect", signature(x="XY"), #sfg
 
 
 
-.checkXYnames <- function(x, warn=TRUE) {
+.checkXYnames <- function(x, warn=FALSE) {
 	if (is.null(x)) return(TRUE)
 	if (length(x) != 2) {
 		error("vect", "coordinate matrix should have 2 columns")
@@ -189,6 +189,16 @@ setReplaceMethod("[[", c("SpatVector", "character", "missing"),
 	}
 )
 
+setReplaceMethod("[[", c("SpatVector", "numeric", "missing"),
+	function(x, i, j, value) {
+		stopifnot(i > 0 && i <= ncol(x))
+		vn <- names(x)[i]
+		x[[vn]] <- value
+		x
+	}
+)
+
+
 
 setMethod("$<-", "SpatVector",  
 	function(x, name, value) {
@@ -196,8 +206,6 @@ setMethod("$<-", "SpatVector",
 		x
 	}
 )
-
-
 
 
 

@@ -4,73 +4,94 @@
 
 \alias{is.factor}
 \alias{is.factor,SpatRaster-method}
-\alias{as.factor}
-\alias{as.factor,SpatRaster-method}
 \alias{levels}
 \alias{levels,SpatRaster-method}
 \alias{levels<-}
 \alias{levels<-,SpatRaster-method}
-\alias{rats}
-\alias{rats,SpatRaster-method}
-\alias{rats<-}
-\alias{rats<-,SpatRaster-method}
 \alias{cats}
 \alias{cats,SpatRaster-method}
-\alias{cats<-}
-\alias{cats<-,SpatRaster-method}
+\alias{setCats}
+\alias{setCats,SpatRaster-method}
   
 \title{Factors}
 
 \description{
 
-These functions allow for defining a SpatRaster layer as a categorical variable (factor). These can be inspected and set with \code{levels} and \code{cats}. These methods are the same except that with \code{levels<-} you can only set the categories of the first layer. Like factors in R, categories are stored as indices (integers) that have an associated label. In a SpatRaster, the index starts at 0, and cannot be larger than 255. \code{as.factor} makes the first layer of a SpatRaster a categorical variable. You can then use \code{levels<-} to replace the lables.
+A SpatRaster layer can be a categorical variable (factor). Like \code{\link{factor}}s, categories are stored as indices (integers) that have an associated label. For a SpatRaster, the index starts at 0, and cannot exceed 255. 
 
-The "Raster Attribute Table" (RAT) is similar in concept. A main difference with categries is that there can be many labels (variables) assocuated with one index. The RAT is a data.frame; the first column ("ID") has the unique cell values of the layer.
+The categories can be inspected with \code{levels} and \code{cats}. With \code{levels<-} you can set the categories of the first layer by providing a vector of labels (the first value will be for cells with value 0, the second for 1, etc). You can also provide a \code{data.frame} that must have two or more columns, the first one identifying the cell values and the other column(s) providing the category labels. To set categories for multiple layers you can provide \code{levels<-} with a list with one element for each layer. 
+
+With \code{setCats} you can set it for any layer and you can also set the variable of interest if there are multiple categories. 
+
 }
 
 \usage{
 \S4method{is.factor}{SpatRaster}(x)
 
-\S4method{as.factor}{SpatRaster}(x)
-
 \S4method{levels}{SpatRaster}(x)
 
 \S4method{levels}{SpatRaster}(x)<-value
 
-\S4method{cats}{SpatRaster}(x)
+\S4method{cats}{SpatRaster}(x, layer)
 
-\S4method{cats}{SpatRaster}(x, layer=1)<-value
-
-\S4method{rats}{SpatRaster}(x)
-
-\S4method{rats}{SpatRaster}(x, layer=1)<-value
+\S4method{setCats}{SpatRaster}(x, layer=1, value, index)
 }
 
 
 \arguments{
   \item{x}{SpatRaster}
   \item{layer}{positive integer, the layer number or name}
-  \item{value}{ With \code{cats<-} and {levels<-} this can be a character vectors with new labels or a two column data.frame. The first column is an integer cell value, and the second column is the character label. With \code{rats<-} this is a data.frame. The first column is an integer cell value, and any number and type of additional columns is allowed}
+  \item{value}{a data.frame (ID, category) or vector with category names}
+  \item{index}{positive integer, indicating the column in \code{value} to be used as the category}
 }  
 
 
 \value{
-SpatRaster; list (e.g., levels); boolean (is.factor)
+list (levels, cats) or data.frame (cats for a single layer); logical (is.factor, setCats)
 }
 
 \examples{
 set.seed(0)
 r <- rast(nrow=10, ncol=10)
-values(r) <- sample(3, ncell(r), replace=TRUE) + 2
+values(r) <- sample(3, ncell(r), replace=TRUE)
 is.factor(r)
 
 cls <- c("forest", "water", "urban")
-levels(r) <- cls
-names(r) <- "land cover"
-is.factor(r)
-r
+# make the raster start at zero
+x <- r - 1
+levels(x) <- cls
+names(x) <- "land cover"
+is.factor(x)
+x
 
-f <- as.factor(r)
+plot(x, col=c("green", "blue", "light gray"))
+text(x, digits=3, cex=.75, halo=TRUE)
+
+# raster starts at 3
+x <- r + 2
+is.factor(x)
+
+# approach 1
+levels(x) <- c("", "", "", "forest", "water", "urban")
+
+# approach 2, also showing the use of two categories
+d <- data.frame(id=3:5, cover=cls, letters=letters[1:3])
+levels(x) <- d
+x
+
+## switch categories
+head(cats(x, 1))
+# get current index
+setCats(x, 1)
+# set index 
+setCats(x, 1, index=3)
+setCats(x, 1)
+plot(x, col=c("green", "blue", "light gray"))
+text(x, digits=3, cex=.75, halo=TRUE)
+
+#setCats(x, 1, index=2)
+#p <- as.polygons(x)
+#plot(p, "cover", col=c("green", "blue", "light gray"))
 }
 
 \keyword{methods}

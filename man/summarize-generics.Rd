@@ -8,7 +8,6 @@
 \alias{mean}
 \alias{min}
 \alias{max}
-\alias{range}
 \alias{which.min}
 \alias{which.max}
 
@@ -77,7 +76,7 @@ This is different than the sample standard deviation returned by \code{sd} (whic
 
 \value{SpatRaster}
 
-\seealso{\code{\link{app}}, \code{\link{Math-methods}, \link{modal}} }
+\seealso{\code{\link{app}}, \code{\link{Math-methods}}, \code{\link{modal}}, \code{\link{which.lyr}} }
 
 
 \examples{
@@ -87,7 +86,7 @@ values(r) <- runif(size(r))
 
 x <- mean(r)
 # note how this returns one layer
-x <- sum(c(r, r[[2]], 5))
+x <- sum(c(r, r[[2]]), 5)
 
 # and this returns three layers
 y <- sum(r, r[[2]], 5)

@@ -1,15 +1,34 @@
-# Author: Robert J. Hijmans 
+# Author: Robfert J. Hijmans 
 # Date : October 2018
 # Version 1.0
 # License GPL v3
 
 
-#setMethod("as.list", signature(x="SpatRaster"), 
-#	function(x, ...) {
-#		lapply(1:nlyr(x), function(i) x[[i]])
-#	}
-#)
+setMethod("as.list", signature(x="SpatRaster"), 
+	function(x) {
+		lapply(1:nlyr(x), function(i) x[[i]])
+	}
+)
  
+ 
+# create a "grDevices::raster" (small r) object for use with the rasterImage function
+# NOT a raster::Raster* object
+setMethod("as.raster", signature(x="SpatRaster"), 
+	function(x, maxcell=500000, col) {
+		if (missing(col)) {
+			col=rev(grDevices::terrain.colors(255))
+		}
+		x <- spatSample(x, maxcell, method="regular", as.raster=TRUE)
+		x <- as.matrix(x, wide=TRUE)
+		r <- range(x, na.rm=TRUE)
+		x <- (x - r[1])/ (r[2] - r[1])
+		x <- round(x * (length(col)-1) + 1)
+		x[] <- col[x]
+		as.raster(x)
+	} 
+)
+
+
 
 .as.image <- function(x, maxcells=10000) {
 	x <- spatSample(x, size=maxcells, method="regular", as.raster=TRUE)
@@ -25,10 +44,23 @@ setMethod("as.polygons", signature(x="SpatRaster"),
 		p <- methods::new("SpatVector")
 		if (extent) {
 			p@ptr <- x@ptr$dense_extent()
+			x <- messages(x)
 		} else {
 			opt <- spatOptions()
 			p@ptr <- x@ptr$as_polygons(trunc[1], dissolve[1], values[1], TRUE, opt)
-			#x <- messages(x)
+			x <- messages(x)
+			if (values) {
+				ff <- is.factor(x)
+				if (any(ff)) {
+					ff <- which(ff)
+					levs <- levels(x)
+					for (f in ff) {
+						v <- factor(unlist(p[[f]], use.names=FALSE), levels=0:255)
+						levels(v) <- levs[[f]]
+						p[[f]] <- as.character(v)
+					}
+				}
+			}				
 		}
 		messages(p, "as.polygons")
 	}
@@ -67,7 +99,7 @@ setMethod("as.lines", signature(x="SpatVector"),
 
 setMethod("as.points", signature(x="SpatVector"), 
 	function(x, multi=FALSE) {
-		opt <- .getOptions()
+		opt <- spatOptions()
 		x@ptr <- x@ptr$as_points(multi)
 		messages(x, "as.points")
 	}
@@ -75,11 +107,24 @@ setMethod("as.points", signature(x="SpatVector"),
 
 
 setMethod("as.points", signature(x="SpatRaster"), 
-	function(x, values=TRUE) {
+	function(x, values=TRUE, na.rm=TRUE) {
 		p <- methods::new("SpatVector")
-		opt <- .getOptions()
-		p@ptr <- x@ptr$as_points(values, TRUE, opt)
+		opt <- spatOptions()
+		p@ptr <- x@ptr$as_points(values, na.rm, opt)
 		x <- messages(x, "as.points")
+			
+		if (values) {
+			ff <- is.factor(x)
+			if (any(ff)) {
+				ff <- which(ff)
+				levs <- levels(x)
+				for (f in ff) {
+					v <- factor(unlist(p[[f]], use.names=FALSE), levels=0:255)
+					levels(v) <- levs[[f]]
+					p[[f]] <- as.character(v)
+				}
+			}
+		}	
 		messages(p, "as.points")
 	}
 )
@@ -143,9 +188,16 @@ setMethod("as.data.frame", signature(x="SpatRaster"),
 		if (cells) {
 			d <- cbind(cell=1:ncell(x), d)
 		}
-		d <- cbind(d, values(x, mat=TRUE))
-		if (na.rm) d <- stats::na.omit(d) 
-		data.frame(d)
+		if (is.null(d)) {
+			d <- values(x, dataframe=TRUE)
+		} else {
+			d <- data.frame(d, values(x, dataframe=TRUE))
+		}
+		if (na.rm) {
+			d <- stats::na.omit(d) 
+			attr(d, "na.action") <- NULL
+		}
+		d
 	}
 )
 
@@ -175,20 +227,7 @@ setMethod("as.array", signature(x="SpatRaster"),
 
 
 # todo:
-# for ncdf files (not yet natively supported in terra)
-# check the variable to be used
-# 
-# check z values, other attributes such as NAvalue that may have been
-# changed after creation of object from file
-# RAT tables
-# Author: Robert J. Hijmans 
-# Date : February 2019
-# Version 1.0
-# License GPL v3
-
-# todo:
-# for ncdf files (not yet natively supported in terra)
-# check the variable to be used
+# for ncdf files check the variable to be used
 # 
 # check z values, other attributes such as NAvalue that may have been
 # changed after creation of object from file
@@ -304,7 +343,7 @@ setAs("SpatRaster", "Raster",
 
 
 # to sf from SpatVector
-# could be in sf
+# available in sf
 .v2sf <- function(from) {
 	txt <- 'sf::st_as_sf(as.data.frame(from, geom=TRUE), wkt="geometry", crs=from@ptr$get_crs("wkt"))'
 	eval(parse(text = txt))

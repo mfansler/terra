@@ -52,10 +52,9 @@ void SpatRaster::gdalogrproj_init(std::string path) {
 #endif
 }
 
+SpatCategories GetRAT(GDALRasterAttributeTable *pRAT) {
 
-SpatDataFrame GetRATdf(GDALRasterAttributeTable *pRAT) {
-
-	SpatDataFrame out;
+	SpatCategories out;
 /*
 	const char *GFU_type_string[] = {"GFT_Integer", "GFT_Real","GFT_String"};
 	const char *GFU_usage_string[] = {"GFU_Generic", "GFU_PixelCount", "GFU_Name", "GFU_Min",
@@ -68,36 +67,72 @@ SpatDataFrame GetRATdf(GDALRasterAttributeTable *pRAT) {
 	size_t nc = (int) pRAT->GetColumnCount();
 	size_t nr = (int) pRAT->GetRowCount();
 
+	std::vector<long> id(nr);
+	std::iota(id.begin(), id.end(), 0);
+	out.d.add_column(id, "ID");
+
+	std::vector<std::string> ss = {"histogram", "red", "green", "blue", "opacity"};
+	
 	for (size_t i=0; i<nc; i++) {
 		GDALRATFieldType nc_type = pRAT->GetTypeOfCol(i);
 //		GFT_type.push_back(GFU_type_string[nc_types[i]]);
 //		GDALRATFieldUsage nc_usage = pRAT->GetUsageOfCol(i);
 //		GFT_usage.push_back(GFU_usage_string[nc_usages[i]]);
 		std::string name = pRAT->GetNameOfCol(i);
+		int j = where_in_vector(name, ss, true);
+		if (j >= 0) continue;
+
 		if (nc_type == GFT_Integer) {
 			std::vector<long> d(nr);
 			for (size_t j=0; j<nr; j++) {
 				d[j] = (int) pRAT->GetValueAsInt(j, i);
 			}
-			out.add_column(d, name);
+			out.d.add_column(d, name);
 		} else if (nc_type == GFT_Real) {
 			std::vector<double> d(nr);
 			for (size_t j=0; j<nr; j++) {
 				d[j] = (double) pRAT->GetValueAsDouble(j, i);
 			}
-			out.add_column(d, name);
+			out.d.add_column(d, name);
 		} else if (nc_type == GFT_String) {
 			std::vector<std::string> d(nr);
 			for (size_t j=0; j<nr; j++) {
 				d[j] = (std::string) pRAT->GetValueAsString(j, i);
 			}
-			out.add_column(d, name);
+			out.d.add_column(d, name);
 		}
 	}
+	out.index = out.d.ncol() > 1 ? 1 : 0;
 	return(out);
 }
 
 
+bool GetVAT(std::string filename, SpatCategories &vat) {
+
+	filename = filename + ".vat.dbf";
+	if (!file_exists(filename)) {
+		return false;
+	}
+
+	SpatVector v;
+	v.read(filename);
+	if (v.df.nrow() == 0) return false;
+	
+	std::vector<std::string> ss = {"histogram", "red", "green", "blue", "opacity"};
+	std::vector<std::string> nms = v.df.get_names();
+	std::vector<unsigned> rng;
+	for (size_t i=0; i<nms.size(); i++) {
+		int j = where_in_vector(nms[i], ss, true);
+		if (j < 0) rng.push_back(i);
+	}
+	if (rng.size() > 1) {
+		vat.d = v.df.subset_cols(rng);
+		vat.d.names[0] = "ID";
+		vat.index = 1;
+		return true;
+	}
+	return false;
+}
 
 SpatDataFrame GetCOLdf(GDALColorTable *pCT) {
 
@@ -120,18 +155,46 @@ SpatDataFrame GetCOLdf(GDALColorTable *pCT) {
 	return(out);
 }
 
+/*
+SpatDataFrame GetColFromRAT(SpatDataFrame &rat) {
+	
+	SpatDataFrame out;
+	size_t nr = rat.nrow();
+	if (nr > 256) return out;
+	std::vector<std::string> nms = rat.get_names();
+	int red = where_in_vector("red", nms, false);
+	int green = where_in_vector("green", nms, false);
+	int blue = where_in_vector("blue", nms, false);
+	int alpha = where_in_vector("alpha", nms, true);
+	std::vector<unsigned> r {(unsigned)red, (unsigned)green, (unsigned)blue};
+	if (alpha >= 0) {
+		r.push_back(alpha);
+	} 
+	out = rat.subset_cols(r);
+	if (alpha < 0) {
+		std::vector<long> a(nr, 255);
+		out.add_column(a, "alpha");
+	}
+	out.names = {"red", "green", "blue", "alpha"};		
+	return out;
+}
+*/
 
 SpatCategories GetCategories(char **pCat) {
 	size_t n = CSLCount(pCat);
+	SpatCategories scat;
+
+	std::vector<long> id(n);
+	std::iota(id.begin(), id.end(), 0);
+	scat.d.add_column(id, "ID");
+
 	std::vector<std::string> nms(n);
 	for (size_t i = 0; i<n; i++) {
 		const char *field = CSLGetField(pCat, i);
 		nms[i] = field;
 	}
-	SpatCategories scat;
-	scat.labels = nms;
-	scat.levels.resize(nms.size());
-	std::iota(scat.levels.begin(), scat.levels.end(), 0);
+	scat.d.add_column(nms, "category");
+	scat.index = 1;
 	return(scat);
 }
 
@@ -315,8 +378,7 @@ bool SpatRaster::constructFromFile(std::string fname, std::vector<int> subds, st
 	s.nrow = poDataset->GetRasterYSize();
 	s.nlyr = nl;
 	s.nlyrfile = nl;
-	s.layers.resize(nl);
-    std::iota(s.layers.begin(), s.layers.end(), 0);
+	s.resize(nl);
 
 	s.flipped = false;
 	s.rotated = false;
@@ -379,8 +441,7 @@ bool SpatRaster::constructFromFile(std::string fname, std::vector<int> subds, st
 	}
 	std::string msg;
 	if (!s.srs.set({crs}, msg)) {
-		setError(msg);
-		return false;
+		addWarning(msg);
 	}
 
 	GDALRasterBand  *poBand;
@@ -417,78 +478,81 @@ bool SpatRaster::constructFromFile(std::string fname, std::vector<int> subds, st
 	//	}
 		double offset = poBand->GetOffset(&success);
 		if (success) {
-			s.offset.push_back(offset);
-			s.has_scale_offset.push_back(true);
-		} else {
-			s.offset.push_back(0);
-			s.has_scale_offset.push_back(false);
-		}
+			s.offset[i] = offset;
+			s.has_scale_offset[i] = true;
+		} 
 		double scale = poBand->GetScale(&success);
 		if (success) {
-			s.scale.push_back(scale);
+			s.scale[i] = scale;
 			s.has_scale_offset[i] = true;
-		} else {
-			s.scale.push_back(1);
-		}
+		} 
 
 
-		std::string dtype = GDALGetDataTypeName(poBand->GetRasterDataType());
+		//std::string dtype = GDALGetDataTypeName(poBand->GetRasterDataType());
 
 		adfMinMax[0] = poBand->GetMinimum( &bGotMin );
 		adfMinMax[1] = poBand->GetMaximum( &bGotMax );
 		if( (bGotMin && bGotMax) ) {
-			s.hasRange.push_back(true);
-			s.range_min.push_back( adfMinMax[0] );
-			s.range_max.push_back( adfMinMax[1] );
-		} else {
-			s.hasRange.push_back(false);
-			s.range_min.push_back( NAN );
-			s.range_max.push_back( NAN );
-		}
+			s.hasRange[i] = true;
+			s.range_min[i] = adfMinMax[0];
+			s.range_max[i] = adfMinMax[1];
+		} 
 
 		//if( poBand->GetOverviewCount() > 0 ) printf( "Band has %d overviews.\n", poBand->GetOverviewCount() );
-
 		//GDALGetColorInterpretationName( poBand->GetColorInterpretation()) );
 
 		GDALColorTable *ct = poBand->GetColorTable();
 		if( ct != NULL ) {
-			s.hasColors.push_back(true);
-			s.cols.resize(i+1);
+			s.hasColors[i] = true;
 			s.cols[i] = GetCOLdf(ct);
-		} else {
-			s.hasColors.push_back(false);
-		}
+		} 
 
-
-		GDALRasterAttributeTable *rat = poBand->GetDefaultRAT();
-		if( rat != NULL )	{
-			s.hasAttributes.push_back(true);
-			s.atts.resize(i+1);
-			s.atts[i] = GetRATdf(rat);;
-		} else {
-			s.hasAttributes.push_back(false);
-		}
 
 		char **cat = poBand->GetCategoryNames();
 		if( cat != NULL )	{
-			s.hasCategories.push_back(true);
 			SpatCategories scat = GetCategories(cat);
-			s.cats.resize(i+1);
 			s.cats[i] = scat;
-		} else {
-			s.hasCategories.push_back(false);
-		}
+			s.hasCategories[i] = true;
+		} 
 
-		std::string bandname = poBand->GetDescription();
-		if (bandname != "") {
-			s.names.push_back(bandname);
-		} else {
-			if (s.nlyr > 1) {
-				s.names.push_back(varname + "_" + std::to_string(i+1) ) ;
-			} else {
-				s.names.push_back(basename_noext(fname)) ;
+		if (!s.hasCategories[i]) {
+			GDALRasterAttributeTable *rat = poBand->GetDefaultRAT();
+			if( rat != NULL ) {
+				s.cats[i] = GetRAT(rat);
+				s.hasCategories[i] = true;
 			}
 		}
+		//	} else {
+		//		s.cats[i].d.cbind(crat.d); // needs more checking.
+		//	} else {
+
+
+		if (!s.hasCategories[i]) {
+			SpatCategories vat;
+			if (GetVAT(fname, vat)) {
+				s.cats[i] = vat;
+				s.hasCategories[i] = true;				
+			}
+		}
+
+		std::string nm = "";
+		if (s.hasCategories[i]) {
+			if (s.cats[i].index < s.cats[i].d.ncol()) {
+				std::vector<std::string> nms = s.cats[i].d.get_names();
+				nm = nms[s.cats[i].index];
+			} 
+		} 
+		if (nm == "") {
+			std::string bandname = poBand->GetDescription();
+			if (bandname != "") {
+				nm = bandname;
+			} else if (s.nlyr > 1) {
+				nm = varname + "_" + std::to_string(i+1);
+			} else {
+				nm = basename_noext(fname) ;
+			}
+		}
+		s.names[i] = nm;
 	}
 
 	if (gdrv == "netCDF") {
@@ -584,6 +648,11 @@ void vflip(std::vector<double> &v, const size_t &ncell, const size_t &nrows, con
 
 
 void SpatRaster::readChunkGDAL(std::vector<double> &data, unsigned src, size_t row, unsigned nrows, size_t col, unsigned ncols) {
+
+	if (source[src].multidim) {
+		readValuesMulti(data, src, row, nrows, col, ncols);
+		return;
+	}
 
 	if (source[src].hasWindow) { // ignoring the expanded case.
 		row = row + source[src].window.off_row;
@@ -892,5 +961,78 @@ std::vector<std::vector<double>> SpatRaster::readRowColGDAL(unsigned src, std::v
 		}
 	}
 	return r;
+}
+
+
+
+
+std::vector<double> SpatRaster::readRowColGDALFlat(unsigned src, std::vector<int_64> &rows, const std::vector<int_64> &cols) {
+
+	std::vector<double> errout;
+	if (source[src].rotated) {
+		setError("cannot read from rotated files. First use 'rectify'");
+		return errout;
+	}
+
+    GDALDataset *poDataset;
+	GDALRasterBand *poBand;
+    //GDALAllRegister();
+	const char* pszFilename = source[src].filename.c_str();
+    poDataset = (GDALDataset *) GDALOpen(pszFilename, GA_ReadOnly);
+    if( poDataset == NULL )  {
+		return errout;
+	}
+
+	std::vector<unsigned> lyrs = source[src].layers;
+	unsigned nl = lyrs.size();
+	unsigned n = rows.size();
+
+	size_t fnr = nrow() - 1;
+	if (source[src].flipped) {
+		for (size_t i=0; i<n; i++) {
+			rows[i] = fnr - rows[i];
+		}
+	}
+
+	std::vector<int> panBandMap;
+	if (!source[src].in_order()) {
+		panBandMap.reserve(nl);
+		for (size_t i=0; i < nl; i++) {
+			panBandMap.push_back(lyrs[i]+1);
+		}
+	}
+
+	std::vector<double> out(n * nl, NAN);
+	CPLErr err = CE_None;
+	for (size_t j=0; j < n; j++) {
+		if ((cols[j] < 0) || (rows[j] < 0)) continue;
+		if (panBandMap.size() > 0) {
+			err = poDataset->RasterIO(GF_Read, cols[j], rows[j], 1, 1, &out[j*nl], 1, 1, GDT_Float64, nl, &panBandMap[0], 0, 0, 0, NULL);
+		} else {
+			err = poDataset->RasterIO(GF_Read, cols[j], rows[j], 1, 1, &out[j*nl], 1, 1, GDT_Float64, nl, NULL, 0, 0, 0, NULL);
+		}
+		if (err != CE_None ) { 
+			break;
+		}
+	}
+
+	if (err == CE_None ) { 
+		std::vector<double> naflags(nl, NAN);
+		int hasNA;
+		for (size_t i=0; i<nl; i++) {
+			poBand = poDataset->GetRasterBand(lyrs[i]+1);
+			double naflag = poBand->GetNoDataValue(&hasNA);
+			if (hasNA)  naflags[i] = naflag;
+		}
+		NAso(out, n, naflags, source[src].scale, source[src].offset, source[src].has_scale_offset, source[src].hasNAflag, source[src].NAflag);
+	}
+
+	GDALClose((GDALDatasetH) poDataset);
+	if (err != CE_None ) {
+		setError("cannot read values");
+		return errout;
+	}
+
+	return out;
 }
 

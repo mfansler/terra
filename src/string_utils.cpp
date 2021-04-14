@@ -15,6 +15,10 @@
 // You should have received a copy of the GNU General Public License
 // along with spat. If not, see <http://www.gnu.org/licenses/>.
 
+#ifndef STRINGUTILS_H
+
+#define STRINGUTILS_H
+
 #include <algorithm>
 #include <set>
 #include <string>
@@ -98,6 +102,13 @@ void lowercase(std::string &s) {
 	std::transform(s.begin(), s.end(), s.begin(), ::tolower);
 }
 
+
+void lowercase(std::vector<std::string> &ss) {
+	for (std::string &s : ss) lowercase(s);
+}
+
+
+
 bool is_in_vector(std::string s, std::vector<std::string> ss) {
 	//std::set<std::string> sset (ss.begin(), ss.end());
 	//return sset.find(s) != sset.end();
@@ -106,8 +117,9 @@ bool is_in_vector(std::string s, std::vector<std::string> ss) {
 }
 
 
-int where_in_vector(std::string s, std::vector<std::string> ss) {
+int where_in_vector(std::string s, std::vector<std::string> ss, bool tolower) {
 	int i = -1;
+	if (tolower) lowercase(s);
 	auto it = std::find (ss.begin(), ss.end(), s);
 	if (it != ss.end()) {
 		i = std::distance(ss.begin(), it);
@@ -124,6 +136,7 @@ std::string is_in_set_default(std::string s, std::vector<std::string> ss, std::s
 	}
 	return s;
 }
+
 
 
 std::vector<std::string> strsplit(std::string s, std::string delimiter){
@@ -276,3 +289,4 @@ size_t str_replace_all(std::string& str, const std::string& from, const std::str
 	return count;
 }
 
+#endif

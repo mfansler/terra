@@ -43,7 +43,11 @@ parfun <- function(cls, data, fun, model, ...) {
 				r <- m
 			}
 		} else {
-			r <- matrix(NA, nrow=nl*n, ncol=1)
+			if (!is.null(index)) {
+				r <- matrix(NA, nrow=nl*n, ncol=max(index))
+			} else {
+				r <- matrix(NA, nrow=nl*n, ncol=1)			
+			}
 		}
 	} else {
 		if (cores > 1) {
@@ -125,17 +129,32 @@ setMethod("predict", signature(object="SpatRaster"),
 		tomat <- FALSE
 		readStart(object)
 		on.exit(readStop(object))
-		d <- readValues(object, round(0.5*nrow(object)), 1, 1, min(nc,500), TRUE, TRUE)
-
-		r <- .runModel(model, fun, d, nl, const, na.rm, index, ...)
-		nl <- ncol(r)
+		testrow <- round(0.51*nrow(object))
+		d <- readValues(object, testrow, 1, 1, nc, TRUE, TRUE)
+		if (na.rm && all(is.na(d))) {
+			testrow <- ceiling(testrow - 0.25*nrow(object))
+			d <- readValues(object, testrow, 1, 1, nc, TRUE, TRUE)
+		}
+		if (na.rm && all(is.na(d))) {
+			testrow <- floor(testrow + 0.5*nrow(object))
+			d <- readValues(object, testrow, 1, 1, nc, TRUE, TRUE)
+		}
+		if (na.rm && all(is.na(d))) {
+			d <- spatSample(object, min(1000, ncell(object)), "regular")
+		}
+		if (!na.rm || !all(is.na(d)) || !is.null(index)) {
+			r <- .runModel(model, fun, d, nl, const, na.rm, index, ...)
+			nl <- ncol(r)
+		} else {
+			warn("predict", "Cannot determine the number of output variables. Assuming 1. Use argument 'index' to set it manually")
+		}
 		out <- rast(object, nlyr=nl)
 		cn <- colnames(r)
 		if (length(cn) == nl) names(out) <- make.names(cn, TRUE)
 
 		if (cores > 1) {
 			cls <- parallel::makeCluster(cores)
-			on.exit(parallel::stopCluster(cls), add=TRUE)
+			on.exit(parallel::stopCluster(cls)) #  add=TRUE?)
 			parallel::clusterExport(cls, c("model", "fun"), environment())
 			dots <- list(...)
 			if (length(dots) > 0) {
@@ -147,7 +166,7 @@ setMethod("predict", signature(object="SpatRaster"),
 		} else {
 			cls <- NULL
 		}
-		b <- writeStart(out, filename, overwrite, wopt=wopt)
+		b <- writeStart(out, filename, overwrite, wopt=wopt, n=max(nlyr(out), nlyr(object))*4)
 		for (i in 1:b$n) {
 			d <- readValues(object, b$row[i], b$nrows[i], 1, nc, TRUE, TRUE)
 			r <- .runModel(model, fun, d, nl, const, na.rm, index, cores=cores, cls=cls, ...)

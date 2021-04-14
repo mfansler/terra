@@ -56,15 +56,15 @@ setMethod("Arith", signature(e1="numeric", e2="SpatExtent"),
     function(e1, e2) {
 		oper <- as.vector(.Generic)[1]
 		if (oper == "%%") { 
-			stop("only 'Spatextent %% numeric' (in that order) is supported")
+			error("%%", "only 'Spatextent %% numeric' (in that order) is supported")
 		} else if (oper == "+") {
 			return(e2 + e1)
 		} else if (oper == "-") {
-			stop("only 'Spatextent - numeric' (in that order) is supported")
+			error("-", "only 'Spatextent - numeric' (in that order) is supported")
 		} else if (oper == "*") {
 			return(e2 * e1)
 		} else if (oper == "/") {
-			stop("only 'Spatextent / numeric' (in that order) is supported")
+			error("/", "only 'Spatextent / numeric' (in that order) is supported")
 		} else {
 			error(oper, "only +, -, *, / and %% are supported")
 		}
@@ -132,10 +132,10 @@ setMethod("Arith", signature(e1="SpatRaster", e2="SpatRaster"),
 
 
 setMethod("Arith", signature(e1="SpatRaster", e2="numeric"),
-    function(e1, e2){ 
-		opt <- spatOptions()
+    function(e1, e2){
 		oper <- as.vector(.Generic)[1]
 		stopifnot(oper %in% c("+", "-", "^", "*", "/", "%%")) 
+		opt <- spatOptions()
 		oper <- ifelse(oper == "%%", "%", oper)
 		e1@ptr <- e1@ptr$arith_numb(e2, oper, FALSE, opt)
 		messages(e1, oper)
@@ -151,9 +151,9 @@ setMethod("Arith", signature(e1="SpatRaster", e2="missing"),
 
 setMethod("Arith", signature(e1="numeric", e2="SpatRaster"),
     function(e1, e2){ 
-		opt <- spatOptions()
 		oper <- as.vector(.Generic)[1]
 		stopifnot(oper %in% c("+", "-", "^", "*", "/", "%%")) 
+		opt <- spatOptions()
 		oper <- ifelse(oper == "%%", "%", oper)
 		e2@ptr <- e2@ptr$arith_numb(e1, oper, TRUE, opt)
 		messages(e2, oper)
@@ -173,8 +173,8 @@ setMethod("Compare", signature(e1="SpatRaster", e2="SpatRaster"),
 
 setMethod("Compare", signature(e1="SpatRaster", e2="numeric"),
     function(e1, e2){ 
-		opt <- spatOptions()
 		oper <- as.vector(.Generic)[1]
+		opt <- spatOptions()
 		e1@ptr <- e1@ptr$arith_numb(e2, oper, FALSE, opt)
 		messages(e1, oper)
 	}
@@ -183,18 +183,44 @@ setMethod("Compare", signature(e1="SpatRaster", e2="numeric"),
 
 setMethod("Compare", signature(e1="numeric", e2="SpatRaster"),
     function(e1, e2){ 
-		opt <- spatOptions()
 		oper <- as.vector(.Generic)[1]
+		opt <- spatOptions()
 		e2@ptr <- e2@ptr$arith_numb(e1, oper, TRUE, opt)
 		messages(e2, oper)
 	}
 )
 
 
+setMethod("Compare", signature(e1="SpatRaster", e2="character"),
+    function(e1, e2){ 
+		oper <- as.vector(.Generic)[1]
+		if (!is.factor(e1)) {
+			error(oper, "SpatRaster is not categorical")		
+		}
+		if (oper != "==") {
+			error(oper, "only '==' is supported with categorical comparisons")
+		}
+		if (nlyr(e1) != 1) {
+			error(oper, "categorical comparisons only supported for single layer SpatRaster")
+		}
+		if (length(e2) != 1) {
+			error(oper, "comparisons only supported for single values (see %in% and match)")
+		}
+		
+		e2 <- match(e2, levels(e1)[[1]])
+		if (is.na(e2)) return (e1 * 0)
+		opt <- spatOptions()
+		e1@ptr <- e1@ptr$arith_numb(e2, oper, TRUE, opt)
+		messages(e1, oper)
+	}
+)
+
+
+
 setMethod("Logic", signature(e1="SpatRaster", e2="SpatRaster"),
     function(e1, e2){ 
-		opt <- spatOptions()
 		oper <- as.vector(.Generic)[1]
+		opt <- spatOptions()
 		e1@ptr <- e1@ptr$logic_rast(e2@ptr, oper, opt)
 		messages(e1, oper)
 	}
@@ -345,6 +371,15 @@ setMethod("which.min", "SpatRaster",
 		opt <- spatOptions()
 		x@ptr <- x@ptr$summary("which.min", TRUE, opt)
 		messages(x, "which.min")
+	}
+)
+
+
+setMethod("which.lyr", "SpatRaster",  
+	function(x) { 
+		opt <- spatOptions()
+		x@ptr <- x@ptr$summary("which", TRUE, opt)
+		messages(x, "which.lyr")
 	}
 )
 

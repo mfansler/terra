@@ -29,13 +29,12 @@
 #include "gdalio.h"
 
 
-
 //#include <vector>
 //#include "vecmath.h"
 
 
 SpatVector SpatRaster::dense_extent() {
-	
+
 	std::vector<int_64> rows(nrow());
 	std::iota(rows.begin(), rows.end(), 0);
 	std::vector<int_64> cols(ncol());
@@ -67,8 +66,94 @@ SpatVector SpatRaster::dense_extent() {
 	return v;
 }
 
+#if GDAL_VERSION_MAJOR <= 2 && GDAL_VERSION_MINOR < 2
 
-#if GDAL_VERSION_MAJOR >= 3
+SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method, bool mask, SpatOptions &opt) {
+
+	unsigned nl = nlyr();
+	SpatRaster out = x.geometry(nl);
+	out.setNames(getNames());
+
+	if (crs != "") {
+		out.setError("You cannot project by specifying a crs with your version of GDAL");
+		return out;
+	}
+
+	out.setNames(getNames());
+	std::vector<std::string> f {"bilinear", "near"};
+	if (std::find(f.begin(), f.end(), method) == f.end()) {
+		out.setError("unknown warp method");
+		return out;
+	}
+	if (!hasValues()) {
+		return out;
+	}
+
+	std::string crsin = source[0].srs.wkt;
+	std::string crsout = out.source[0].srs.wkt;
+	bool do_prj = true;
+	if ((crsin == crsout) || (crsin == "") || (crsout == "")) {
+		do_prj = false;
+	}
+
+	if (!do_prj) {
+		SpatExtent e = out.getExtent();
+		e.intersect(getExtent());
+		if (!e.valid()) {
+			out.addWarning("No spatial overlap");
+			return out;
+		}
+	}
+
+	SpatRaster xx;
+	if (do_prj) {
+		xx = *this;
+	} else {
+		unsigned xq = x.xres() / xres();
+		unsigned yq = x.yres() / yres();
+		if (std::max(xq, yq) > 1) {
+			xq = xq == 0 ? 1 : xq;
+			yq = yq == 0 ? 1 : yq;
+			std::vector<unsigned> agf = {yq, xq, 1};
+			SpatOptions agopt;
+			if (method == "bilinear") {
+				xx = aggregate(agf, "mean", true, agopt);
+			} else {
+				xx = aggregate(agf, "modal", true, agopt);
+			}
+		} else {
+			xx = *this;
+		}
+	}
+	unsigned nc = out.ncol();
+
+  	if (!out.writeStart(opt)) { return out; }
+	for (size_t i = 0; i < out.bs.n; i++) {
+        unsigned firstcell = out.cellFromRowCol(out.bs.row[i], 0);
+		unsigned lastcell  = out.cellFromRowCol(out.bs.row[i]+out.bs.nrows[i]-1, nc-1);
+		std::vector<double> cells(1+lastcell-firstcell);
+		std::iota (std::begin(cells), std::end(cells), firstcell);
+        std::vector<std::vector<double>> xy = out.xyFromCell(cells);
+		if (do_prj) {
+			#ifdef useGDAL
+			out.msg = transform_coordinates(xy[0], xy[1], crsout, crsin);
+			#else
+			out.setError("GDAL is needed for crs transformation, but not available");
+			return out;
+			#endif
+		}
+		std::vector<std::vector<double>> v = xx.extractXY(xy[0], xy[1], method, false);
+		if (!out.writeValues2(v, out.bs.row[i], out.bs.nrows[i], 0, out.ncol())) return out;
+	}
+	out.writeStop();
+	return(out);
+}
+
+
+
+
+#else
+
 
 bool find_output_bounds(const GDALDatasetH &hSrcDS, GDALDatasetH &hDstDS, std::string srccrs, const std::string dstcrs, std::string filename, std::string driver, int nlyrs, std::string datatype, std::string &msg) {
 
@@ -206,18 +291,14 @@ bool gdal_warper(GDALDatasetH &hSrcDS, GDALDatasetH &hDstDS, std::vector<unsigne
     GDALWarpOptions *psWarpOptions = GDALCreateWarpOptions();
     psWarpOptions->hSrcDS = hSrcDS;
     psWarpOptions->hDstDS = hDstDS;
-
 	psWarpOptions->eResampleAlg = a;
-
     psWarpOptions->nBandCount = nbands;
-    psWarpOptions->panSrcBands =
-        (int *) CPLMalloc(sizeof(int) * nbands );
-    psWarpOptions->panDstBands =
-        (int *) CPLMalloc(sizeof(int) * nbands );
-	psWarpOptions->padfSrcNoDataReal =
-	    (double *) CPLMalloc(sizeof(double) * nbands );
-	psWarpOptions->padfDstNoDataReal =
-	    (double *) CPLMalloc(sizeof(double) * nbands );
+    psWarpOptions->panSrcBands = (int *) CPLMalloc(sizeof(int) * nbands );
+    psWarpOptions->panDstBands = (int *) CPLMalloc(sizeof(int) * nbands );
+	psWarpOptions->padfSrcNoDataReal = (double *) CPLMalloc(sizeof(double) * nbands );
+	psWarpOptions->padfDstNoDataReal = (double *) CPLMalloc(sizeof(double) * nbands );
+	psWarpOptions->padfSrcNoDataImag = (double *) CPLMalloc(sizeof(double) * nbands );
+	psWarpOptions->padfDstNoDataImag = (double *) CPLMalloc(sizeof(double) * nbands );
 
 	GDALRasterBandH hBand;
 	int hasNA;
@@ -238,10 +319,11 @@ bool gdal_warper(GDALDatasetH &hSrcDS, GDALDatasetH &hDstDS, std::vector<unsigne
 			hBand = GDALGetRasterBand(hDstDS, dstbands[i]+1);
 			GDALSetRasterNoDataValue(hBand, naflag);
 		} else {
-			psWarpOptions->padfSrcNoDataReal[i] = NAN;		
+			psWarpOptions->padfSrcNoDataReal[i] = NAN;
 			psWarpOptions->padfDstNoDataReal[i] = NAN;
 		}
-		//psWarpOptions->padfDstNoDataReal[i] = NAN;
+		psWarpOptions->padfSrcNoDataImag[i] = 0;
+		psWarpOptions->padfDstNoDataImag[i] = 0;
     }
 
 	//psWarpOptions->pfnProgress = GDALTermProgress;
@@ -251,29 +333,20 @@ bool gdal_warper(GDALDatasetH &hSrcDS, GDALDatasetH &hDstDS, std::vector<unsigne
 	psWarpOptions->papszWarpOptions =
       CSLSetNameValue( psWarpOptions->papszWarpOptions, "WRITE_FLUSH", "YES");
 
-//GDALWarpInitSrcNoDataReal(GDALWarpOptions *psOptionsIn, double dNoDataReal)
-//void GDALWarpInitDstNoDataReal(GDALWarpOptions *psOptionsIn, double dNoDataReal)
-
-    // Establish reprojection transformer.
 
     psWarpOptions->pTransformerArg =
         GDALCreateGenImgProjTransformer( hSrcDS, srccrs.c_str(),
                                         hDstDS, GDALGetProjectionRef(hDstDS),
                                         FALSE, 0.0, 1 );
-//    psWarpOptions->pTransformerArg =
-//        GDALCreateGenImgProjTransformer( hSrcDS, GDALGetProjectionRef(hSrcDS),
-//                                        hDstDS, GDALGetProjectionRef(hDstDS),
-//                                        FALSE, 0.0, 1 );
     psWarpOptions->pfnTransformer = GDALGenImgProjTransform;
 
-
-    // Initialize and execute the warp operation.
     GDALWarpOperation oOperation;
-    oOperation.Initialize( psWarpOptions );
+    if (oOperation.Initialize( psWarpOptions ) != CE_None) {
+		return false;
+	}
     oOperation.ChunkAndWarpImage( 0, 0, GDALGetRasterXSize( hDstDS ), GDALGetRasterYSize( hDstDS ) );
     GDALDestroyGenImgProjTransformer( psWarpOptions->pTransformerArg );
     GDALDestroyWarpOptions( psWarpOptions );
-    
 	return true;
 }
 
@@ -303,10 +376,10 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 	std::string filename = opt.get_filename();
 
 	std::string srccrs = getSRS("wkt");
-	if (opt.verbose) {
-		Rcpp::Rcout << "wkt" << std::endl;
-		Rcpp::Rcout << srccrs << std::endl;
-	}
+	//if (opt.verbose) {
+	//	Rcpp::Rcout << "wkt" << std::endl;
+	//	Rcpp::Rcout << srccrs << std::endl;
+	//}
 	if (srccrs == "") {
 		out.setError("input raster CRS not set");
 		return out;	
@@ -323,7 +396,7 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 	}
 
 	if (filename == "") {
-		if (!canProcessInMemory(opt)) {
+		if (!canProcessInMemory(opt) || !out.canProcessInMemory(opt)) {
 			filename = tempFile(opt.get_tempdir(), ".tif");
 		} 
 	} else {
@@ -345,7 +418,7 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 	int bandstart = 0;
 
 	for (size_t i=0; i<ns; i++) {
-	
+
 		if (!open_gdal(hSrcDS, i, opt)) {
 			out.setError("cannot create dataset from source");
 			return out;
@@ -381,7 +454,7 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 		std::vector<unsigned> dstbands(srcbands.size()); 
 		std::iota (dstbands.begin(), dstbands.end(), bandstart); 
 		bandstart += dstbands.size();
-	
+
 		bool success = gdal_warper(hSrcDS, hDstDS, srcbands, dstbands, method, srccrs, errmsg, opt.get_verbose());
 
 		GDALClose( hSrcDS );
@@ -416,96 +489,12 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 	if (mask) {
 		SpatVector v = dense_extent();
 		v = v.project(out.getSRS("wkt"));
-		out = out.mask(v, false, NAN, mopt);
+		out = out.mask(v, false, NAN, true, mopt);
 	}
 
 	return out;
 }
 
-
-#else 
-
-
-SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method, bool mask, SpatOptions &opt) {
-
-	unsigned nl = nlyr();
-	SpatRaster out = x.geometry(nl);
-	out.setNames(getNames());
-
-	if (crs != "") {
-		out.setError("You cannot project by specifying a crs with your version of GDAL");
-		return out;
-	}
-
-	out.setNames(getNames());
-	std::vector<std::string> f {"bilinear", "near"};
-	if (std::find(f.begin(), f.end(), method) == f.end()) {
-		out.setError("unknown warp method");
-		return out;
-	}
-	if (!hasValues()) {
-		return out;
-	}
-
-	std::string crsin = source[0].srs.wkt;
-	std::string crsout = out.source[0].srs.wkt;
-	bool do_prj = true;
-	if ((crsin == crsout) || (crsin == "") || (crsout == "")) {
-		do_prj = false;
-	}
-
-	if (!do_prj) {
-		SpatExtent e = out.getExtent();
-		e.intersect(getExtent());
-		if (!e.valid()) {
-			out.addWarning("No spatial overlap");
-			return out;
-		}
-	}
-
-	SpatRaster xx;
-	if (do_prj) {
-		xx = *this;
-	} else {
-		unsigned xq = x.xres() / xres();
-		unsigned yq = x.yres() / yres();
-		if (std::max(xq, yq) > 1) {
-			xq = xq == 0 ? 1 : xq;
-			yq = yq == 0 ? 1 : yq;
-			std::vector<unsigned> agf = {yq, xq, 1};
-			SpatOptions agopt;
-			if (method == "bilinear") {
-				xx = aggregate(agf, "mean", true, agopt);
-			} else {
-				xx = aggregate(agf, "modal", true, agopt);
-			}
-		} else {
-			xx = *this;
-		}
-	}
-	unsigned nc = out.ncol();
-
-  	if (!out.writeStart(opt)) { return out; }
-	for (size_t i = 0; i < out.bs.n; i++) {
-        unsigned firstcell = out.cellFromRowCol(out.bs.row[i], 0);
-		unsigned lastcell  = out.cellFromRowCol(out.bs.row[i]+out.bs.nrows[i]-1, nc-1);
-		std::vector<double> cells(1+lastcell-firstcell);
-		std::iota (std::begin(cells), std::end(cells), firstcell);
-        std::vector<std::vector<double>> xy = out.xyFromCell(cells);
-		if (do_prj) {
-			#ifdef useGDAL
-			out.msg = transform_coordinates(xy[0], xy[1], crsout, crsin);
-			#else
-			out.setError("GDAL is needed for crs transformation, but not available");
-			return out;
-			#endif
-		}
-		std::vector<std::vector<double>> v = xx.extractXY(xy[0], xy[1], method);
-		if (!out.writeValues2(v, out.bs.row[i], out.bs.nrows[i], 0, out.ncol())) return out;
-	}
-	out.writeStop();
-	return(out);
-}
 
 
 
@@ -645,8 +634,6 @@ SpatRaster SpatRaster::rectify(std::string method, SpatRaster aoi, unsigned usea
 
 
 
-#if GDAL_VERSION_MAJOR >= 3
-
 SpatVector SpatRaster::polygonize(bool trunc, SpatOptions &opt) {
 
 	SpatVector out;
@@ -675,12 +662,16 @@ SpatVector SpatRaster::polygonize(bool trunc, SpatOptions &opt) {
 		rstDS = GDALOpen( filename.c_str(), GA_ReadOnly);
 		if (rstDS == NULL) {
 			out.setError("cannot open dataset from file");
-			return out;		
+			return out;
 		}
 	}
     GDALDataset *srcDS=NULL;
-	srcDS = srcDS->FromHandle(rstDS);
 
+#if GDAL_VERSION_MAJOR <= 2 && GDAL_VERSION_MINOR <= 2
+	srcDS = (GDALDataset *) rstDS;
+#else
+	srcDS = srcDS->FromHandle(rstDS);
+#endif
 
 	GDALDatasetH rstMask;
 	GDALDataset *maskDS=NULL;
@@ -698,7 +689,11 @@ SpatVector SpatRaster::polygonize(bool trunc, SpatOptions &opt) {
 				return out;		
 			}
 		}
+#if GDAL_VERSION_MAJOR <= 2 && GDAL_VERSION_MINOR <= 2
+		maskDS = (GDALDataset *) rstMask;
+#else
 		maskDS = srcDS->FromHandle(rstMask);
+#endif
 	}
 
     GDALDataset *poDS = NULL;
@@ -777,6 +772,7 @@ SpatVector SpatRaster::polygonize(bool trunc, SpatOptions &opt) {
 	return out;
 }
 
+/*
 #else
 
 SpatVector SpatRaster::polygonize(bool trunc, SpatOptions &opt) {
@@ -786,4 +782,188 @@ SpatVector SpatRaster::polygonize(bool trunc, SpatOptions &opt) {
 }
 
 #endif
+*/	
 	
+SpatRaster SpatRaster::rgb2col(size_t r,  size_t g, size_t b, SpatOptions &opt) {	
+	SpatRaster out = geometry(1);
+	if (nlyr() < 3) {
+		out.setError("need at least three layers");
+		return out;
+	}
+	size_t mxlyr = std::max(std::max(r, g), b);
+	if (nlyr() < mxlyr) {
+		out.setError("layer number for R, G, B, cannot exceed nlyr()");		
+		return out;
+	}
+	
+	std::string filename = opt.get_filename();
+	opt.set_datatype("INT1U");
+	std::string driver;
+	if (filename == "") {
+		if (canProcessInMemory(opt)) {
+			driver = "MEM";
+		} else {
+			filename = tempFile(opt.get_tempdir(), ".tif");
+			opt.set_filenames({filename});
+			driver = "GTiff";
+		} 
+	} else {
+		driver = opt.get_filetype();
+		getGDALdriver(filename, driver);
+		if (driver == "") {
+			setError("cannot guess file type from filename");
+			return out;
+		}
+		std::string errmsg;
+		if (!can_write(filename, opt.get_overwrite(), errmsg)) {
+			out.setError(errmsg);
+			return out;
+		}	
+	}
+	
+	std::vector<unsigned> lyrs = {(unsigned)r, (unsigned)g, (unsigned)b};
+	SpatOptions ops(opt);
+	*this = subset(lyrs, ops);
+	*this = collapse_sources();	
+	GDALDatasetH hSrcDS, hDstDS;
+	if (!open_gdal(hSrcDS, 0, ops)) {
+		out.setError("cannot create dataset from source");
+		return out;
+	}
+	GDALRasterBandH R = GDALGetRasterBand(hSrcDS,1);
+	GDALRasterBandH G = GDALGetRasterBand(hSrcDS,1);
+	GDALRasterBandH B = GDALGetRasterBand(hSrcDS,1);
+
+	GDALColorTableH hColorTable= GDALCreateColorTable(GPI_RGB);
+
+	if (GDALComputeMedianCutPCT(R, G, B, NULL, 256, hColorTable, NULL, NULL) != CE_None) {
+		out.setError("cannot create color table");
+		GDALClose(hSrcDS);
+		return out;
+	}	
+	
+	if (!out.create_gdalDS(hDstDS, filename, driver, true, 0, opt)) {
+		out.setError("cannot create new dataset");
+		GDALClose(hSrcDS);
+		return out;
+	}
+	
+	GDALRasterBandH hTarget = GDALGetRasterBand(hDstDS, 1);
+	GDALSetRasterColorInterpretation(hTarget, GCI_PaletteIndex);
+	if (GDALDitherRGB2PCT(R, G, B, hTarget, hColorTable, NULL, NULL) != CE_None) {
+		out.setError("cannot set color table");
+		GDALClose(hSrcDS);
+		GDALClose(hDstDS);
+		return out;		
+	}
+	GDALClose(hSrcDS);
+
+	if (driver == "MEM") {
+		if (!out.from_gdalMEM(hDstDS, false, true)) {
+			out.setError("conversion failed (mem)");
+			GDALClose(hDstDS);
+			return out;
+		}
+		SpatDataFrame cdf;
+		cdf.add_column(1, "red");
+		cdf.add_column(1, "green");
+		cdf.add_column(1, "blue");
+		cdf.add_column(1, "alpha");
+		size_t nc = GDALGetColorEntryCount(hColorTable);
+		cdf.reserve(nc);
+
+		for (size_t i=0; i<nc; i++) {	
+			const GDALColorEntry* col = GDALGetColorEntry(hColorTable, i);
+			cdf.iv[0].push_back(col->c1);
+			cdf.iv[1].push_back(col->c2);
+			cdf.iv[2].push_back(col->c3);
+			cdf.iv[3].push_back(col->c4);
+		}
+		out.source[0].hasColors.resize(1);
+		out.source[0].hasColors[0] = true;
+		out.source[0].cols.resize(1);
+		out.source[0].cols[0] = cdf;		
+	} else {
+		if (GDALSetRasterColorTable(hTarget, hColorTable) != CE_None) {
+			out.setError("cannot set color table");
+			GDALClose(hDstDS);
+			return out;
+		}
+	}
+	GDALClose(hDstDS);
+	if (driver != "MEM") {
+		out = SpatRaster(filename, {-1}, {""});
+	}
+	return out;
+}
+
+/*	
+SpatRaster SpatRaster::sievefilter(int threshold, int connections, SpatOptions &opt) {	
+	
+	std::string filename = opt.get_filename();
+	std::string driver;
+	if (filename == "") {
+		if (canProcessInMemory(opt)) {
+			driver = "MEM";
+		} else {
+			filename = tempFile(opt.get_tempdir(), ".tif");
+			opt.set_filenames({filename});
+			driver = "GTiff";
+		} 
+	} else {
+		driver = opt.get_filetype();
+		getGDALdriver(filename, driver);
+		if (driver == "") {
+			setError("cannot guess file type from filename");
+			return out;
+		}
+		std::string errmsg;
+		if (!can_write(filename, opt.get_overwrite(), errmsg)) {
+			out.setError(errmsg);
+			return out;
+		}	
+	}
+
+	GDALDriverH hDriver = GDALGetDriverByName( driver.c_str() );
+	if ( hDriver == NULL ) {
+		msg = "empty driver";
+		return false;
+	}
+	GDALDatasetH hDS;
+	if (filename != "") {
+		writeRaster(opt);
+		hDS = GDALOpen(filename.c_str(), GA_ReadOnly);
+	} else {
+		hDS = GDALCreate( hDriver, "", nPixels, nLines, 1, eDT, NULL );
+	} 
+	if ( hDstDS == NULL ) {
+		msg = "cannot create output dataset";
+		return false;	
+	}
+
+	if (!out.create_gdalDS(hDstDS, filename, driver, true, 0, opt)) {
+		out.setError("cannot create new dataset");
+		GDALClose(hSrcDS);
+		return out;
+	}
+	
+	GDALRasterBandH hTarget = GDALGetRasterBand(hDstDS, 1);
+	GDALSetRasterColorInterpretation(hTarget, GCI_PaletteIndex);
+	if (GDALDitherRGB2PCT(R, G, B, hTarget, hColorTable, NULL, NULL) != CE_None) {
+		out.setError("cannot set color table");
+		GDALClose(hSrcDS);
+		GDALClose(hDstDS);
+		return out;		
+	}
+	GDALClose(hSrcDS);
+
+	CPLErr err = GDALSieveFilter(GDALRasterBandH hSrcBand, GDALRasterBandH hMaskBand, NULL, threshold, connections, NULL, NULL, NULL)
+}
+*/
+
+/*	
+SpatRaster SpatRaster::fillna(int threshold, int connections, SpatOptions &opt) {	
+CPLErr GDALFillNodata(GDALRasterBandH hTargetBand, GDALRasterBandH hMaskBand, doubledfMaxSearchDist, intbDeprecatedOption, intnSmoothingIterations, char**papszOptions, GDALProgressFuncpfnProgress, void*pProgressArg)
+*/
+
+

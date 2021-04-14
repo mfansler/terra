@@ -27,9 +27,8 @@ function(x, row=1, nrows=nrow(x), col=1, ncols=ncol(x), mat=FALSE, dataframe=FAL
 			ff <- which(ff)
 			levs <- levels(x)
 			for (f in ff) {
-				lev <- levs[[f]]
-				v[[f]] = factor(v[[f]], levels=lev$levels)
-				levels(v[[f]]) = lev$labels
+				v[[f]] = factor(v[[f]], levels=0:255)
+				levels(v[[f]]) = levs[[f]]
 			}
 		}
 	}
@@ -43,6 +42,7 @@ function(x, mat=TRUE, dataframe=FALSE, row=1, nrows=nrow(x), col=1, ncols=ncol(x
 	readStart(x)
 	on.exit(readStop(x))
 	v <- readValues(x, row, nrows, col, ncols, mat=mat, dataframe=dataframe)
+	messages(x)
 	return(v)
 }
 )
@@ -52,6 +52,23 @@ setMethod("values<-", signature("SpatRaster", "ANY"),
 		setValues(x, value)
 	}
 )
+
+setMethod("focalValues", signature("SpatRaster"), 
+	function(x, w=3, row=1, nrows=nrow(x), fill=NA) {
+		if (is.matrix(w)) {
+			#m <- as.vector(t(w))
+			w <- dim(w)
+		} else {
+			w <- rep_len(w, 2)
+		}
+		readStart(x)
+		on.exit(readStop(x))
+		m <- matrix(x@ptr$focalValues(w, fill, row-1, nrows), ncol=prod(w), byrow=TRUE)
+		messages(x)
+		m
+	}
+)
+
 
 setMethod("setValues", signature("SpatRaster", "ANY"), 
 	function(x, values) {
@@ -66,16 +83,34 @@ setMethod("setValues", signature("SpatRaster", "ANY"),
 			stopifnot(length(dim(values)) == 3)
 			values <- as.vector(aperm(values, c(2,1,3)))
 		}
+		make_factor <- FALSE
+		if (is.character(values)) {
+			values <- as.factor(values)
+			levs <- levels(values)
+			values <- as.integer(values) - 1
+			if (max(values, na.rm=TRUE) <= 255) {
+				make_factor <- TRUE
+			}
+		} else if (is.factor(values)) {
+			levs <- levels(values)			
+			values <- as.integer(values) - 1
+			if (max(values, na.rm=TRUE) <= 255) {
+				make_factor <- TRUE
+			}
+		}
 
 		if (!(is.numeric(values) || is.integer(values) || is.logical(values))) {
-			error("setValues", "values must be numeric, integer, or logical")
+			error("setValues", "values must be numeric, integer, logical, factor or character")
 		}
 
 		lv <- length(values)
-		nc <- ncell(x)
-		nl <- nlyr(x)
+		y <- rast(x)
+		nc <- ncell(y)
+		nl <- nlyr(y)
+		opt <- spatOptions()
+		
 		if (lv == 1) {
-			values <- rep(values, nl * nc)
+			y@ptr$setValues(values, opt)
 		} else {
 			if (!((lv %% nc) == 0)) {
 				warn("setValues", "length of values does not match the number of cells")
@@ -85,9 +120,14 @@ setMethod("setValues", signature("SpatRaster", "ANY"),
 			} else if (lv < (nc * nl)) {
 				values <- rep(values, length.out=nc*nl)
 			}
+			y@ptr$setValues(values, opt)
 		}
-		y <- rast(x)
-		y@ptr$setValues(values)
+		y <- messages(y)
+		if (make_factor) {
+			for (i in 1:nlyr(y)) {
+				setCats(y, i, levs, 2)
+			}
+		}
 		y
 	}
 )
@@ -173,6 +213,7 @@ setMethod("values<-", signature("SpatVector", "data.frame"),
 	function(x, value) {
 		stopifnot(nrow(x) == nrow(value))
 		x <- x[,0]
+		# use cbind instead
 		types <- sapply(value, class)
 		nms <- colnames(value)
 		for (i in 1:ncol(value)) {
@@ -191,10 +232,37 @@ setMethod("values<-", signature("SpatVector", "data.frame"),
 	}
 )
 
+setMethod("values<-", signature("SpatVector", "matrix"), 
+	function(x, value) {
+		`values<-`(x, data.frame(value))
+	}
+)
+
+
+setMethod("values<-", signature("SpatVector", "ANY"),
+	function(x, value) {
+		if (!is.vector(value)) {
+			error("values<-", "the values must be a data.frame, matrix or vector")
+		}
+		value <- rep(value, length.out=nrow(x))
+		value <- data.frame(value=value)
+		`values<-`(x, data.frame(value))
+	}
+) 
+
+
+
 setMethod("values<-", signature("SpatVector", "NULL"), 
 	function(x, value) {
 		x@ptr$remove_df()
 		x
+	}
+)
+
+setMethod("setValues", signature("SpatVector", "ANY"), 
+	function(x, values) {
+		x@ptr <- x@ptr$deepcopy()
+		`values<-`(x, values)
 	}
 )
 

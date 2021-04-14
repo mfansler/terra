@@ -149,6 +149,8 @@ class SpatVector {
 		SpatVector subset_cols(std::vector<int> range);
 		SpatVector subset_rows(int i);
 		SpatVector subset_rows(std::vector<int> range);
+		SpatVector subset_rows(std::vector<unsigned> range);
+		SpatVector remove_rows(std::vector<unsigned> range);
 
 		void setGeometry(std::string type, std::vector<unsigned> gid, std::vector<unsigned> part, std::vector<double> x, std::vector<double> y, std::vector<unsigned> hole);
 
@@ -175,6 +177,7 @@ class SpatVector {
 		GDALDataset* GDAL_ds();
 		bool read_ogr(GDALDataset *poDS);
 		SpatVector fromDS(GDALDataset *poDS);
+		bool ogr_geoms(std::vector<OGRGeometryH> &ogrgeoms, std::string &message);		
 #endif
 
 // attributes
@@ -232,6 +235,9 @@ class SpatVector {
 //geos
 		std::vector<bool> geos_isvalid();
 		std::vector<std::string> geos_isvalid_msg();
+		std::vector<std::string> wkt();
+		std::vector<std::string> wkb();
+		std::vector<std::string> hex();
 
 		SpatVector allerretour();
 		SpatVectorCollection bienvenue();
@@ -262,6 +268,8 @@ class SpatVector {
 		SpatVector sample_geom(std::vector<unsigned> n, std::string method, unsigned seed);
 
 		SpatVector unaryunion();
+
+		SpatVector cbind(SpatDataFrame d);
 
 };
 

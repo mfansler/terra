@@ -4,11 +4,6 @@
 # License GPL v3
 
 
-setMethod ("show" , "Rcpp_SpatCategories", 
-	function(object) {
-		print(data.frame(value=object$levels, label=object$labels))
-	}
-)
 
 
 printDF <- function(x, n=6, first=FALSE) {
@@ -55,13 +50,13 @@ printDF <- function(x, n=6, first=FALSE) {
 		x <- rbind(x, "...")
 	}
 	if (first) {
-		x <- data.frame("", x, stringsAsFactors=FALSE)
+		x <- data.frame("", x, check.names=FALSE, stringsAsFactors=FALSE)
 		colnames(x)[1] <- "names       :"
 		x[1,1] <- "type        :"
 		if (d[1] > 0) {
 			x[2,1] <- "values      :"
 		}
-	}
+	}	
 	if (old[2] > d[2]) {
 		name <- paste0("(and ", old[2] - d[2], " more)")
 		x[[name]] <- ""
@@ -83,6 +78,12 @@ setMethod ("show" , "Rcpp_SpatDataFrame",
 			cat("values\n") 
 		}
 		printDF(object)
+	}
+)
+
+setMethod ("show" , "Rcpp_SpatCategories", 
+	function(object) {
+		show(object$df)
 	}
 )
 
@@ -155,22 +156,23 @@ setMethod ("show" , "SpatRaster",
 		}
 		cat("coord. ref. :" , .proj4(object), "\n")
 
-		mnr <- 6
-		ln <- names(object)
-		nl <- nlyr(object)
-
-		if (nl > mnr) {
-			ln <- c(ln[1:mnr], "...")
-		}
-		lnmx <- 60 / min(mnr, length(ln))
-		b <- nchar(ln) > (lnmx+2)
-		if (any(b)) {
-			mid <- floor(lnmx/2)
-			ln[b] <- paste(substr(ln[b], 1, mid), "~", substr(ln[b], nchar(ln[b])-mid+1, nchar(ln[b])), sep="")
-		}
-
 
 		if (hasValues(object)) {
+
+			mnr <- 6
+			ln <- names(object)
+			nl <- d[3]
+
+			if (nl > mnr) {
+				ln <- c(ln[1:mnr], "...")
+			}
+			lnmx <- 60 / min(mnr, length(ln))
+			b <- nchar(ln) > (lnmx+2)
+			if (any(b)) {
+				mid <- floor(lnmx/2)
+				ln[b] <- paste(substr(ln[b], 1, mid), "~", substr(ln[b], nchar(ln[b])-mid+1, nchar(ln[b])), sep="")
+			}
+
 			nsr <- nsrc(object)
 			m <- .inMemory(object)
 			f <- .filenames(object)
@@ -221,9 +223,12 @@ setMethod ("show" , "SpatRaster",
 				uts <- c(uts[1:mnr], "...")
 			}
 
-			hMM <- .hasMinMax(object)
-			if (any(hMM)) {
-				r <- minmax(object)
+			#hMM <- .hasMinMax(object)
+			hMM <- object@ptr$hasRange
+			if (any(hMM) || any(is.factor(object))) {
+				#r <- minmax(object)
+				r <- rbind(object@ptr$range_min, object@ptr$range_max)
+				r[,!hMM] <- c(Inf, -Inf)
 				minv <- format(r[1,])
 				maxv <- format(r[2,])
 				minv <- gsub("Inf", " ? ", minv)
@@ -242,9 +247,13 @@ setMethod ("show" , "SpatRaster",
 					for (i in 1:length(isf)) {
 						if (i > mnr) break
 						if (isf[i]) {
-							cats <- lv[[i]]
-							minv[i] <- cats$labels[1]
-							maxv[i] <- cats$labels[length(cats$labels)]
+							cats <- stats::na.omit(lv[[i]])
+							cats <- sort(cats[cats != ""])
+							cats <- sort(cats[cats != "NA"])
+							if (length(cats) > 0) {
+								minv[i] <- cats[1]
+								maxv[i] <- cats[length(cats)]
+							}
 						} 
 					}
 				}

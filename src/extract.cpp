@@ -30,127 +30,71 @@ double rowColToCell(unsigned ncols, unsigned row, unsigned col) {
 }
 
 
-double getRow(const unsigned& nrow, const double& y, const double& ymin, const double& ymax, const double& invyr) {
-  double result = NAN;
-  if (y == ymin) {
-    result = nrow-0.0000001;
-  } else if ((y > ymin) && (y <= ymax)) {
-    result = (ymax - y) * invyr;
-  }
-  return result;
+std::vector<double> SpatRaster::fourCellsFromXY(const std::vector<double> &x, const std::vector<double> &y) {
+
+ 	size_t n = x.size();
+	SpatExtent e = getExtent();
+	std::vector<double> out;
+	out.reserve(4*n);
+
+	double xmin = e.xmin;
+	double xmax = e.xmax;
+	double xr = xres();
+	double ymin = e.ymin;
+	double ymax = e.ymax;
+	double yr = yres();
+	double nc = ncol();
+	int_64 mxr = nrow()-1;
+	int_64 mxc = ncol()-1;
+	int_64 r1, r2, c1, c2;
+	std::vector<double> bad = {NAN, NAN, NAN, NAN}; 
+	for (size_t i = 0; i < n; i++) {
+		if (y[i] < ymin || y[i] > ymax || x[i] < xmin || x[i] > xmax) {
+			out.insert(out.end(), bad.begin(), bad.end());
+			continue;
+		} 
+		if (y[i] == ymin) {
+			r1 = mxr;
+			r2 = mxr;
+		} else {
+			double p = (ymax - y[i]) / yr;
+			r1 = trunc(p);
+			if ((p - r1) > 0.5) {
+				r2 = r1 == mxr ? mxr : r1 + 1;
+			} else {
+				r2 = r1;
+				r1 = r1 == 0 ? 0 : r1 - 1;
+			}
+		}	
+		if (x[i] == xmax) {
+			c1 = mxc;
+			c2 = mxc;
+		} else {
+			double p = (x[i] - xmin) / xr;
+			c1 = trunc(p);
+			if ((p - c1) > 0.5) {
+				c2 = c1 == mxc ? mxc : c1 + 1;					
+			} else {
+				c2 = c1;
+				c1 = c2 == 0 ? 0 : c2 - 1;					
+			}
+		}
+		out.push_back(r1 * nc + c1);
+		out.push_back(r1 * nc + c2);
+		out.push_back(r2 * nc + c1);
+		out.push_back(r2 * nc + c2);
+	}
+	return out;
 }
 
-
-double getCol(const unsigned& ncol, const double& x, const double& xmin, const double& xmax, const double& invxr) {
-    double result = NAN;
-    if (x == xmax) {
-      result = ncol-0.0000001;
-    } else if ((x >= xmin) & (x < xmax)) {
-      result = (x - xmin) * invxr;
-    }
-  return result;
-}
-
-
-std::vector<double> fourCellsFromXY (unsigned ncols, unsigned nrows, double xmin, double xmax, double ymin, double ymax,
-                                     std::vector<double> x, std::vector<double> y, bool duplicates, bool isGlobalLonLat ) {
-
-  size_t n = x.size();
-  double yres_inv = nrows / (ymax - ymin);
-  double xres_inv = ncols / (xmax - xmin);
-  std::vector<double> result(4*n, NAN);
-  unsigned maxrow = nrows-1;
-  unsigned maxcol = ncols-1;
-
-  for (size_t i = 0; i < n; i++) {
-
-    double row = getRow(nrows, y[i], ymin, ymax, yres_inv);
-    double col = getCol(ncols, x[i], xmin, xmax, xres_inv);
-//    std::cout << row << " " << col << "\n";
-    if (std::isnan(row) || std::isnan(col)) {
-      continue;
-    }
-    //double row = (ymax - y[i]) * yres_inv;
-    //double col = (x[i] - xmin) * xres_inv;
-
-    double roundRow = std::floor(row);
-    double roundCol = std::floor(col);
-
-    if (roundRow < 0 || roundRow > maxrow || roundCol < 0 || roundCol > maxcol) {
-      continue;
-    }
-
-    // roundRow and roundCol are now the nearest row/col to x/y.
-    // That gives us one corner. We will find the other corner by starting
-    // at roundRow/roundCol and moving in the direction of row/col, stopping
-    // at the next integral values.
-
-    // >0 if row is greater than the nearest round row, 0 if equal
-    double vertDir = row - roundRow  - 0.5;
-    // >0 if col is greater than the nearest round col, 0 if equal
-    double horizDir = col - roundCol - 0.5;
-
-    // If duplicates are not allowed, make sure vertDir and horizDir
-    // are not 0
-    if (!duplicates) {
-      if (vertDir == 0)
-        vertDir = 1;
-      if (horizDir == 0)
-        horizDir = 1;
-    }
-
-    // roundRow and roundCol will be one corner; posRow and posCol will be
-    // the other corner. Start out by moving left/right or up/down relative
-    // to roundRow/roundCol.
-    double posRow = roundRow + (vertDir > 0 ? 1 : vertDir < 0 ? -1 : 0);
-    double posCol = roundCol + (horizDir > 0 ? 1 : horizDir < 0 ? -1 : 0);
-
-    // Now, some fixups in case posCol/posRow go off the edge of the raster.
-    if (isGlobalLonLat) {
-      if (posCol < 0) {
-        posCol = maxcol;
-      } else if (posCol > maxcol) {
-        posCol = 0;
-      }
-    } else {
-      if (posCol < 0) {
-        posCol = 1;
-      } else if (posCol > maxcol) {
-        posCol = maxcol - 1;
-      }
-    }
-
-    if (posRow < 0) {
-      posRow = 1;
-    } else if (posRow > maxrow) {
-      posRow = maxrow - 1;
-    }
-
-    // Fixups done--just store the results.
-
-    std::vector<double> res(4);
-    res[0] = rowColToCell(ncols, roundRow, roundCol);
-    res[1] = rowColToCell(ncols, posRow, roundCol);
-    res[2] = rowColToCell(ncols, posRow, posCol);
-    res[3] = rowColToCell(ncols, roundRow, posCol);
-    std::sort(res.begin(), res.end());
-
-    size_t j = i * 4;
-    result[j]   = res[0];
-    result[j+1] = res[1];
-    result[j+2] = res[2];
-    result[j+3] = res[3];
-  }
-  return result;
-}
-
-
+/*
 double linearInt(const double& d, const double& x, const double& x1, const double& x2, const double& v1, const double& v2) {
-  double result = (v2 * (x - x1) + v1 * (x2 - x)) / d;
-  return result;
+	double result = (v2 * (x - x1) + v1 * (x2 - x)) / d;
+	return result;
 }
+*/
 
-
+/* ok but cannot handle NA
 double bilinearInt(const double& x, const double& y, const double& x1, const double& x2, const double& y1, const double& y2, const double& v11, const double& v21, const double& v12, const double& v22) {
   double d = x2-x1;
   double h1 =  linearInt(d, x, x1, x2, v11, v21);
@@ -159,11 +103,131 @@ double bilinearInt(const double& x, const double& y, const double& x1, const dou
   double v =  linearInt(d, y, y1, y2, h1, h2);
   return v;
 }
+*/
 
+/*
+double bilinearIntold(const double& x, const double& y, 
+                   const double& x1, const double& x2, const double& y1, const double& y2, 
+                   const double& v11, const double& v21, const double& v12, const double& v22) {
+	double d = x2-x1;
+	double h1=NAN; 
+	double h2=NAN;
+	if (!std::isnan(v11) && !std::isnan(v21)) {
+		h1 =  linearInt(d, x, x1, x2, v11, v21);
+	} else if (!std::isnan(v11)) {
+		h1 = v11;
+	} else if (!std::isnan(v21)) {
+		h1 = v21;
+	}
+
+	if (!std::isnan(v12) && !std::isnan(v22)) {
+		h2 =  linearInt(d, x, x1, x2, v12, v22);
+	} else if (!std::isnan(v12)) {
+		h2 = v12;
+	} else if (!std::isnan(v22)) {
+		h2 = v22;
+	}
+  //Rcpp::Rcout << h1 << " " << h2 << std::endl;
+	if (!std::isnan(h1) && !std::isnan(h2)) {
+		d = y2-y1;
+		double v = linearInt(d, y, y1, y2, h1, h2);
+		return v;
+	} else if (!std::isnan(h1)) {
+		return h1;
+	} else if (!std::isnan(h2)) {
+		return h2;
+	}
+	return NAN;
+}
+*/
+
+
+std::vector<double> bilinearInt(const double& x, const double& y, 
+                   const double& x1, const double& x2, const double& y1, const double& y2, 
+                   double& v11, double& v12, double& v21, double& v22, bool weights) {
+
+	bool n1 = std::isnan(v11);
+	bool n2 = std::isnan(v12);
+	bool n3 = std::isnan(v21);
+	bool n4 = std::isnan(v22);
+	if (std::isnan(x) || std::isnan(y) || (n1 && n2 && n3 && n4)) {
+		if (weights) {
+			std::vector<double> out(4, NAN);
+			return out;
+		} 
+		std::vector<double> out(1, NAN);
+		return out;
+	}
+	double dx = (x2 - x1);
+	bool intx = dx > 0;
+	double dy = (y1 - y2);
+	bool inty = dy > 0;
+	double w11, w12, w21, w22;
+	if (weights) {
+		v11 = 1;
+		v12 = 1;
+		v21 = 1;
+		v22 = 1;
+	}
+
+	if (intx & inty) {
+		double d = dx * dy;
+		if (!(n1 || n2)) {
+			w11 = v11 * ((x2 - x) * (y - y2)) / d;
+			w12 = v12 * ((x - x1) * (y - y2)) / d;
+		} else {
+			w11 = n1 ? 0.0 : 0.5 * v11;
+			w12 = n2 ? 0.0 : 0.5 * v12;
+		}
+		if (!(n3 || n4)) {
+			w21 = v21 * ((x2 - x) * (y1 - y)) / d;
+			w22 = v22 * ((x - x1) * (y1 - y)) / d;		
+		} else {
+			w21 = n3 ? 0.0 : 0.5 * v21;
+			w22 = n4 ? 0.0 : 0.5 * v22;
+		}
+	} else if (intx) {
+		if (!(n1 || n2)) {
+			w11 = v11 * (x2 - x) / dx;
+			w12 = v12 * (x - x1) / dx;
+		} else {
+			w11 = n1 ? 0.0 : v11;
+			w12 = n2 ? 0.0 : v12;			
+		}
+		w21 = 0;
+		w22 = 0;
+	} else if (inty) {
+		if (!(n1 || n3)) {
+			w11 = v11 * (y - y2) / dy;
+			w21 = v21 * (y1 - y) / dy;
+		} else {
+			w11 = n1 ? 0.0 : v11;
+			w21 = n3 ? 0.0 : v21;					
+		}
+		w12 = 0;
+		w22 = 0;
+	} else { 
+		w11 = v11;
+		w21 = 0;
+		w12 = 0;
+		w22 = 0;
+	}
+
+	if (weights) {
+		std::vector<double> out = { w11, w12, w21, w22 };
+		return out;
+	}
+	std::vector<double> out = { w11 + w12 + w21 + w22 };
+	return out;
+}
+		
+
+/*
 double distInt(double d, double pd1, double pd2, double v1, double v2) {
   double result = (v2 * pd1 + v1 * pd2) / d;
   return result;
 }
+
 
 double bilinear_geo(double x, double y, double x1, double x2, double y1, double y2, double halfyres, std::vector<double> vv) {
 
@@ -182,15 +246,13 @@ double bilinear_geo(double x, double y, double x1, double x2, double y1, double 
 
 	return v;
 }
+*/
 
 
+std::vector<std::vector<double>> SpatRaster::bilinearValues(const std::vector<double> &x, const std::vector<double> &y) {
 
-std::vector<std::vector<double>> SpatRaster::bilinearValues(std::vector<double> x, std::vector<double> y) {
-
-    bool glob = is_global_lonlat();
-//    bool lonlat = could_be_lonlat();
-	SpatExtent extent = getExtent();
-	std::vector<double> four = fourCellsFromXY(ncol(), nrow(), extent.xmin, extent.xmax, extent.ymin, extent.ymax, x, y, false, glob);
+	
+	std::vector<double> four = fourCellsFromXY(x, y);
 	std::vector<std::vector<double>> xy = xyFromCell(four);
 	std::vector<std::vector<double>> v = extractCell(four);
 	size_t n = x.size();
@@ -211,23 +273,42 @@ std::vector<std::vector<double>> SpatRaster::bilinearValues(std::vector<double> 
             }
         }
 	} else {
- */       for (size_t i=0; i<n; i++) {
+		
+ */     
+		for (size_t i=0; i<n; i++) {
             size_t ii = i * 4;
             for (size_t j=0; j<nlyr(); j++) {
-
   /*      if (i==0) {
             std::cout << x[i] << " "<< y[i] << "\n";
             std::cout << xy[0][ii] << " " << xy[0][ii+1] << " " << xy[1][ii] << " " << xy[1][ii+3] << "\n";
             std::cout << v[j][ii] << " " << v[j][ii+1] << " " << v[j][ii+2] << " " << v[j][ii+3]  << "\n";
         }
 */
-                res[j][i] = bilinearInt(x[i], y[i], xy[0][ii], xy[0][ii+1], xy[1][ii], xy[1][ii+3], v[j][ii], v[j][ii+1], v[j][ii+2], v[j][ii+3]);
+                std::vector<double> value = bilinearInt(x[i], y[i], xy[0][ii], xy[0][ii+1], xy[1][ii], xy[1][ii+3], v[j][ii], v[j][ii+1], v[j][ii+2], v[j][ii+3], false);
+				res[j][i] = value[0];
             }
         }
 //	}
 	return res;
 }
 
+
+std::vector<double> SpatRaster::bilinearCells(const std::vector<double> &x, const std::vector<double> &y) {
+	std::vector<double> four = fourCellsFromXY(x, y);
+	std::vector<std::vector<double>> xy = xyFromCell(four);
+	std::vector<std::vector<double>> v = extractCell(four);
+	size_t n = x.size();
+	std::vector<double> res;
+	std::vector<double> w;
+    for (size_t i=0; i<n; i++) {
+        size_t ii = i * 4;
+		size_t j=0; 
+        std::vector<double> w = bilinearInt(x[i], y[i], xy[0][ii], xy[0][ii+1], xy[1][ii], xy[1][ii+3], v[j][ii], v[j][ii+1], v[j][ii+2], v[j][ii+3], true);
+		res.insert(res.end(), four.begin()+ii, four.begin()+ii+4); 
+		res.insert(res.end(), w.begin(), w.end()); 
+    }
+	return res;
+}
 
 
 
@@ -395,7 +476,7 @@ idw
 
 
 // <layer<values>>
-std::vector<std::vector<double>> SpatRaster::extractXY(std::vector<double> &x, std::vector<double> &y, std::string method, bool cells) {
+std::vector<std::vector<double>> SpatRaster::extractXY(const std::vector<double> &x, const std::vector<double> &y, const std::string & method, const bool &cells) {
 
     unsigned nl = nlyr();
     unsigned np = x.size();
@@ -421,6 +502,34 @@ std::vector<std::vector<double>> SpatRaster::extractXY(std::vector<double> &x, s
 }
 
 
+std::vector<double> SpatRaster::extractXYFlat(const std::vector<double> &x, const std::vector<double> &y, const std::string & method, const bool &cells) {
+
+    unsigned nl = nlyr();
+    unsigned np = x.size();
+	if (!hasValues()) {
+		std::vector<double> out(nl * np, NAN);
+		return out;
+	}
+	std::vector<double> out;
+    if (method == "bilinear") {
+		std::vector<std::vector<double>> bil = bilinearValues(x, y);
+		out = flatten(bil);
+	} else {
+        std::vector<double> cell = cellFromXY(x, y);	
+		if (cells) {
+			std::vector<std::vector<double>> xout;
+			xout = extractCell(cell);
+			xout.push_back(cell);
+			out = flatten(xout);		
+		} else {
+			out = extractCellFlat(cell);
+		}
+	}
+	return out;
+}
+
+
+
 // <geom<layer<values>>>
 std::vector<std::vector<std::vector<double>>> SpatRaster::extractVector(SpatVector v, bool touches, std::string method, bool cells, bool xy, bool weights) {
 
@@ -431,14 +540,18 @@ std::vector<std::vector<std::vector<double>>> SpatRaster::extractVector(SpatVect
     unsigned ng = v.size();
     std::vector<std::vector<std::vector<double>>> out(ng, std::vector<std::vector<double>>(nl + cells + 2*xy + weights));
 
-	if (!hasValues()) return out;
+	if (!hasValues()) {
+		setError("raster has no value");
+		return out;
+	}
+/*
 	#if GDAL_VERSION_MAJOR < 3
 	if (weights) {
 		setError("extract with weights not supported for your GDAL version");
 		return out;
 	}
 	#endif
-
+*/
 	std::vector<std::vector<double>> srcout;
 	if (gtype == "points") {
 		if (method != "bilinear") method = "simple";
@@ -512,6 +625,129 @@ std::vector<std::vector<std::vector<double>>> SpatRaster::extractVector(SpatVect
         }
 	}
 	return out;
+}
+
+
+std::vector<double> SpatRaster::extractVectorFlat(SpatVector v, bool touches, std::string method, bool cells, bool xy, bool weights) {
+
+	std::vector<double> flat;
+	std::string gtype = v.type();
+	if (gtype != "polygons") weights = false;
+
+    unsigned nl = nlyr();
+    unsigned ng = v.size();
+
+	if (!hasValues()) {
+		setError("raster has no value");
+		return flat;
+	}
+/*
+	#if GDAL_VERSION_MAJOR < 3
+	if (weights) {
+		setError("extract with weights not supported for your GDAL version");
+		return out;
+	}
+	#endif
+*/
+
+    std::vector<std::vector<std::vector<double>>> out;
+	if (gtype != "points") {
+		out.resize(ng, std::vector<std::vector<double>>(nl + cells + 2*xy + weights));
+	}
+	std::vector<std::vector<double>> srcout;
+	if (gtype == "points") {
+		if (method != "bilinear") method = "simple";
+		SpatDataFrame vd = v.getGeometryDF();
+		if (vd.nrow() == ng) {  // single point geometry
+			std::vector<double> x = vd.getD(0);
+			std::vector<double> y = vd.getD(1);
+			if (!cells & !xy & !weights) {
+				return( extractXYFlat(x, y, method, cells));
+			} else {
+				srcout = extractXY(x, y, method, cells);
+				nl += cells;
+				flat.reserve(ng * nl); // + ng);
+				for (size_t i=0; i<ng; i++) {
+					//flat.push_back( i+1 );//no id for points
+					for (size_t j=0; j<nl; j++) {
+						flat.push_back( srcout[j][i] );
+					}
+					if (xy) {
+						flat.push_back(x[i]);		
+						flat.push_back(y[i]);		
+					}
+				}
+			}
+			return flat;
+			
+		} else { // multipoint
+			for (size_t i=0; i<ng; i++) {
+				SpatVector vv = v.subset_rows(i);
+				SpatDataFrame vd = vv.getGeometryDF();
+				std::vector<double> x = vd.getD(0);
+				std::vector<double> y = vd.getD(1);
+				srcout = extractXY(x, y, method, cells);
+				for (size_t j=0; j<nl; j++) {
+					out[i][j] = srcout[j];
+				}
+				if (cells) {
+					out[i][nl] = srcout[nl];			
+				}
+				if (xy) {
+					out[i][nl+cells]   = x;		
+					out[i][nl+cells+1] = y;		
+				}
+			}
+		}
+	} else {
+	    SpatRaster r = geometry(1);
+	    //SpatOptions opt;
+		//std::vector<double> feats(1, 1) ;		
+        for (size_t i=0; i<ng; i++) {
+            SpatGeom g = v.getGeom(i);
+            SpatVector p(g);
+			p.srs = v.srs;
+			std::vector<double> cell, wgt;
+			if (weights) {
+				std::vector<std::vector<double>> cw = rasterizeCellsWeights(p, touches);
+				cell = cw[0];
+				wgt = cw[1];
+			} else {
+				cell = rasterizeCells(p, touches);
+            }
+			srcout = extractCell(cell);
+            for (size_t j=0; j<nl; j++) {
+                out[i][j] = srcout[j];
+            }
+			if (cells) {
+				out[i][nl] = cell;
+			}
+			if (xy) {
+				std::vector<std::vector<double>> crds = xyFromCell(cell);
+				out[i][nl+cells]   = crds[0];		
+				out[i][nl+cells+1] = crds[1];		
+			}
+			if (weights) {
+				out[i][nl + cells + 2*xy] = wgt;
+			}
+        }
+	}
+
+	size_t fsize = 0;
+	for (size_t i=0; i<out.size(); i++) { // geoms
+		fsize += (out[i].size()+1) * nl;
+	}
+	flat.reserve(fsize);
+	
+	for (size_t i=0; i<out.size(); i++) { // geoms
+		for (size_t j=0; j<out[i][0].size(); j++) { // cells
+			flat.push_back(i+1);
+			for (size_t k=0; k<out[i].size(); k++) { // layers
+				flat.push_back(out[i][k][j]);
+			}
+		}
+	}
+	return flat;
 }
 
 
@@ -591,18 +827,105 @@ std::vector<std::vector<double>> SpatRaster::extractCell(std::vector<double> &ce
 
 
 
+
+
+std::vector<double> SpatRaster::extractCellFlat(std::vector<double> &cell) {
+
+	std::vector<double> wcell;
+	std::vector<std::vector<int_64>> rc, wrc;
+	rc = rowColFromCell(cell);
+
+	size_t n  = cell.size();
+	if (!hasValues()) {
+		std::vector<double> out(nlyr() * n, NAN);
+		return out;
+	}
+	std::vector<double> out;
+	out.reserve(nlyr() * n);
+
+	unsigned ns = nsrc();
+	unsigned lyr = 0;
+	size_t nc;
+	for (size_t src=0; src<ns; src++) {
+		unsigned slyrs = source[src].layers.size();
+		bool win = source[src].hasWindow;
+		if (win) {
+			nc = source[src].window.full_ncol * source[src].window.full_nrow;
+			wrc = rc;
+			wcell.reserve(cell.size());
+			for (size_t i=0; i<cell.size(); i++) {
+				if ((wrc[0][i] < 0) || (wrc[1][i] <0)) {
+					wcell.push_back( NAN );				
+				} else {
+					wrc[0][i] += source[src].window.off_row;
+					wrc[1][i] += source[src].window.off_col;
+					wcell.push_back( wrc[0][i] * source[src].window.full_ncol + wrc[1][i] );
+				}
+			}
+		} else {
+			nc = ncell();
+		}
+		
+		if (source[src].memory) {
+			for (size_t i=0; i<slyrs; i++) {
+				size_t j = i * nc;
+				if (win) {
+					for (size_t k=0; k<n; k++) {
+						if (!is_NA(wcell[k]) && wcell[k] >= 0 && wcell[k] < nc) {
+							out.push_back( source[src].values[j + wcell[k]] );
+						} else {
+							out.push_back(NAN);
+						}
+					}				
+				} else {
+					for (size_t k=0; k<n; k++) {
+						if (!is_NA(cell[k]) && cell[k] >= 0 && cell[k] < nc) {
+							out.push_back( source[src].values[j + cell[k]] );
+						} else {
+							out.push_back(NAN);
+						}
+					}
+				}
+				lyr++;
+			}
+		} else {
+			//if (source[0].driver == "raster") {
+			//	srcout = readCellsBinary(src, cell);
+			//} else {
+			#ifdef useGDAL
+			std::vector<double> g;
+			if (win) {
+				g = readRowColGDALFlat(src, wrc[0], wrc[1]);
+			} else {
+				g = readRowColGDALFlat(src, rc[0], rc[1]);
+			}
+			out.insert(out.end(), g.begin(), g.end());
+			#endif
+			if (hasError()) {
+				return out;
+			}
+		}
+	}
+	return out;
+}
+
+
 std::vector<double> SpatRaster::vectCells(SpatVector v, bool touches, std::string method, bool weights) {
 
 	std::string gtype = v.type();
 	if (gtype != "polygons") weights = false;
 	std::vector<double> out, cells, wghts;
 	if (gtype == "points") {
-		if (method != "bilinear") method = "simple";
 		SpatDataFrame vd = v.getGeometryDF();
-		cells = cellFromXY(vd.getD(0), vd.getD(1));
 		std::vector<long> id = vd.getI(0);
-		out.insert(out.end(), id.begin(), id.end());
-		out.insert(out.end(), cells.begin(), cells.end());
+		if (method == "bilinear") {
+			return bilinearCells(vd.getD(0), vd.getD(1));
+		} else {
+			return cellFromXY(vd.getD(0), vd.getD(1));
+			//cells = cellFromXY(vd.getD(0), vd.getD(1));
+			//out.insert(out.end(), id.begin(), id.end());
+			//out.insert(out.end(), cells.begin(), cells.end());
+		}
 	} else {
 		unsigned ng = v.size();
 	    SpatOptions opt;
@@ -670,9 +993,10 @@ std::vector<double> SpatRaster::extCells(SpatExtent ext) {
 std::vector<std::vector<std::vector<double>>> SpatRasterStack::extractXY(std::vector<double> &x, std::vector<double> &y, std::string method) {
 	unsigned ns = nsds();
 	std::vector<std::vector<std::vector<double>>> out(ns);
+	bool cells = false;
 	for (size_t i=0; i<ns; i++) {
 		SpatRaster r = getsds(i);
-		out[i] = r.extractXY(x, y, method);
+		out[i] = r.extractXY(x, y, method, cells);
 	}
 	return out;
 }

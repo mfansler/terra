@@ -40,12 +40,16 @@
 setMethod("aggregate", signature(x="SpatRaster"), 
 function(x, fact=2, fun="mean", ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 
-	fun <- .makeTextFun(match.fun(fun))
+	#fun <- .makeTextFun(fun)
 	toc <- FALSE
 	if (class(fun) == "character") { 
 		if (fun %in% c("sum", "mean", "min", "max", "median", "modal", "sd", "sdpop")) {
 			toc <- TRUE
+		} else {
+			fun <- match.fun(fun) 
 		}
+	} else {
+		fun <- match.fun(fun) 	
 	}
 	if (!hasValues(x)) { toc = TRUE }
 	if (toc) {
@@ -57,7 +61,7 @@ function(x, fact=2, fun="mean", ..., cores=1, filename="", overwrite=FALSE, wopt
 	} else {
 		out <- rast(x)
 		nl <- nlyr(out)
-		opt <- .getOptions()
+		opt <- spatOptions()
 		out@ptr <- out@ptr$aggregate(fact, "sum", TRUE, opt)
 		out <- messages(out, "aggregate")
 

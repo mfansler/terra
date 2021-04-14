@@ -9,56 +9,28 @@ setMethod("relate", signature(x="SpatVector", y="SpatVector"),
 )
 
 
-setMethod("relate", signature(x="SpatVector", y="ANY"), 
-	function(x, y, relation) {
-		yy <- try(vect(y), silent=TRUE)
-		if (!inherits(yy, "SpatVector")) {
-			yy <- try(ext(y), silent=TRUE)
-			if (!inherits(yy, "SpatExtent")) {
-				stop("cannot use argument 'y'")
-			}
-			yy <- as.polygons(yy)
-		}
-		relate(x, yy, relation)
+setMethod("relate", signature(x="SpatVector", y="SpatExtent"), 
+	function(x, y, relation, ...) {
+		y <- as.polygons(y)
+		relate(x, y, relation, ...)
 	}
 )
 
-setMethod("relate", signature(x="ANY", y="SpatVector"), 
-	function(x, y, relation) {
-		xx <- try(vect(x), silent=TRUE)
-		if (!inherits(xx, "SpatVector")) {
-			xx <- try(ext(x), silent=TRUE)
-			if (!inherits(xx, "SpatExtent")) {
-				stop("cannot use argument 'x'")
-			}
-			xx <- as.polygons(xx)
-		}
-		relate(xx, y, relation)
+setMethod("relate", signature(x="SpatExtent", y="SpatVector"), 
+	function(x, y, relation, ...) {
+		x <- as.polygons(x)
+		relate(x, y, relation, ...)
 	}
 )
 
-setMethod("relate", signature(x="ANY", y="ANY"), 
-	function(x, y, relation) {
-		xx <- try(vect(x), silent=TRUE)
-		if (!inherits(xx, "SpatVector")) {
-			xx <- try(ext(x), silent=TRUE)
-			if (!inherits(xx, "SpatExtent")) {
-				stop("cannot use argument 'x'")
-			}
-			xx <- as.polygons(xx)
-		}
-		yy <- try(vect(y), silent=TRUE)
-		if (!inherits(yy, "SpatVector")) {
-			yy <- try(ext(y), silent=TRUE)
-			if (!inherits(yy, "SpatExtent")) {
-				stop("cannot use argument 'y'")
-			}
-			yy <- as.polygons(xx)
-		}
-		relate(xx, yy, relation)
+
+setMethod("relate", signature(x="SpatExtent", y="SpatExtent"), 
+	function(x, y, relation, ...) {
+		x <- as.polygons(x)
+		y <- as.polygons(y)
+		relate(x, y, relation, ...)
 	}
 )
-
 
 
 setMethod("relate", signature(x="SpatVector", y="missing"), 
@@ -66,7 +38,14 @@ setMethod("relate", signature(x="SpatVector", y="missing"),
 		out <- x@ptr$relate_within(relation, symmetrical)
 		x <- messages(x, "relate")
 		out[out == 2] <- NA
-		out <- matrix(as.logical(out), nrow=nrow(x), byrow=TRUE)
+		if (symmetrical) {
+			class(out) <- "dist"
+			attr(out, "Size") <- nrow(x)
+			attr(out, "Diag") <- FALSE
+			attr(out, "Upper") <- FALSE
+		} else {
+			out <- matrix(as.logical(out), nrow=nrow(x), byrow=TRUE)
+		}	
 		if (pairs) {
 			out <- mat2wide(out, symmetrical)
 		}
@@ -118,9 +97,63 @@ setMethod("near", signature(x="SpatVector"),
 			d[d[,3] <= distance, 1:2,drop=FALSE]		
 		} else {
 			k <- max(1, min(round(k), nrow(x)))
-			d <- as.matrix(distance(x, pairs=FALSE))
-			diag(d) <- NA
-			t(apply(d, 1, function(i) order(i)[1:k]))
+			if (k> 1) {
+				d <- as.matrix(distance(x, pairs=FALSE))
+				diag(d) <- NA
+				d <- t(apply(d, 1, function(i) order(i)[1:k]))
+				if (k==1) d <- t(d)
+				d <- cbind(id=1:length(x), d)
+				colnames(d)[-1] <- paste0("n", 1:k)
+				d
+			} else {
+			
+			}
 		}
 	}
 )
+
+
+
+
+setMethod("nearest", signature(x="SpatVector"), 
+	function(x, y, pairs=FALSE, centroids=TRUE, lines=FALSE) {
+		if ((geomtype(x) == "polygons") && centroids) {
+			x <- centroids(x)
+		}
+		within <- FALSE
+		if (missing(y)) {
+			within <- TRUE
+			y <- x
+		} else {
+			if ((geomtype(y) == "polygons") && centroids) {
+				y <- centroids(y)
+			}
+		}
+		z <- x
+		if (within) {
+			z@ptr <- x@ptr$near_within()
+		} else {
+			z@ptr <- x@ptr$near_between(y@ptr, pairs)
+		}
+		z <- messages(z, "nearest")
+		if (lines) return(z)
+		
+		dis <- perimeter(z)
+		z <- as.points(z)
+		from <- z[seq(1, nrow(z), 2), ]
+		to <- z[seq(2, nrow(z), 2), ]
+		values(to) <- data.frame(id=1:nrow(to))
+		values(y) <- data.frame(to_id=1:nrow(y))
+		to_int <- as.data.frame(intersect(to, y))
+		if (nrow(to_int) > nrow(to)) {
+			to_int <- aggregate(to_int[, "to_id",drop=FALSE], to_int[,"id",drop=FALSE], function(x)x[1]) 
+		}
+		to_int <- to_int[,2] 
+		from <- geom(from)[, c("x", "y"),drop=FALSE]
+		to <- geom(to)[, c("x", "y"),drop=FALSE]
+		d <- data.frame(1:nrow(from), from, to_int, to, dis)
+		colnames(d) <- c("from_id", "from_x", "from_y", "to_id", "to_x", "to_y", "distance")
+		vect(d, c("to_x", "to_y"), crs=crs(x))
+	}
+)
+

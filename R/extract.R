@@ -6,20 +6,21 @@
 
 .big_number_warning <- function() {
 # this warning should be given by C
-	warning("big number", "cell numbers larger than ", 2^.Machine$double.digits, " are approximate")
+	warn("big number", "cell numbers larger than ", 2^.Machine$double.digits, " are approximate")
 }
 
 
-.makeDataFrame <- function(x, v) {
+.makeDataFrame <- function(x, v, factors=TRUE) {
 	v <- data.frame(v, check.names = FALSE)
-	ff <- is.factor(x)
-	if (any(ff)) {
-		ff <- which(ff)
-		levs <- levels(x)
-		for (f in ff) {
-			lev <- levs[[f]]
-			v[[f]] = factor(v[[f]], levels=lev$levels)
-			levels(v[[f]]) = lev$labels
+	if (factors) {
+		ff <- is.factor(x)
+		if (any(ff)) {
+			ff <- which(ff)
+			levs <- levels(x)
+			for (f in ff) {
+				v[[f]] = factor(v[[f]], levels=0:255)
+				levels(v[[f]]) = levs[[f]]
+			}
 		}
 	}
 	v
@@ -27,7 +28,9 @@
 
 setlabs <- function(x, labs) {
 	x[ (x<1) | (x>length(labs))] <- NA
-	factor(labs[x], levels=labs)
+	x <- factor(x, levels=1:length(labs))
+	levels(x) <- labs
+	x
 }
 
 
@@ -41,71 +44,102 @@ wmean <- function(p) {
 }
 
 
+		#if (!list) {
+			#if (geomtype(y) == "points")  {
+			#	e <- cbind(ID=1:length(e), matrix(unlist(e), ncol=nlyr(x), byrow=TRUE))
+			#} else {
+			#	e <- lapply(1:length(e), function(i) {
+			#		ee <- unlist(e[[i]])
+			#		if (length(ee) == 0) ee <- NA
+			#		cbind(ID=i, matrix(ee, ncol=length(e[[i]])))
+			#	})
+			#	e <- do.call(rbind, e)
+			#}
+		#}
+
+
 
 setMethod("extract", signature(x="SpatRaster", y="SpatVector"), 
 function(x, y, fun=NULL, method="simple", list=FALSE, factors=TRUE, cells=FALSE, xy=FALSE, weights=FALSE, touches=is.lines(y), ...) { 
-	if (!is.null(fun)) {
+	method = match.arg(tolower(method), c("simple", "bilinear"))
+	hasfun <- !is.null(fun)
+	if (hasfun) {
 		cells <- FALSE
 		xy <- FALSE
+		if (weights) list = TRUE
 	} 
-	e <- x@ptr$extractVector(y@ptr, touches[1], method[1], isTRUE(cells[1]), isTRUE(xy[1]), isTRUE(weights[1]))
-	x <- messages(x, "extract")
-
-
 	#f <- function(i) if(length(i)==0) { NA } else { i }
 	#e <- rapply(e, f, how="replace")
 	cn <- names(x)
-	if (!is.null(fun)) {
+	if (list) {
+		e <- x@ptr$extractVector(y@ptr, touches[1], method, isTRUE(cells[1]), isTRUE(xy[1]), isTRUE(weights[1]))
+		x <- messages(x, "extract")
 		if (weights) {
-			test1 <- isTRUE(try( deparse(fun)[2] == 'UseMethod(\"mean\")', silent=TRUE))
-			test2 <- isTRUE(try( fun@generic == "mean", silent=TRUE))
-			if (!(test1 | test2)) { warn("extract", "the weighted mean is returned") }
+			if (hasfun) {
+				test1 <- isTRUE(try( deparse(fun)[2] == 'UseMethod(\"mean\")', silent=TRUE))
+				test2 <- isTRUE(try( fun@generic == "mean", silent=TRUE))
+				if (!(test1 | test2)) { warn("extract", "the weighted mean is returned") }
+			}
 			e <- t(sapply(e, wmean))
-		} else {
-			fun <- match.fun(fun) 
-			e <- rapply(e, fun, ...)
+			e <- matrix(e, nrow=nrow(y), byrow=TRUE)
+			colnames(e) <- cn
+			e <- cbind(ID=1:nrow(e), e)
 		}
-		e <- matrix(e, nrow=nrow(y), byrow=TRUE)
-		colnames(e) <- cn
-		e <- cbind(ID=1:nrow(e), e)
-	} else {
-		if (cells) {
-			cn <- c(cn, "cell")
-			i <- which(cn=="cell")
-			e <- lapply(e, function(j) {
-					j[[i]] <- j[[i]] + 1
-					#names(j) <- cn
-					j
-				}
-			)			
-		}
-		if (weights) cn <- c(cn, "weight")
-		if (xy) {
-			cn <- c(cn, "x", "y")
-		}	
-		if (!list) {
-			e <- lapply(1:length(e), function(i) {
-				ee <- unlist(e[[i]])
-				if (length(ee) == 0) ee <- NA
-				cbind(ID=i, matrix(ee, ncol=length(e[[i]])))
-			})
-			e <- do.call(rbind, e)
-			colnames(e)[-1] <- cn	
-		}
+		return(e)
 	}
+
+	e <- x@ptr$extractVectorFlat(y@ptr, touches[1], method, isTRUE(cells[1]), isTRUE(xy[1]), isTRUE(weights[1]))
+	x <- messages(x, "extract")
+	nc <- nlyr(x)
+	if (cells) {
+		cn <- c(cn, "cell")
+		nc <- nc + 1
+	}
+	if (weights) {
+		cn <- c(cn, "weight")
+		nc <- nc + 1
+	}
+	if (xy) {
+		cn <- c(cn, "x", "y")
+		nc <- nc + 2
+	}
+
+	geo <- geomtype(y)
+	if (geo == "points") {
+		# this should be fixed upstream
+		if (nc == nlyr(x)) {		
+			e <- matrix(e, ncol=nc)
+		} else {
+			e <- matrix(e, ncol=nc, byrow=TRUE)		
+		}
+		e <- cbind(1:nrow(e), e)
+	} else {
+		e <- matrix(e, ncol=nc+1, byrow=TRUE)
+	}
+	cn <- c("ID", cn)
+	colnames(e) <- cn
+	if (hasfun) {
+		fun <- match.fun(fun) 
+		e <- data.frame(e)
+		e <- aggregate(e[,-1,drop=FALSE], e[,1,drop=FALSE], fun, ...)
+	} else if (cells) {
+		cncell <- cn =="cell"
+		e[, cncell] <- e[, cncell] + 1
+	}
+	
 	if (factors) {
 		if (is.matrix(e)) {
 			e <- data.frame(e, check.names = FALSE)
 		}
 		f <- is.factor(x)
 		if (any(f)) {
-			g <- cats(x)
+			g <- levels(x)
 			for (i in which(f)) {
-				labs <- g[[i]]$labels
+				labs <- g[[i]]
 				if (!list) {
 					v <- e[[i+1]] + 1
 					if (!(is.null(fun))) {
-						if (max(abs(v - trunc(v)), na.rm=T) > 0) {
+						if (max(abs(v - trunc(v)), na.rm=TRUE) > 0) {
 							next
 						}
 					}
@@ -150,7 +184,8 @@ function(x, y, ...) {
 	if (ncol(y) != 2) {
 		error("extract", "extract expects a 2 column data.frame of x and y coordinates")
 	}
-	extract(x, as.matrix(y), ...)
+	v <- vect(y, colnames(y))
+	extract(x, v, ...)
 })
 
 
@@ -160,6 +195,21 @@ function(x, y, ...) {
 	y[(y < 1) | (y > ncell(x))] <- NA
 	x[y]
 })
+
+setMethod("extract", signature(x="SpatRaster", y="SpatExtent"), 
+function(x, y, factors=TRUE, cells=FALSE, xy=FALSE) { 
+	y <- cells(x, y)
+	if (factors) dataframe = TRUE
+	v <- extract_cell(x, y, factors=factors)
+	if (cells) {
+		v$cell <- y
+	}
+	if (xy) {
+		v <- cbind(v, xyFromCell(x, y))
+	}
+	v
+}
+)
 
 
 setMethod("[", c("SpatRaster", "missing", "missing"),
@@ -173,12 +223,12 @@ function(x, i, j, ... , drop=FALSE) {
 })
 
 
-extract_cell <- function(x, cells, drop=FALSE) {
+extract_cell <- function(x, cells, drop=FALSE, factors=TRUE) {
 	e <- x@ptr$extractCell(cells-1)
-	messages(x, "[")
+	messages(x, "extract_cell")
 	e <- do.call(cbind, e)
 	colnames(e) = names(x)
-	.makeDataFrame(x, e)[,,drop]
+	.makeDataFrame(x, e, factors)[,,drop]
 }
 
 setMethod("[", c("SpatRaster", "numeric", "missing"),
@@ -205,7 +255,7 @@ function(x, i, j, ..., drop=FALSE) {
 
 setMethod("[", c("SpatRaster", "SpatRaster", "missing"),
 function(x, i, j, ..., drop=FALSE) {
-	x[which(as.logical(values(i)))]
+	x[which(as.logical(values(i))), drop=drop]
 })
 
 
@@ -213,7 +263,7 @@ setMethod("extract", c("SpatVector", "SpatVector"),
 function(x, y, ...) {
 	g <- geomtype(x)
 	if (!grepl("points", g)) {
-		stop("the first argument must be points")
+		error("extract", "the first argument must be points")
 	}
 	r <- relate(x, y, "within")
 	e <- apply(r, 1, which)

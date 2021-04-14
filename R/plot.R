@@ -179,10 +179,14 @@ setMethod("text", signature(x="SpatRaster"),
 				} 
 			}
 			x <- x[[labels]]
-			x <- as.points(x, values=TRUE)
-			xy <- geom(x)[, c("x", "y")]
+			p <- as.points(x, values=TRUE)
+			xy <- geom(p)[, c("x", "y")]
 			labels <- as.data.frame(x)[,1]
-			labels <- as.character(round(labels, digits=digits) )
+			if (is.factor(labels)) {
+				labels <- substr(as.character(labels), 1, max(1, digits))
+			} else {
+				labels <- as.character(round(labels, digits=digits) )
+			}
 		}
 		if (halo) {
 			.halo(xy[,1], xy[,2], labels, ...)
@@ -222,27 +226,30 @@ setMethod("text", signature(x="SpatVector"),
 
 
 setMethod("boxplot", signature(x="SpatRaster"), 
-	function(x,y=NULL,  maxcell=100000, ...) {
+	function(x, y=NULL, maxcell=100000, ...) {
 		if (is.null(y)) {
 			cn <- names(x)
 			if ( ncell(x) > maxcell) {
 				warn("boxplot", "taking a sample of ", maxcell, " cells")
 				x <- spatSample(x, maxcell, method="regular", as.raster=TRUE)
 			} 
-			x <- values(x)
-			colnames(x) <- cn
-			boxplot(x, ...)
+			names(x) <- cn
+			boxplot(values(x), ...)
 		} else {
 			s <- c(x[[1]], y[[1]])
 			if ( ncell(x) > maxcell) {
-				warning("boxplot", "taking a sample of ", maxcell, " cells")
-				s <- spatSample(x, maxcell, method="regular", as.raster=TRUE)
-			} else {
-				s <- values(s)
-			}
+				warn("boxplot", "taking a regular sample of ", maxcell, " cells")
+				s <- spatSample(s, maxcell, method="regular", as.raster=TRUE)
+			} 
+			s <- values(s, dataframe=TRUE)
 			cn <- colnames(s)
-			cn[cn==""] <- c('layer1', 'layer2')[cn==""]
-			f <- stats::as.formula(paste(cn[1], '~', cn[2]))
+			if (is.null(cn)) cn <- c("", "")
+			colnames(s)[cn==""] <- c("layer1", "layer2")[cn==""]
+			f <- try(stats::as.formula(paste(cn[1], '~', cn[2])), silent=TRUE)
+			if (inherits(f, "try-error")) {
+				colnames(s) <- c("layer1", "layer2")
+				f <- layer1 ~ layer2
+			}
 			boxplot(f, data=s, ...)
 		}
 	}
@@ -259,7 +266,7 @@ setMethod("barplot", "SpatRaster",
 		x <- spatSample(height[[1]], maxcell, method="regular", as.raster=FALSE)
 		adj <- length(x) / ncell(height)
 		if (adj < 1) {
-			warning("barplot", "a sample of ", round(100*adj, 1), "% of the raster cells were used to estimate frequencies")
+			warn("barplot", "a sample of ", round(100*adj, 1), "% of the raster cells were used to estimate frequencies")
 		}
 
 		if (!is.null(digits)) {

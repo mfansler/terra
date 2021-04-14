@@ -1,32 +1,53 @@
 
-.drawPol <- function(col="red", lwd=2, ...) {
-	xy <- graphics::locator(n=10000, type="l", col=col, lwd=lwd, ...)
-	xy <- cbind(xy$x, xy$y)
+RS_locator <- function(n, type, id=FALSE, pch=20, ...) {
+# locator that also works in RStudio
+# Berry Boessenkool 
+# https://stackoverflow.com/a/65147220/635245
+	on.exit(return(cbind(x, y))) 
+	x <- y <- NULL
+	for (i in seq_len(n)) {
+		p <- graphics::locator(1)
+		if (is.null(p)) break # ESC
+		x <- c(x, p$x)
+		y <- c(y, p$y)
+		points(x, y, type=type, pch=pch, ...)
+		if (id) { 
+			text(p$x, p$y, labels=i, pos=4, ...) 
+		} 
+	}
+}
+
+.drawPol <- function(n=1000, id=FALSE, ...) {
+	#xy <- graphics::locator(n=1000, type="l", col=col, lwd=lwd, ...)
+	#xy <- cbind(xy$x, xy$y)
+	xy <- RS_locator(n, "l", id=id, ...)
 	xy <- rbind(xy, xy[1,])
-	graphics::lines(xy[(length(xy[,1])-1):length(xy[,1]),], col=col, lwd=lwd, ...)
+	graphics::lines(xy[(length(xy[,1])-1):length(xy[,1]),], ...)
 	g <- cbind(1,1,xy,0)
 	vect(g, "polygons")
 }
 
 
-.drawLin <- function(col="red", lwd=2, ...) {
-	xy <- graphics::locator(n=10000, type="l", col=col, lwd=lwd, ...)
-	xy <- cbind(xy$x, xy$y)
+.drawLin <- function(n=1000, ...) {
+	#xy <- graphics::locator(n=1000, type="l", col=col, lwd=lwd, ...)
+	#xy <- cbind(xy$x, xy$y)
+	xy <- RS_locator(n, "l", ...)
 	g <- cbind(1,1,xy)
 	vect(g, "lines")
 }
 
 
-.drawPts <- function(col="red", lwd=2, ...) {
-	xy <- graphics::locator(n=10000, type="p", col=col, lwd=lwd, ...)
-	xy <- cbind(xy$x, xy$y)
+.drawPts <- function(n=1000, ...) {
+	#xy <- graphics::locator(n=1000, type="p", col=col, lwd=lwd, ...)
+	#xy <- cbind(xy$x, xy$y)
+	xy <- RS_locator(n, "p", ...)
 	g <- cbind(1:nrow(xy), 1, xy)
 	vect(g, "points")
 }
 
-.drawExt <- function(col="red", lwd=2, ...) {
-	loc1 <- graphics::locator(n=1, type="p", pch='+', col=col, ...)
-	loc2 <- graphics::locator(n=1, ...)
+.drawExt <- function(...) {
+	loc1 <- graphics::locator(n=1, type="p", pch="+", ...)
+	loc2 <- graphics::locator(n=1, type="p", pch="+", ...)
 	loc <- rbind(unlist(loc1), unlist(loc2))
 	e <- c(min(loc[,'x']), max(loc[,'x']), min(loc[,'y']), max(loc[,'y']))
 	if (e[1] == e[2]) {
@@ -38,34 +59,27 @@
 		e[4] <- e[4] + 0.0000001
 	}
 	p <- rbind(c(e[1], e[3]), c(e[1], e[4]), c(e[2], e[4]), c(e[2], e[3]), c(e[1], e[3]) )
-	graphics::lines(p, col=col)
+	graphics::lines(p, ...)
 	return(ext(e))
 }
 
 setMethod("draw", signature(x="character"),
-    function(x="extent", col="red", lwd=2, ...){ 
-		objtypes <- c("extent", "polygon", "line", "points")
-		i <- pmatch(tolower(x), objtypes)
-		if (is.na(i)) {
-			error("extent", "invalid object type")
-		} else if (i < 1) {
-			error("extent", "ambiguous object type")
-		}
-		x <- objtypes[i]
+    function(x="extent", col="red", lwd=2, id=FALSE, n=1000, ...){ 
+		x <- match.arg(tolower(x), c("extent", "polygon", "lines", "points"))
 		if (x == "extent") {
-			.drawExt(col, lwd, ...)
+			.drawExt(col=col, lwd=lwd, ...)
 		} else if (x == "polygon") {
-			.drawPol(col, lwd, ...)
+			.drawPol(n, col=col, lwd=lwd, id=id, ...)
 		} else if (x == "lines") {
-			.drawLin(col, lwd, ...)
+			.drawLin(n, col=col, lwd=lwd, id=id, ...)
 		} else if (x == "points" || x == "multipoints" ) {
-			.drawPts(col, lwd, ...)
+			.drawPts(n, col=col, id=id, ...)
 		} 
 	}
 )
 
 setMethod("draw", signature(x="missing"),
-    function(x="extent", col="red", lwd=2, ...){ 
-		draw("extent", col, lwd, ...)
+    function(x="extent", ...){ 
+		draw("extent", ...)
 	}
 )

@@ -1,13 +1,14 @@
 
-setMethod("arith", signature(x="SpatRaster"), 
-function(x, fun, ..., filename="", overwrite=FALSE, wopt=list())  {
+# setMethod("arith", signature(x="SpatRaster"), 
+## not exported
+arith <- function(x, fun, ..., filename="", overwrite=FALSE, wopt=list())  {
 
 	out <- rast(x)
 	nc <- ncol(x)
 	readStart(x)
 	on.exit(readStop(x))
 
-# test the shape of the output by testing with one row
+# # test the shape of the output by testing with one row
 	v <- readValues(x, round(0.5*nrow(x)), 1, 1, nc, mat=TRUE)
 	r <- try(fun(as.vector(v), ...))
 	if (inherits(r, "try-error")) {
@@ -31,5 +32,6 @@ function(x, fun, ..., filename="", overwrite=FALSE, wopt=list())  {
 	}
 	writeStop(out)
 }
-)
+
+# )
 

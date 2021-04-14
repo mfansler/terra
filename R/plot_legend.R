@@ -245,7 +245,7 @@
 	}
 	graphics::rect(e$xmin, e$ymin, e$xmax, e$ymax, border ="black", xpd=NA)
 
-	x <- .leg.main(x)
+	x$leg.main <- .leg.main(x)
 	x
 }
 
@@ -269,6 +269,5 @@
 	} else {
 		leg <- legend(x, y, legend, fill=fill, xpd=xpd, bty=bty, cex=cex, density=density*2, angle=angle, border=border, ...)
 	}
-	return(leg)
 }
 

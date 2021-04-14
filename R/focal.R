@@ -5,7 +5,7 @@
 
 
 setMethod("focal", signature(x="SpatRaster"), 
-function(x, w=3, na.rm=TRUE, na.only=FALSE, fillvalue=NA, fun="sum", filename="", ...)  {
+function(x, w=3, fun="sum", na.rm=TRUE, na.only=FALSE, fillvalue=NA, expand=FALSE, filename="",  ...)  {
 
 	if (nlyr(x) > 1) {
 		warn("focal", "only the first layer of x is used")
@@ -13,36 +13,34 @@ function(x, w=3, na.rm=TRUE, na.only=FALSE, fillvalue=NA, fun="sum", filename=""
 	}
 	if (na.only && (!is.matrix(w))) {
 		if (!na.rm) {
-			warning("focal", "na.rm set to TRUE because na.only is TRUE")
+			warn("focal", "na.rm set to TRUE because na.only is TRUE")
 			na.rm <- TRUE
 		}
 	}
 
-	cpp <- FALSE
 	if (is.matrix(w)) {
 		m <- as.vector(t(w))
 		w <- dim(w)
-		#na.rm <- FALSE
-		fun <- .makeTextFun(match.fun(fun))
-		if (!is.character(fun))	fun <- "bad"
-		if (fun != "sum") {
-			warning("focal", "if 'w' is a matrix, 'fun' must be 'sum'")
-		}
-		fun <- "sum"
-		cpp <- TRUE
 	} else {
 		w <- rep_len(w, 2)
-		m <- 0.5[0]
-		fun <- .makeTextFun(match.fun(fun))
-		if (class(fun) == "character") { 
-			test <- match(fun, c("mean", "min", "max", "sum", "median", "modal", "sd", "sdpop"))
-			cpp <- TRUE
-		}
+		stopifnot(all(w > 0))
+		m <- rep(1, prod(w))
+	}
+	cpp <- FALSE
+	txtfun <- .makeTextFun(fun)
+	if (is.character(txtfun)) { 
+		cpp <- TRUE
 	}
 
 	if (cpp) {
 		opt <- spatOptions(filename, ...)
-		x@ptr <- x@ptr$focal(w, m, fillvalue, na.rm[1], na.only[1], fun, opt)
+		#if (method==1) {
+		#	x@ptr <- x@ptr$focal1(w, m, fillvalue, na.rm[1], na.only[1], txtfun, opt)		
+		#} else if (method == 2) {
+		#	x@ptr <- x@ptr$focal2(w, m, fillvalue, na.rm[1], na.only[1], txtfun, opt)
+		#} else {
+		x@ptr <- x@ptr$focal3(w, m, fillvalue, na.rm[1], na.only[1], txtfun, expand, opt)
+		#}
 		messages(x, "focal")
 		return(x)
 
@@ -51,9 +49,38 @@ function(x, w=3, na.rm=TRUE, na.only=FALSE, fillvalue=NA, fun="sum", filename=""
 		readStart(x)
 		on.exit(readStop(x))
 		b <- writeStart(out, filename, ...)
+		dow <- !isTRUE(all(m == 1))
+		msz <- prod(w)
+		if (any(is.na(m))) {
+			k <- !is.na(m)
+			mm <- m[k]
+			msz <- sum(k)
+		}
+		
+		usenarm = TRUE
+		test <- try( apply(rbind(1:9), 1, fun, na.rm=FALSE), silent=TRUE )
+		if (inherits(test, "try-error")) {
+			test <- try( apply(rbind(1:9), 1, fun), silent=TRUE )
+			if (!inherits(test, "try-error")) {
+				usenarm = FALSE
+			}
+		}
+		
 		for (i in 1:b$n) {
-			v <- matrix(x@ptr$focalValues(w, fillvalue, b$row[i]-1, b$nrows[i]), ncol=prod(w), byrow=TRUE)
-			v <- apply(v, 1, fun, na.rm=na.rm)
+			v <- x@ptr$focalValues(w, fillvalue, b$row[i]-1, b$nrows[i])
+			if (dow) {
+				if (any(is.na(m))) {
+					v <- v[k] * mm
+				} else {
+					v <- v * m
+				}
+			}
+			v <- matrix(v, ncol=msz, byrow=TRUE)
+			if (usenarm) {
+				v <- apply(v, 1, fun, na.rm=na.rm)
+			} else {
+				v <- apply(v, 1, fun)			
+			}
 			if (na.only) {
 				vv <- readValues(x, b$row[i], b$nrows[i])
 				j <- !is.na(vv)

@@ -4,6 +4,33 @@
 # License GPL v3
 
 
+setMethod("weighted.mean", signature(x="SpatRaster", w="numeric"), 
+	function(x, w, na.rm=FALSE, filename="", ...) {
+		opt <- spatOptions(filename, ...)
+		x@ptr <- x@ptr$wmean_vect(w, na.rm, opt)
+		messages(x)
+	}
+)
+
+
+setMethod("weighted.mean", signature(x="SpatRaster", w="SpatRaster"), 
+	function(x, w, na.rm=FALSE, filename="", ...) {
+		opt <- spatOptions(filename, ...)
+		x@ptr <-x@ptr$wmean_rast(w@ptr, na.rm, opt)
+		messages(x)
+	}
+)
+
+
+
+setMethod("patches", signature(x="SpatRaster"), 
+	function(x, directions=4, zeroAsNA=FALSE, filename="", ...) {
+		opt <- spatOptions(filename, ...)
+		x@ptr <- x@ptr$patches(directions[1], zeroAsNA[1], opt)
+		messages(x, "patches")
+	}
+)
+
 
 setMethod("origin", signature(x="SpatRaster"), 
 	function(x) {
@@ -32,7 +59,7 @@ setMethod("area", signature(x="SpatRaster"),
 	function(x, sum=TRUE, correct=FALSE, filename="", ...) {
 		if (sum) {
 			byvalue = FALSE
-			opt <- .getOptions()
+			opt <- spatOptions()
 			if (byvalue) {
 				v <- x@ptr$area_by_value(opt)
 				v <- lapply(1:length(v), function(i) cbind(i, matrix(v[[i]], ncol=2)))
@@ -62,10 +89,10 @@ setMethod("atan2", signature(y="SpatRaster", x="SpatRaster"),
 
 
 setMethod("boundaries", signature(x="SpatRaster"), 
-	function(x, classes=FALSE, inner=TRUE, directions=8, filename="", ...) {
+	function(x, classes=FALSE, inner=TRUE, directions=8, falseval=0, filename="", ...) {
 		opt <- spatOptions(filename, ...)
 		type <- ifelse(inner[1], "inner", "outer")
-		x@ptr <- x@ptr$boundaries(classes[1], type, directions[1], opt)
+		x@ptr <- x@ptr$boundaries(classes[1], type, directions[1], falseval[1], opt)
 		messages(x, "boundaries")
 	}
 )
@@ -122,6 +149,49 @@ setMethod("collapse", signature("SpatRasterDataset"),
 
 
 
+#cbind.SpatVector <- function(x, y, ...) {
+#	if (inherits(y, "SpatVector")) {
+#		y <- y@ptr$df
+#	} else {
+#		stopifnot(inherits(y, "data.frame"))
+#		y <- terra:::.makeSpatDF(y)
+#	}
+#	x@ptr <- x@ptr$cbind(y)
+#	messages(x, "cbind")
+#}
+
+cbind.SpatVector <- function(x, y, ...) {
+	dots <- list(y, ...)
+	for (y in dots) {
+		if (inherits(y, "SpatVector")) {
+			y <- y@ptr$df
+		} else {
+			stopifnot(inherits(y, "data.frame"))
+			y <- .makeSpatDF(y)
+		}
+		x@ptr <- x@ptr$cbind(y)
+		x <- messages(x, "cbind")
+	}
+	x
+}
+
+rbind.SpatVector <- function(x, y, ...) {
+	skipped <- FALSE
+	stopifnot(inherits(y, "SpatVector"))
+	x@ptr <- x@ptr$rbind(y@ptr, FALSE)
+	x <- messages(x, "rbind")
+	dots <- list(...)
+	if (!is.null(dots)) {
+		for (y in dots) {
+			stopifnot(inherits(y, "SpatVector"))
+			x@ptr <- x@ptr$rbind(y@ptr, FALSE)
+			x <- messages(x, "rbind")
+		}
+	}
+	x
+}
+
+
 setMethod("c", signature(x="SpatRaster"), 
 	function(x, ...) {
 		skipped <- FALSE
@@ -143,25 +213,6 @@ setMethod("c", signature(x="SpatRaster"),
 )
 
 
-setMethod("c", signature(x="SpatVector"), 
-	function(x, ...) {
-		skipped <- FALSE
-		dots <- list(...)
-		for (i in dots) {
-			if (inherits(i, "SpatVector")) {
-				x@ptr <- x@ptr$append(i@ptr, FALSE)
-				if (x@ptr$messages$has_error) {
-					messages(x, "c")
-					return()
-				}
-			} else {
-				skipped = TRUE
-			}
-		}
-		if (skipped) warn("c,SpatVector", "skipped object that are not SpatVector")
-		messages(x, "c")
-	}
-)
 
 setMethod("rep", signature(x="SpatRaster"), 
 	function(x, ...) {
@@ -193,6 +244,14 @@ function(x, rcl, include.lowest=FALSE, right=TRUE, othersNA=FALSE, filename="", 
 	opt <- spatOptions(filename, ...)
     x@ptr <- x@ptr$classify(as.vector(rcl), NCOL(rcl), right, include.lowest, othersNA, opt)
 	messages(x, "classify")
+}
+)
+
+setMethod("subst", signature(x="SpatRaster"), 
+function(x, from, to, filename="", ...) {
+	opt <- spatOptions(filename, ...)
+    x@ptr <- x@ptr$replaceValues(from, to, opt)
+	messages(x, "replace")
 }
 )
 
@@ -324,9 +383,9 @@ setMethod("mask", signature(x="SpatRaster", mask="SpatRaster"),
 )
 
 setMethod("mask", signature(x="SpatRaster", mask="SpatVector"), 
-	function(x, mask, inverse=FALSE, updatevalue=NA, touches=is.lines(mask), filename="", ...) { 
+	function(x, mask, inverse=FALSE, updatevalue=NA, touches=TRUE, filename="", ...) { 
 		opt <- spatOptions(filename, ...)
-		x@ptr <- x@ptr$mask_vector(mask@ptr, inverse[1], updatevalue[1], opt)
+		x@ptr <- x@ptr$mask_vector(mask@ptr, inverse[1], updatevalue[1], touches[1], opt)
 		messages(x, "mask")
 	}
 )
@@ -604,7 +663,7 @@ setMethod("unique", signature(x="SpatRaster", incomparables="ANY"),
 
 setMethod("unique", signature(x="SpatVector", incomparables="ANY"), 
 	function(x, incomparables=FALSE, ...) {
-		u <- unique(as.data.frame(x, geom=TRUE), incomparables=incomparables, ...)
+		u <- unique(as.data.frame(x, geom="WKT"), incomparables=incomparables, ...)
 		v <- vect(u, geom="geometry")
 		v$geometry <- NULL
 		crs(v) <- crs(x)

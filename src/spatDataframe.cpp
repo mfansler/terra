@@ -266,7 +266,7 @@ bool SpatDataFrame::remove_column(int i) {
 }
 
 bool SpatDataFrame::remove_column(std::string field) {
-	int i = where_in_vector(field, names);
+	int i = where_in_vector(field, names, false);
 	return remove_column(i);
 }
 
@@ -325,13 +325,13 @@ bool SpatDataFrame::cbind(SpatDataFrame &x) {
 	for (size_t i=0; i<nc; i++) {
 		if (x.itype[i] == 0) {
 			std::vector<double> d = x.getD(i);
-			add_column(d, nms[i]);
+			if (!add_column(d, nms[i])) return false;
 		} else if (x.itype[i] == 1) {
 			std::vector<long> d = x.getI(i);
-			add_column(d, nms[i]);
+			if (!add_column(d, nms[i])) return false;
 		} else {
 			std::vector<std::string> d = x.getS(i);
-			add_column(d, nms[i]);		
+			if (!add_column(d, nms[i])) return false;
 		}
 	}
 	return true;
@@ -348,7 +348,7 @@ bool SpatDataFrame::rbind(SpatDataFrame &x) {
 //first add new columns
 	std::vector<std::string> nms = names;
 	for (size_t i=0; i<nc2; i++) {
-		int j = where_in_vector(x.names[i], nms);
+		int j = where_in_vector(x.names[i], nms, false);
 		if (j < 0) { // not in df
 			size_t b = x.iplace[i];
 			add_column(x.itype[i], x.names[i]);
@@ -442,6 +442,28 @@ std::vector<std::string> SpatDataFrame::get_datatypes() {
 }
 
 
+std::string SpatDataFrame::get_datatype(std::string field) {
+	int i = where_in_vector(field, get_names(), false);
+	if (i < 0) return "";
+	i = itype[i]; 
+	std::vector<std::string> types = {"double", "long", "string"};
+	return types[i]; 
+}
+
+std::string SpatDataFrame::get_datatype(int field) {
+	if ((field < 0) || (field > (int)(ncol()-1))) return "";
+	std::vector<std::string> types = {"double", "long", "string"};
+	return types[itype[field]]; 
+}
+
+bool SpatDataFrame::field_exists(std::string field) {
+	return is_in_vector(field, get_names()); 
+}
+
+
+int SpatDataFrame::get_fieldindex(std::string field) {
+	return where_in_vector(field, get_names(), false);
+}
 
 
 // only doing this for one column for now

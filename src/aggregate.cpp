@@ -21,19 +21,6 @@
 #include "spatRaster.h"
 #include "vecmathfun.h"
 
-
-template <typename T>
-std::vector<T> flatten(const std::vector<std::vector<T>>& v) {
-    std::size_t total_size = 0;
-    for (const auto& sub : v)
-        total_size += sub.size();
-    std::vector<T> result;
-    result.reserve(total_size);
-    for (const auto& sub : v)
-        result.insert(result.end(), sub.begin(), sub.end());
-    return result;
-}
-
 std::vector<double> flat(std::vector<std::vector<double>> v) {
     unsigned s1 = v.size();
     unsigned s2 = v[0].size();
@@ -243,9 +230,7 @@ SpatRaster SpatRaster::aggregate(std::vector<unsigned> fact, std::string fun, bo
 		return out; 
 	}
 
-	std::vector<std::string> f {"sum", "mean", "min", "max", "median", "modal"};
-	auto it = std::find(f.begin(), f.end(), fun);
-	if (it == f.end()) {
+	if (!haveFun(fun)) {
 		out.setError("unknown function argument");
 		return out;
 	}
@@ -294,6 +279,17 @@ SpatRaster SpatRaster::aggregate(std::vector<unsigned> fact, std::string fun, bo
 	}
 
 	opt.steps = bs.n;
+	opt.minrows = fact[0];
+
+	if (fun == "modal") {
+		if (nlyr() == out.nlyr()) {
+			out.source[0].hasColors = hasColors();
+			out.source[0].cols = getColors();
+			out.source[0].hasCategories = hasCategories();
+			out.source[0].cats = getCategories();
+		}
+	}
+	
 	if (!out.writeStart(opt)) {
 		readStop();
 		return out;
