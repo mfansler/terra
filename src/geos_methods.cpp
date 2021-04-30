@@ -1,4 +1,7 @@
+#include <numeric>
 #include "geos_spat.h"
+#include "distance.h"
+#include "recycle.h"
 
 
 std::vector<std::string> SpatVector::wkt() {
@@ -292,25 +295,102 @@ SpatVector SpatVector::delauny(double tolerance, int onlyEdges) {
 }
 
 
+SpatVector lonlat_buf(SpatVector x, double dist, unsigned quadsegs, bool ispol, bool ishole) {
+
+	if ((x.extent.ymax < 60) && ((x.extent.ymax - x.extent.ymin) < 1) && dist < 110000) {
+		x.setSRS("+proj=merc");
+		double f = 0.5 - (dist / 220000);
+		double halfy = x.extent.ymin + f * (x.extent.ymax - x.extent.ymin);
+		std::vector<double> dd = destpoint_lonlat(0, halfy, 0, dist);
+		dist = dd[1] - halfy;
+		return x.buffer({dist}, quadsegs);
+	} 
+
+	SpatVector tmp;
+	x = x.disaggregate();
+	for (size_t i =0; i<x.geoms.size(); i++) {
+		SpatVector p(x.geoms[i]);
+		p.srs = x.srs;
+		p = p.as_points(false);
+		std::vector<double> d(p.size(), dist);
+		SpatVector b = p.point_buffer(d, quadsegs);
+		SpatVector part;
+		for (size_t j =0; j<(b.size()-1); j++) {
+			std::vector<unsigned> range = {(unsigned)j, (unsigned)j+1};
+			SpatVector g = b.subset_rows(range);
+			g = g.convexhull();
+			part.addGeom(g.geoms[0]);
+		}
+		part = part.aggregate(true);
+		tmp.addGeom(part.geoms[0]);
+	}
+	tmp = tmp.aggregate(true);
+	if (ispol) {
+		tmp = ishole ? tmp.get_holes() : tmp.remove_holes();
+	}
+	return tmp;
+}
 
 
-SpatVector SpatVector::buffer2(double dist, unsigned nQuadSegs, unsigned capstyle) {
 
+SpatVector SpatVector::buffer(std::vector<double> dist, unsigned quadsegs) {
+
+	quadsegs = std::min(quadsegs, (unsigned) 180);
 	SpatVector out;
 	out.srs = srs;
-
+	if (srs.is_empty()) {
+		out.setError("crs not defined");
+		return(out);
+	}
+	bool islonlat = is_lonlat();
 	std::string vt = type();
-	if ((vt == "points") && (dist <= 0)) {
-		dist = -dist;
+	if (vt == "points" || vt == "lines" || islonlat) {
+		for (size_t i=0; i<dist.size(); i++) {
+			if (dist[i] <= 0) {
+				dist[i] = -dist[i];
+			}
+		}	
+	}
+	recycle(dist, size());
+
+	if (islonlat) {
+		if (vt == "points") {
+			return point_buffer(dist, quadsegs);
+		} else {
+			SpatVector p;
+			bool ispol = vt == "polygons";
+			for (size_t i =0; i<size(); i++) {
+				p = subset_rows(i);
+				if (ispol) {
+					SpatVector h = p.get_holes();
+					p = p.remove_holes();
+					p = lonlat_buf(p, dist[i], quadsegs, true, false);
+					if (h.size() > 0) {
+						h = lonlat_buf(h, dist[i], quadsegs, true, true);
+						if (h.size() > 0) {
+							for (size_t j=0; j<h.geoms[0].parts.size(); j++) {
+								p.geoms[0].parts[0].addHole(h.geoms[0].parts[j].x, h.geoms[0].parts[j].y);
+							}
+						}
+					}
+				} else {
+					p = lonlat_buf(p, dist[i], quadsegs, false, false);
+				}
+				out.addGeom(p.geoms[0]);
+			}	
+			return out;	
+		}
 	}
 
+	
+	
 	GEOSContextHandle_t hGEOSCtxt = geos_init();
 //	SpatVector f = remove_holes();
 
 	std::vector<GeomPtr> g = geos_geoms(this, hGEOSCtxt);
 	std::vector<GeomPtr> b(size());
 	for (size_t i = 0; i < g.size(); i++) {
-		GEOSGeometry* pt = GEOSBuffer_r(hGEOSCtxt, g[i].get(), dist, nQuadSegs);
+		GEOSGeometry* pt = GEOSBuffer_r(hGEOSCtxt, g[i].get(), dist[i], quadsegs);
 		if (pt == NULL) {
 			out.setError("GEOS exception");
 			geos_finish(hGEOSCtxt);
@@ -914,10 +994,41 @@ SpatVector SpatVector::erase(SpatVector v) {
 
 SpatVector SpatVector::nearest_point(SpatVector v, bool parallel) {
 	SpatVector out;
+		
 	if ((size() == 0) || (v.size()==0)) {
 		out.setError("empty SpatVecor(s)");
 		return out;
 	}
+	if (!srs.is_equal(v.srs)) {
+		out.setError("CRSs do not match");
+		return out;
+	}
+	out.srs = srs;
+	
+	if (is_lonlat()) {
+		if (type() == "points") {
+			std::vector<double> nlon, nlat, dist;
+			std::vector<long> id;
+			std::vector<std::vector<double>> p = coordinates();
+			std::vector<std::vector<double>> pv = v.coordinates();
+			nearest_lonlat(id, dist, nlon, nlat, p[0], p[1], pv[0], pv[1]);
+			out.setPointsGeometry(nlon, nlat);
+			std::vector<long> fromid(id.size());
+			std::iota(fromid.begin(), fromid.end(), 0);
+			out.df.add_column(fromid, "from_id");
+			out.df.add_column(p[0], "from_x");
+			out.df.add_column(p[1], "from_y");	
+			out.df.add_column(id, "to_id");
+			out.df.add_column(nlon, "to_x");
+			out.df.add_column(nlat, "to_y");
+			out.df.add_column(dist, "distance");					
+			return out;
+		} else {
+			out.setError("not yet implement for non-point lonlat vector data");
+			return out;
+		}		
+	}
+
 	GEOSContextHandle_t hGEOSCtxt = geos_init();
 	if (parallel) {
 		if ((size() != v.size())) {
@@ -962,6 +1073,25 @@ SpatVector SpatVector::nearest_point() {
 		//return *this;
 	}
 	size_t n = size();
+	out.srs = srs;
+	
+	if (is_lonlat()) {
+		if (type() == "points") {
+			std::vector<double> nlon, nlat, dist;
+			std::vector<long> id;
+			std::vector<std::vector<double>> p = coordinates();
+			nearest_lonlat_self(id, dist, nlon, nlat, p[0], p[1]);
+			out.setPointsGeometry(nlon, nlat);
+			out.df.add_column(id, "id");
+			out.df.add_column(dist, "distance");		
+			return out;
+		} else {
+			out.setError("not yet implement for non-point lonlat vector data");
+			return out;
+		}		
+	}
+
+
 	GEOSContextHandle_t hGEOSCtxt = geos_init();
 	std::vector<GeomPtr> x = geos_geoms(this, hGEOSCtxt);
 	std::vector<GeomPtr> b(n);

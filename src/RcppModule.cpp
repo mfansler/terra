@@ -4,6 +4,10 @@
 #include <memory> //std::addressof
 
 
+//void SpatRaster_finalizer( SpatRaster* ptr ){
+//   Rcpp::Rcout << "finalizer" << std::endl;
+//}
+
 Rcpp::List getBlockSizeR(SpatRaster* r, unsigned n, double frac) { 
 	SpatOptions opt;
 	opt.ncopies = n;
@@ -118,7 +122,7 @@ RCPP_MODULE(spat){
     using namespace Rcpp;
 
     class_<SpatSRS>("SpatSRS")
-		.method("is_geographic", &SpatSRS::is_geographic, "")
+		.method("is_lonlat", &SpatSRS::is_lonlat, "")
 		.method("to_meter", &SpatSRS::to_meter, "to_meter")
 	;
 
@@ -304,8 +308,7 @@ RCPP_MODULE(spat){
 		.method("extent", &SpatVector::getExtent, "extent")
 		.method("getDF", &getVectorAttributes, "get attributes")
 		.method("getGeometryWKT", &SpatVector::getGeometryWKT, "getGeometryWKT")
-		.method("isLonLat", &SpatVector::is_lonlat, "isLonLat")
-		.method("isGeographic", &SpatVector::is_geographic, "is geographic")
+		.method("isLonLat", &SpatVector::is_lonlat, "is lonlat")
 		.method("length", &SpatVector::length, "length")
 //		.field("srs", &SpatVector::srs, "srs")
 		.field("messages", &SpatVector::msg, "messages")
@@ -341,7 +344,6 @@ RCPP_MODULE(spat){
 		.method("shift", &SpatVector::shift)
 		.method("rescale", &SpatVector::rescale)
 		.method("rotate", &SpatVector::rotate)
-		.method("buffer2", &SpatVector::buffer2)
 		.method("erase", &SpatVector::erase)
 		.method("symdif", &SpatVector::symdif)
 		.method("cover", &SpatVector::cover)
@@ -394,6 +396,8 @@ RCPP_MODULE(spat){
 	 // .constructor<std::string, int>()
 	    .constructor<std::vector<std::string>, std::vector<int>, std::vector<std::string>, bool, std::vector<size_t>>()
 		.constructor<std::vector<unsigned>, std::vector<double>, std::string>()
+
+        //.finalizer( &SpatRaster_finalizer)    
 
 		.method("has_error", &SpatRaster::hasError)
 		.method("has_warning", &SpatRaster::hasWarning)
@@ -458,7 +462,6 @@ RCPP_MODULE(spat){
 		.property("hasRange", &SpatRaster::hasRange )
 		.property("hasValues", &SpatRaster::hasValues )
 		.property("inMemory", &SpatRaster::inMemory )
-		.method("isGeographic", &SpatRaster::is_geographic, "is_geographic")
 		.method("isLonLat", &SpatRaster::is_lonlat, "isLonLat")
 		.method("isGlobalLonLat", &SpatRaster::is_global_lonlat, "isGlobalLonLat") 
 
@@ -632,6 +635,7 @@ RCPP_MODULE(spat){
 		.method("trig", &SpatRaster::trig, "trig")
 		.method("trim", &SpatRaster::trim, "trim")
 		.method("unique", &SpatRaster::unique, "unique")
+		.method("sieve", &SpatRaster::sievefilter, "sievefilter")
 
 		.method("rectify", &SpatRaster::rectify, "rectify")
 		.method("stretch", &SpatRaster::stretch, "stretch")

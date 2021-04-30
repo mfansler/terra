@@ -40,14 +40,14 @@ setMethod("as.raster", signature(x="SpatRaster"),
  
  
 setMethod("as.polygons", signature(x="SpatRaster"), 
-	function(x, trunc=TRUE, dissolve=TRUE, values=TRUE, extent=FALSE) {
+	function(x, trunc=TRUE, dissolve=TRUE, values=TRUE, na.rm=TRUE, extent=FALSE) {
 		p <- methods::new("SpatVector")
 		if (extent) {
 			p@ptr <- x@ptr$dense_extent()
 			x <- messages(x)
 		} else {
 			opt <- spatOptions()
-			p@ptr <- x@ptr$as_polygons(trunc[1], dissolve[1], values[1], TRUE, opt)
+			p@ptr <- x@ptr$as_polygons(trunc[1], dissolve[1], values[1], na.rm[1], opt)
 			x <- messages(x)
 			if (values) {
 				ff <- is.factor(x)
@@ -55,8 +55,9 @@ setMethod("as.polygons", signature(x="SpatRaster"),
 					ff <- which(ff)
 					levs <- levels(x)
 					for (f in ff) {
-						v <- factor(unlist(p[[f]], use.names=FALSE), levels=0:255)
-						levels(v) <- levs[[f]]
+						facts <- levs[[f]]
+						v <- factor(unlist(p[[f]], use.names=FALSE), levels=(1:length(facts))-1)
+						levels(v) <- facts
 						p[[f]] <- as.character(v)
 					}
 				}
@@ -119,8 +120,9 @@ setMethod("as.points", signature(x="SpatRaster"),
 				ff <- which(ff)
 				levs <- levels(x)
 				for (f in ff) {
-					v <- factor(unlist(p[[f]], use.names=FALSE), levels=0:255)
-					levels(v) <- levs[[f]]
+					facts <- levs[[f]]
+					v <- factor(unlist(p[[f]], use.names=FALSE), levels=(1:length(facts))-1)
+					levels(v) <- facts
 					p[[f]] <- as.character(v)
 				}
 			}
@@ -226,19 +228,25 @@ setMethod("as.array", signature(x="SpatRaster"),
 )
 
 
-# todo:
-# for ncdf files check the variable to be used
-# 
-# check z values, other attributes such as NAvalue that may have been
-# changed after creation of object from file
-# RAT tables
 
 .fromRasterLayerBrick <- function(from) {
 	f <- filename(from)
 	if (f != "") {
-		r <- rast(f)
+		if (from@file@driver == "netcdf") {
+			v <- attr(from@data, "zvar")
+			r <- rast(f, v)	
+		} else {
+			r <- try(rast(f), silent=TRUE)
+			if (inherits(r, "try-error")) {
+				r <- rast(from + 0)
+				levs <- levels(from)[[1]]
+				if (!is.null(levs)) {
+					levels(r) <- levs
+				}
+			}
+		}
 		if (from@file@NAchanged) {
-			warn("as,Raster", "changed NA value ignored")
+			NAflag(r) <- from@file@nodatavalue
 		}
 		return(r)
 	} else {
@@ -262,8 +270,12 @@ setMethod("as.array", signature(x="SpatRaster"),
 			values(r) <- values(from)
 		}
 		names(r)  <- names(from)
+		levs <- levels(from)[[1]]
+		if (!is.null(levs)) {
+			levels(r) <- levs				
+		}
 	}
-	return(r)
+	r
 }
 
 .fromRasterStack <- function(from) {
@@ -286,7 +298,7 @@ setMethod("as.array", signature(x="SpatRaster"),
 
 setAs("Raster", "SpatRaster", 
 	function(from) {
-		if (inherits(from, "RasterLayer") | inherits(from, "RasterBrick")) { 
+		if (inherits(from, "RasterLayer") || inherits(from, "RasterBrick")) { 
 			.fromRasterLayerBrick(from)
 		} else {
 			.fromRasterStack(from)

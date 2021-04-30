@@ -94,7 +94,7 @@ setMethod("intersect", signature(x="SpatVector", y="SpatVector"),
 
 setMethod("intersect", signature(x="SpatExtent", y="SpatExtent"), 
 	function(x, y) {
-		x@ptr$intersect(x@ptr)
+		x@ptr$intersect(y@ptr)
 		x
 	}
 )
@@ -122,16 +122,8 @@ setMethod("intersect", signature(x="SpatExtent", y="SpatVector"),
 #)
 
 setMethod("buffer", signature(x="SpatVector"), 
-	function(x, width, quadsegs=10, capstyle="round") {
-		if (geomtype(x) == "points") {
-			x@ptr <- x@ptr$buffer(width, quadsegs, 1)
-		} else {
-			#if (is.lonlat(x)) {
-			#	warn("buffer", "lon/lat data are treated as planar")
-			#}
-			quadsegs <- max(3, quadsegs)
-			x@ptr <- x@ptr$buffer2(width, quadsegs, 1)
-		}
+	function(x, width, quadsegs=10) {
+		x@ptr <- x@ptr$buffer(width, quadsegs)
 		messages(x, "buffer")
 	}
 )

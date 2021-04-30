@@ -232,6 +232,9 @@ class SpatExtent {
 		}
 
 		bool valid() {
+			return ((xmax >= xmin) && (ymax >= ymin));
+		}
+		bool valid_notequal() {
 			return ((xmax > xmin) && (ymax > ymin));
 		}
 
@@ -281,9 +284,9 @@ class SpatSRS {
 		bool is_same(SpatSRS x, bool ignoreempty);
 
 
-		bool is_geographic(); // as below, but using GDAL
+		bool is_lonlat(); // as below, but using GDAL
 
-		bool is_lonlat() {
+		bool is_lonlat_text() {
 			bool b1 = proj4.find("longlat") != std::string::npos;
 			bool b2 = proj4.find("epsg:4326") != std::string::npos;
 			return (b1 | b2);
@@ -300,7 +303,7 @@ class SpatSRS {
 		}
 
 		bool is_global_lonlat(SpatExtent e) {
-			if (is_geographic()) {
+			if (is_lonlat()) {
                 return (std::abs(e.xmax - e.xmin - 360) < 0.001);
 				//double halfres = xres()/ 180;
 				//if (((e.xmin - halfres) <= -180) && ((e.xmax + halfres) >= 180)) {

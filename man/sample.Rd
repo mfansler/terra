@@ -18,8 +18,8 @@ In order to assure regularity when requesting a regular sample, the number of ce
 }
 
 \usage{
-\S4method{spatSample}{SpatRaster}(x, size, method="random", replace=FALSE, 
-       na.rm=FALSE, as.raster=FALSE, cells=FALSE, xy=FALSE, ext=NULL, warn=TRUE)
+\S4method{spatSample}{SpatRaster}(x, size, method="random", replace=FALSE, na.rm=FALSE, as.raster=FALSE,
+	as.points=FALSE, values=TRUE, cells=FALSE, xy=FALSE, ext=NULL, warn=TRUE)
 
 \S4method{spatSample}{SpatVector}(x, size, method="random", strata=NULL, chess="")
 
@@ -33,8 +33,10 @@ In order to assure regularity when requesting a regular sample, the number of ce
   \item{replace}{logical. If \code{TRUE}, sampling is with replacement (if \code{method="random"}}
   \item{na.rm}{logical. If \code{TRUE}, code{NAs} are removed. Only used with random sampling of cell values. That is with \code{method="random", as.raster=FALSE, cells=FALSE}}
   \item{as.raster}{logical. If \code{TRUE}, a SpatRaster is returned}
-  \item{cells}{logical. If \code{TRUE} and \code{xy=FALSE}, cellnumbers are returned instead of values}
-  \item{xy}{logical. If \code{TRUE}, coordinates are returned instead of values}
+  \item{as.points}{logical. If \code{TRUE}, a SpatVector of points is returned}
+  \item{values}{logical. If \code{TRUE} cell values are returned}
+  \item{cells}{logical. If \code{TRUE}, cell numbers are returned}
+  \item{xy}{logical. If \code{TRUE}, cell coordinates are returned}
   \item{ext}{SpatExtent or NULL to restrict sampling to a a subset of the area of \code{x}}
   \item{warn}{logical. Give a warning if the sample size returned is smaller than requested}
 
@@ -45,9 +47,6 @@ In order to assure regularity when requesting a regular sample, the number of ce
 }
 
 
-\details{
-In stead of \code{spatSample(x, size, method="random")} you can also use the equivalent base method \code{sample(x, size)}. The base method also works for sampling the geometries of \code{SpatVector} (you can take a sample from the number of geometries and use that as an index). 
-}
 
 \value{
 numeric or SpatRaster
@@ -63,13 +62,16 @@ spatSample(r, 10, "random")
 ## if you require cell numbers and/or coordinates
 size <- 6
 # random cells 
-cells <- spatSample(r, 6, "random", cells=TRUE)
+cells <- spatSample(r, 6, "random", cells=TRUE, values=FALSE)
+cells <- as.vector(cells)
+
 v <- r[cells]
 xy <- xyFromCell(r, cells)
 cbind(xy, v)
 
 # regular 
-cells <- spatSample(r, 6, "regular", cells=TRUE)
+cells <- spatSample(r, 6, "regular", cells=TRUE, values=FALSE)
+cells <- as.vector(cells)
 v <- r[cells]
 xy <- xyFromCell(r, cells)
 cbind(xy, v)
@@ -77,7 +79,6 @@ cbind(xy, v)
 ## SpatExtent 
 e <- ext(r)
 spatSample(e, 10, "random", lonlat=TRUE)
-
 
 ## SpatVector
 f <- system.file("ex/lux.shp", package="terra")

@@ -16,6 +16,7 @@
 // along with spat. If not, see <http://www.gnu.org/licenses/>.
 
 
+
 #include "spatRaster.h"
 #include "math_utils.h"
 #include "string_utils.h"
@@ -124,7 +125,6 @@ void stat_options(int sstat, bool &compute_stats, bool &gdal_stats, bool &gdal_m
 
 bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 
-	bool writeRGB = false;
 
 	std::string filename = opt.get_filename();
 	if (filename == "") {
@@ -142,6 +142,8 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 		return(false);
 	}
 	std::string datatype = opt.get_datatype();
+	
+	bool writeRGB = (rgb && nlyr() == 3 && rgblyrs.size() == 3);
 	if (writeRGB) {
 		datatype = "INT1U";
 	}
@@ -217,10 +219,11 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 		if (lzw) {
 			papszOptions = CSLSetNameValue( papszOptions, "COMPRESS", "LZW");			
 		}
+#ifdef useRcpp
 		if (opt.verbose) {
 			Rcpp::Rcout<< "LZW           : " << lzw << std::endl;
 		}
-
+#endif
 		// ~ 4GB 
 		if (compressed & (diskNeeded > 4194304000)) { 
 			bool big = true;
@@ -232,13 +235,17 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 			}
 			if (big) {
 				papszOptions = CSLSetNameValue( papszOptions, "BIGTIFF", "YES");
+#ifdef useRcpp
 				if (opt.verbose) {
 					Rcpp::Rcout<< "BIGTIFF       : yes" << std::endl;
 				}
+#endif
 			} else {
+#ifdef useRcpp
 				if (opt.verbose) {
 					Rcpp::Rcout<< "BIGTIFF       : as requested" << std::endl;
 				}
+#endif
 			}
 		}
 	}
@@ -285,7 +292,11 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 
 	CSLDestroy( papszOptions );
 	if (poDS == NULL) {
-		setError("failed writing "+ driver + " file");
+		if (!filepath_exists(filename)) {
+			setError("failed writing "+ driver + " file. Path does not exist");
+		} else {
+			setError("failed writing "+ driver + " file");
+		}
 		GDALClose( (GDALDatasetH) poDS );
 		return false;	
 	}
@@ -329,6 +340,8 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 	double naflag=NAN; 
 	bool hasNAflag = opt.has_NAflag(naflag);
 
+	if (writeRGB) nms = {"red", "green", "blue"};
+
 	for (size_t i=0; i < nlyr(); i++) {
 
 		poBand = poDS->GetRasterBand(i+1);
@@ -344,6 +357,7 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 				addWarning("could not write categories");
 			}
 		}
+
 		/*
 		if (isncdf) {
 			std::string opt = "NETCDF_VARNAME";
@@ -354,7 +368,7 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 		} else {
 		*/
 		poBand->SetDescription(nms[i].c_str());
-		
+
 		if ((i==0) || (driver != "GTiff")) {
 			// to avoid "Setting nodata to nan on band 2, but band 1 has nodata at nan." 
 			if (hasNAflag) {
@@ -375,17 +389,17 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 				poBand->SetNoDataValue(NAN); 
 			}
 		}
-		
+
 		if (writeRGB) {
-			if (i==0) {
+			if (rgblyrs[i]==0) {
 				poBand->SetColorInterpretation(GCI_RedBand);
-			} else if (i==1) {
+			} else if (rgblyrs[i]==1) {
 				poBand->SetColorInterpretation(GCI_GreenBand);
-			} else if (i==2) {
+			} else if (rgblyrs[i]==2) {
 				poBand->SetColorInterpretation(GCI_BlueBand);
 			}
 		}
-		
+
 	}
 
 	std::vector<double> rs = resolution();

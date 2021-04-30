@@ -56,7 +56,7 @@ setMethod("align", signature(x="SpatExtent", y="numeric"),
 
 
 setMethod("area", signature(x="SpatRaster"), 
-	function(x, sum=TRUE, correct=FALSE, filename="", ...) {
+	function(x, sum=TRUE, correct=FALSE, mask=FALSE, filename="", ...) {
 		if (sum) {
 			byvalue = FALSE
 			opt <- spatOptions()
@@ -71,7 +71,7 @@ setMethod("area", signature(x="SpatRaster"),
 			}
 		} else {
 			opt <- spatOptions(filename, ...)
-			x@ptr <- x@ptr$rst_area(correct, opt)
+			x@ptr <- x@ptr$rst_area(correct, mask, opt)
 			messages(x, "area")
 		} 
 	}
@@ -100,7 +100,7 @@ setMethod("boundaries", signature(x="SpatRaster"),
 
 .collapseSources <- function(x) {
 	x@ptr <- x@ptr$collapse_sources()
-	messages(x, "collapse")
+	messages(x, "tighten")
 }
 
 setMethod("copy", signature("SpatRaster"), 
@@ -121,18 +121,18 @@ setMethod("add<-", signature("SpatRaster", "SpatRaster"),
 	}
 )
 
-setMethod("collapse", signature("SpatRaster"), 
+setMethod("tighten", signature("SpatRaster"), 
 	function(x) {
 		x@ptr <- x@ptr$collapse_sources()
-		messages(x, "collapse")
+		messages(x, "tighten")
 	}
 )
 
-setMethod("collapse", signature("SpatRasterDataset"), 
+setMethod("tighten", signature("SpatRasterDataset"), 
 	function(x) {
 		y <- new("SpatRaster")
 		y@ptr <- x@ptr$collapse()
-		messages(y, "collapse")
+		messages(y, "tighten")
 	}
 )
 
@@ -265,17 +265,12 @@ setMethod("crop", signature(x="SpatRaster", y="ANY"),
 		opt <- spatOptions(filename, ...)
 
 		if (!inherits(y, "SpatExtent")) {
-			e <- try(ext(y), silent=TRUE)
-			if (class(e) == "try-error") { 
-				e <- try(raster::extent(y), silent=TRUE)
-				if (class(e) == "try-error") { 
-					error("crop", "cannot get an extent from y")
-				}
-				e <- ext(as.vector(t(raster::bbox(e))))
+			y <- try(ext(y), silent=TRUE)
+			if (class(y) == "try-error") { 
+				error("crop", "cannot get a SpatExtent from y")
 			}
-			y <- e
 		}
-
+		
 		x@ptr <- x@ptr$crop(y@ptr, snap[1], opt)
 		messages(x, "crop")
 	}
@@ -483,12 +478,13 @@ setMethod("rotate", signature(x="SpatRaster"),
 	}
 )
 
-setMethod("separate", signature(x="SpatRaster"), 
+
+setMethod("segregate", signature(x="SpatRaster"), 
 	function(x, classes=NULL, keep=FALSE, other=0, filename="", ...) {
 		opt <- spatOptions(filename, ...)
 		if (is.null(classes)) classes <- 1[0]
 		x@ptr <- x@ptr$separate(classes, keep, other, opt)
-		messages(x, "separate")
+		messages(x, "segregate")
 	}
 )
 
@@ -633,18 +629,18 @@ setMethod("terrain", signature(x="SpatRaster"),
 
 
 setMethod("trim", signature(x="SpatRaster"), 
-	function(x, padding=0, filename="", ...) {
+	function(x, padding=0, value=NA, filename="", ...) {
 		opt <- spatOptions(filename, ...)
-		x@ptr <- x@ptr$trim(padding[1], opt)
+		x@ptr <- x@ptr$trim(value[1], padding[1], opt)
 		messages(x, "trim")
 	}
 )
 
-setMethod("transpose", signature(x="SpatRaster"), 
+setMethod("trans", signature(x="SpatRaster"), 
 	function(x, filename="", ...) {
 		opt <- spatOptions(filename, ...)
 		x@ptr <- x@ptr$transpose(opt)
-		messages(x, "transpose")
+		messages(x, "trans")
 	}
 )
 

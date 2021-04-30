@@ -19,37 +19,38 @@
 #include "spatRasterMultiple.h"
 #include "recycle.h"
 #include "math_utils.h"
-#include "vecmathfun.h"
+#include "vecmath.h"
 //#include "modal.h"
 
 
 // need to take care of NAs here. OK for NAN, but not for int types
-template <typename T>
-void operator+(std::vector<T>& a, const std::vector<T>& b) {
-    std::transform(a.begin(), a.end(), b.begin(), a.begin(), std::plus<T>());
+//template <typename T>
+//void operator+(std::vector<T>& a, const std::vector<T>& b) {
+void operator+(std::vector<double>& a, const std::vector<double>& b) {
+    std::transform(a.begin(), a.end(), b.begin(), a.begin(), std::plus<double>());
 }
 
 
-template <typename T>
-void operator-(std::vector<T>& a, const std::vector<T>& b) {
-    std::transform(a.begin(), a.end(), b.begin(), a.begin(), std::minus<T>());
+//template <typename T>
+void operator-(std::vector<double>& a, const std::vector<double>& b) {
+    std::transform(a.begin(), a.end(), b.begin(), a.begin(), std::minus<double>());
 }
 
 
-template <typename T>
-void operator/(std::vector<T>& a, const std::vector<T>& b) {
-    std::transform(a.begin(), a.end(), b.begin(), a.begin(), std::divides<T>());
+//template <typename T>
+void operator/(std::vector<double>& a, const std::vector<double>& b) {
+    std::transform(a.begin(), a.end(), b.begin(), a.begin(), std::divides<double>());
 }
 
-template <typename T>
-void operator*(std::vector<T>& a, const std::vector<T>& b) {
-    std::transform(a.begin(), a.end(), b.begin(), a.begin(), std::multiplies<T>());
+//template <typename T>
+void operator*(std::vector<double>& a, const std::vector<double>& b) {
+    std::transform(a.begin(), a.end(), b.begin(), a.begin(), std::multiplies<double>());
 }
 
 
 
-template <typename T>
-void operator%(std::vector<T>& a, const std::vector<T>& b) {
+//template <typename T>
+void operator%(std::vector<double>& a, const std::vector<double>& b) {
 //    std::transform(a.begin(), a.end(), b.begin(), a.begin(), std::modulus<T>());
 	for (size_t i=0; i<a.size(); i++) {
 		if (std::isnan(a[i]) || std::isnan(b[i])) {
@@ -61,8 +62,8 @@ void operator%(std::vector<T>& a, const std::vector<T>& b) {
 }
 
 
-template <typename T>
-void operator==(std::vector<T>& a, const std::vector<T>& b) {
+//template <typename T>
+void operator==(std::vector<double>& a, const std::vector<double>& b) {
 //    std::transform(a.begin(), a.end(), b.begin(), a.begin(), std::equal_to<T>());
 	for (size_t i=0; i<a.size(); i++) {
 		if (std::isnan(a[i]) || std::isnan(b[i])) {
@@ -73,8 +74,8 @@ void operator==(std::vector<T>& a, const std::vector<T>& b) {
 	}
 }
 
-template <typename T>
-void operator!=(std::vector<T>& a, const std::vector<T>& b) {
+//template <typename T>
+void operator!=(std::vector<double>& a, const std::vector<double>& b) {
 //    std::transform(a.begin(), a.end(), b.begin(), a.begin(), std::not_equal_to<T>());
 	for (size_t i=0; i<a.size(); i++) {
 		if (std::isnan(a[i]) || std::isnan(b[i])) {
@@ -85,8 +86,8 @@ void operator!=(std::vector<T>& a, const std::vector<T>& b) {
 	}
 }
 
-template <typename T>
-void operator>=(std::vector<T>& a, const std::vector<T>& b) {
+//template <typename T>
+void operator>=(std::vector<double>& a, const std::vector<double>& b) {
 //    std::transform(a.begin(), a.end(), b.begin(), a.begin(), std::greater_equal<T>());
 	for (size_t i=0; i<a.size(); i++) {
 		if (std::isnan(a[i]) || std::isnan(b[i])) {
@@ -97,8 +98,8 @@ void operator>=(std::vector<T>& a, const std::vector<T>& b) {
 	}
 }
 
-template <typename T>
-void operator<=(std::vector<T>& a, const std::vector<T>& b) {
+//template <typename T>
+void operator<=(std::vector<double>& a, const std::vector<double>& b) {
 //    std::transform(a.begin(), a.end(), b.begin(), a.begin(), std::less_equal<T>());
 	for (size_t i=0; i<a.size(); i++) {
 		if (std::isnan(a[i]) || std::isnan(b[i])) {
@@ -110,8 +111,8 @@ void operator<=(std::vector<T>& a, const std::vector<T>& b) {
  }
 
 
-template <typename T>
-void operator>(std::vector<T>& a, const std::vector<T>& b) {
+//template <typename T>
+void operator>(std::vector<double>& a, const std::vector<double>& b) {
 //    std::transform(a.begin(), a.end(), b.begin(), a.begin(), std::greater<T>());
 	for (size_t i=0; i<a.size(); i++) {
 		if (std::isnan(a[i]) || std::isnan(b[i])) {
@@ -122,8 +123,8 @@ void operator>(std::vector<T>& a, const std::vector<T>& b) {
 	}
 }
 
-template <typename T>
-void operator<(std::vector<T>& a, const std::vector<T>& b) {
+//template <typename T>
+void operator<(std::vector<double>& a, const std::vector<double>& b) {
 //    std::transform(a.begin(), a.end(), b.begin(), a.begin(), std::less<T>());
 	for (size_t i=0; i<a.size(); i++) {
 		if (std::isnan(a[i]) || std::isnan(b[i])) {
@@ -135,8 +136,8 @@ void operator<(std::vector<T>& a, const std::vector<T>& b) {
 }
 
 
-template <typename T>
-void power(std::vector<T>& a, const std::vector<T>& b) {
+//template <typename T>
+void power(std::vector<double>& a, const std::vector<double>& b) {
 	for (size_t i=0; i<a.size(); i++) {
 		if (std::isnan(a[i]) || std::isnan(b[i])) {
 			a[i] = NAN;
@@ -886,7 +887,7 @@ SpatRaster SpatRaster::summary_numb(std::string fun, std::vector<double> add, bo
 	} 
 	out.source[0].names[0] = fun;
 	std::function<double(std::vector<double>&, bool)> sumFun;
-	if (fun == "stdev") {
+	if (fun == "std") {
 		sumFun = vstdev;
 	} else {
 		if (!haveFun(fun)) {
@@ -1046,7 +1047,7 @@ SpatRaster SpatRasterStack::summary_numb(std::string fun, std::vector<double> ad
   	if (!ds[0].hasValues()) { return out; }
 
 	std::function<double(std::vector<double>&, bool)> sumFun;
-	if (fun == "stdev") {
+	if (fun == "std") {
 		sumFun = vstdev;
 	} else {
 		if (!haveFun(fun)) {

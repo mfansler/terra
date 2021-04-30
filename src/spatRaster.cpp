@@ -18,7 +18,7 @@
 #include "spatRaster.h"
 #include "string_utils.h"
 #include "file_utils.h"
-#include "time.h"
+#include "spatTime.h"
 #include "recycle.h"
 
 #include <set>
@@ -43,7 +43,7 @@ SpatRaster::SpatRaster(std::vector<std::string> fname, std::vector<int> subds, s
 		constructFromFileMulti(fname[0], subdsname[0], xyz);
 		return;
 	}
-	
+
 	constructFromFile(fname[0], subds, subdsname);
 	for (size_t i=1; i<fname.size(); i++) {
 		SpatRaster r;
@@ -239,6 +239,10 @@ SpatRaster SpatRaster::geometry(long nlyrs, bool properties) {
 	}
 	s.names = nms;
 	SpatRaster out(s);
+	if (properties) {
+		out.rgb = rgb;
+		out.rgblyrs = rgblyrs;
+	}
 	return out;
 }
 
@@ -339,17 +343,13 @@ std::vector<double> SpatRaster::range_max() {
 	return(x);
 }
 
+
 bool SpatRaster::is_lonlat() {
 	return source[0].srs.is_lonlat();
 }
 
-
-bool SpatRaster::is_geographic() {
-	return source[0].srs.is_geographic();
-}
-
 bool SpatRaster::could_be_lonlat() {
-	if (is_geographic()) return true;
+	if (is_lonlat()) return true;
 	SpatExtent e = getExtent();
 	return source[0].srs.could_be_lonlat(e);
 }
@@ -987,7 +987,7 @@ bool SpatRaster::setLabels(unsigned layer, std::vector<std::string> labels) {
 
     std::vector<unsigned> sl = findLyr(layer);
 
-	if (labels.size() != 256) {
+	if (labels.size() > 256) {
 		labels.resize(256);
 	} 
 
@@ -995,8 +995,9 @@ bool SpatRaster::setLabels(unsigned layer, std::vector<std::string> labels) {
 	cats.d.add_column(labels, "category");
 	cats.index = 0;
 
-	if (source[sl[0]].cats.size() < sl[1]) {
-		source[sl[0]].cats.resize(sl[1]);
+	if (source[sl[0]].cats.size() <= sl[1]) {
+		source[sl[0]].cats.resize(sl[1]+1);
+		source[sl[0]].hasCategories.resize(sl[1]+1);		
 	}
 	source[sl[0]].cats[sl[1]] = cats;
 	source[sl[0]].hasCategories[sl[1]] = true;
@@ -1014,7 +1015,7 @@ bool SpatRaster::setCategories(unsigned layer, SpatDataFrame d, unsigned index) 
 
     std::vector<unsigned> sl = findLyr(layer);
 
-	if (d.nrow() != 256) {
+	if (d.nrow() > 256) {
 		d.resize_rows(256);
 	} 
 
@@ -1777,7 +1778,7 @@ SpatVector SpatRaster::as_polygons(bool trunc, bool dissolve, bool values, bool 
 	}
 
 	if (dissolve) {
-		return polygonize(trunc, opt);
+		return polygonize(trunc, values, narm, dissolve, opt);
 	}
 
 	SpatVector vect;
@@ -1800,13 +1801,13 @@ SpatVector SpatRaster::as_polygons(bool trunc, bool dissolve, bool values, bool 
 	if (values) {
 		std::vector<double> v = getValues();
 		std::vector<std::string> nms = getNames();
+		make_unique_names(nms);
 		for (size_t i=0; i<nl; i++) {
 			size_t offset = i * nc;
 			std::vector<double> vv(v.begin()+offset, v.begin()+offset+nc);
 			vect.add_column(vv, nms[i]);
 		}
 	}
-
 
 	SpatGeom g;
 	g.gtype = polygons;
@@ -1843,6 +1844,10 @@ SpatVector SpatRaster::as_polygons(bool trunc, bool dissolve, bool values, bool 
 
 	std::reverse(std::begin(vect.geoms), std::end(vect.geoms));		
 
+	if (dissolve) {
+		vect = vect.aggregate(vect.get_names()[0], true);
+	}
+
 	if (remove_values) {
 		vect.df = SpatDataFrame();	
 	}
@@ -1851,24 +1856,30 @@ SpatVector SpatRaster::as_polygons(bool trunc, bool dissolve, bool values, bool 
 }
 
 
-bool SpatRaster::setRGB(unsigned r, unsigned g, unsigned b) {
+bool SpatRaster::setRGB(int r, int g, int b) {
 	size_t mxlyr = std::max(std::max(r, g), b);
-	if (nlyr() < mxlyr) {
-		setError("layer number for R, G, B, cannot exceed nlyr()");		
+	if (nlyr() <= mxlyr) {
+		setError("layer number for R, G, B, cannot exceed the number of layers");		
 		return false;
 	} else {
-		rgblyrs = {r, g, b};
-		rgb = true;
+		size_t mnlyr = std::min(std::min(r, g), b);
+		if (mnlyr >= 0) {
+			rgblyrs = {r, g, b};
+			rgb = true;
+		} else {
+			rgb = false;
+			return false;
+		}
 	}
 	return true;
 }
 
-std::vector<unsigned> SpatRaster::getRGB(){
+std::vector<int> SpatRaster::getRGB(){
 	return rgblyrs;
 }
 
 void SpatRaster::removeRGB(){
-	rgblyrs = std::vector<unsigned>(0);
+	rgblyrs = std::vector<int>(0);
 	rgb = false;
 }
 

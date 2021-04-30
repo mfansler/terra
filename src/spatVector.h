@@ -75,10 +75,10 @@ class SpatGeom {
 		bool addHole(SpatHole h);
 		bool setPart(SpatPart p, unsigned i);
 		SpatPart getPart(unsigned i);
-		double area_plane();
-		double area_lonlat(double a, double f);
-		double length_plane();
-		double length_lonlat(double a, double f);
+		//double area_plane();
+		//double area_lonlat(double a, double f);
+		//double length_plane();
+		//double length_lonlat(double a, double f);
 		unsigned size() { return parts.size(); };
 };
 
@@ -112,7 +112,7 @@ class SpatVector {
 		SpatVector deepCopy() {return *this;}
 
 		SpatExtent getExtent();
-		bool is_geographic();
+//		bool is_geographic();
 		bool is_lonlat();
 		bool could_be_lonlat();
 		std::string type();
@@ -137,9 +137,11 @@ class SpatVector {
 		SpatGeom getGeom(unsigned i);
 		bool addGeom(SpatGeom p);
 		bool setGeom(SpatGeom p);
+		bool replaceGeom(SpatGeom p, unsigned i);
 		std::vector<std::vector<double>> getGeometry();
 		SpatDataFrame getGeometryDF();
 		std::vector<std::string> getGeometryWKT();
+		void computeExtent();
 
 		std::vector<std::vector<double>> coordinates();
 
@@ -153,6 +155,7 @@ class SpatVector {
 		SpatVector remove_rows(std::vector<unsigned> range);
 
 		void setGeometry(std::string type, std::vector<unsigned> gid, std::vector<unsigned> part, std::vector<double> x, std::vector<double> y, std::vector<unsigned> hole);
+		void setPointsGeometry(std::vector<double> x, std::vector<double> y);
 
 		std::vector<double> area();
 		std::vector<double> length();
@@ -218,9 +221,6 @@ class SpatVector {
 		std::string getWarnings() { return msg.getWarnings();}
 		std::string getError() { return msg.getError();}
 
-		SpatVector point_buffer(double d, unsigned quadsegs);
-        SpatVector buffer(double d, unsigned segments, unsigned capstyle);
-
 		SpatVector append(SpatVector x, bool ignorecrs);
 		SpatVector disaggregate();
 		SpatVector shift(double x, double y);
@@ -243,7 +243,9 @@ class SpatVector {
 		SpatVectorCollection bienvenue();
 		SpatVector aggregate(bool dissolve);
 		SpatVector aggregate(std::string field, bool dissolve);
-        SpatVector buffer2(double d, unsigned segments, unsigned capstyle);
+        SpatVector buffer(std::vector<double> d, unsigned quadsegs);
+		SpatVector point_buffer(std::vector<double>	 d, unsigned quadsegs);
+
 		SpatVector centroid();
 		SpatVector crop(SpatExtent e);
 		SpatVector crop(SpatVector e);
@@ -270,6 +272,7 @@ class SpatVector {
 		SpatVector unaryunion();
 
 		SpatVector cbind(SpatDataFrame d);
+		void fix_lonlat_overflow();
 
 };
 

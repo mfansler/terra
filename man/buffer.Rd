@@ -16,7 +16,7 @@ Note that the distance unit of the buffer \code{width} parameter is meters if th
 \usage{
 \S4method{buffer}{SpatRaster}(x, width, filename="", ...)
 
-\S4method{buffer}{SpatVector}(x, width, quadsegs=10, capstyle="round")
+\S4method{buffer}{SpatVector}(x, width, quadsegs=10)
 }
 
 \arguments{
@@ -24,8 +24,7 @@ Note that the distance unit of the buffer \code{width} parameter is meters if th
 \item{width}{numeric. Unit is meter if \code{x} has a longitude/latitude CRS, or mapunits in other cases. Should be > 0 for SpatRaster}
   \item{filename}{character. Output filename}
   \item{...}{additional arguments for writing files as in \code{\link{writeRaster}}}
-  \item{quadsegs}{postive integer. Number of line segments to use to draw a quart circle}  
-  \item{capstyle}{character. Style of cap to use at the ends of the geometry. Allowed values: "round", "flat", "square" (ignored for now) }  
+  \item{quadsegs}{positive integer. Number of line segments to use to draw a quart circle}  
 }
 
 
@@ -44,12 +43,12 @@ values(r) <- v
 b <- buffer(r, width=5000000) 
 plot(b)
 
-v <- vect(rbind(c(10,10), c(0,60)))
+v <- vect(rbind(c(10,10), c(0,60)), crs="+proj=merc")
 b <- buffer(v, 20)
 plot(b)
 points(v)
 
-crs(v) <- "+proj=longlat +datum=WGS84"
+crs(v) <- "+proj=longlat" 
 b <- buffer(v, 1500000)
 plot(b)
 points(v)

@@ -18,7 +18,8 @@
 			ff <- which(ff)
 			levs <- levels(x)
 			for (f in ff) {
-				v[[f]] = factor(v[[f]], levels=0:255)
+				lvs <- levs[[f]]
+				v[[f]] = factor(v[[f]], levels=(1:length(lvs))-1)
 				levels(v[[f]]) = levs[[f]]
 			}
 		}
@@ -60,21 +61,24 @@ wmean <- function(p) {
 
 
 setMethod("extract", signature(x="SpatRaster", y="SpatVector"), 
-function(x, y, fun=NULL, method="simple", list=FALSE, factors=TRUE, cells=FALSE, xy=FALSE, weights=FALSE, touches=is.lines(y), ...) { 
+function(x, y, fun=NULL, method="simple", list=FALSE, factors=TRUE, cells=FALSE, xy=FALSE, weights=FALSE, exact=FALSE, touches=is.lines(y), ...) { 
 	method = match.arg(tolower(method), c("simple", "bilinear"))
 	hasfun <- !is.null(fun)
+	if (weights && exact) {
+		exact = FALSE
+	}
 	if (hasfun) {
 		cells <- FALSE
 		xy <- FALSE
-		if (weights) list = TRUE
+		if (weights || exact) list = TRUE
 	} 
 	#f <- function(i) if(length(i)==0) { NA } else { i }
 	#e <- rapply(e, f, how="replace")
 	cn <- names(x)
 	if (list) {
-		e <- x@ptr$extractVector(y@ptr, touches[1], method, isTRUE(cells[1]), isTRUE(xy[1]), isTRUE(weights[1]))
+		e <- x@ptr$extractVector(y@ptr, touches[1], method, isTRUE(cells[1]), isTRUE(xy[1]), isTRUE(weights[1]), isTRUE(exact[1]))
 		x <- messages(x, "extract")
-		if (weights) {
+		if (weights || exact) {
 			if (hasfun) {
 				test1 <- isTRUE(try( deparse(fun)[2] == 'UseMethod(\"mean\")', silent=TRUE))
 				test2 <- isTRUE(try( fun@generic == "mean", silent=TRUE))
@@ -88,14 +92,14 @@ function(x, y, fun=NULL, method="simple", list=FALSE, factors=TRUE, cells=FALSE,
 		return(e)
 	}
 
-	e <- x@ptr$extractVectorFlat(y@ptr, touches[1], method, isTRUE(cells[1]), isTRUE(xy[1]), isTRUE(weights[1]))
+	e <- x@ptr$extractVectorFlat(y@ptr, touches[1], method, isTRUE(cells[1]), isTRUE(xy[1]), isTRUE(weights[1]), isTRUE(exact[1]))
 	x <- messages(x, "extract")
 	nc <- nlyr(x)
 	if (cells) {
 		cn <- c(cn, "cell")
 		nc <- nc + 1
 	}
-	if (weights) {
+	if (weights || exact) {
 		cn <- c(cn, "weight")
 		nc <- nc + 1
 	}
@@ -122,6 +126,22 @@ function(x, y, fun=NULL, method="simple", list=FALSE, factors=TRUE, cells=FALSE,
 		fun <- match.fun(fun) 
 		e <- data.frame(e)
 		e <- aggregate(e[,-1,drop=FALSE], e[,1,drop=FALSE], fun, ...)
+		m <- sapply(e, NCOL)
+		if (any(m > 1)) {
+			e <- do.call(cbind, as.list(e))
+			skip <- (length(cn) - nlyr(x))
+			nms <- colnames(e)
+			snms <- nms[(skip+1):length(nms)]
+			mr <- max(m)
+			if (!all(snms=="")) {
+				snms <- paste0(rep(names(x), each=mr), ".", snms)
+			} else {
+				snms <- paste0(rep(names(x), each=mr), ".", rep(1:mr))
+			}
+			snms <- c(cn[1:skip], snms)
+			colnames(e) <- snms
+			e <- data.frame(e)
+		}
 	} else if (cells) {
 		cncell <- cn =="cell"
 		e[, cncell] <- e[, cncell] + 1
@@ -261,11 +281,7 @@ function(x, i, j, ..., drop=FALSE) {
 
 setMethod("extract", c("SpatVector", "SpatVector"),
 function(x, y, ...) {
-	g <- geomtype(x)
-	if (!grepl("points", g)) {
-		error("extract", "the first argument must be points")
-	}
-	r <- relate(x, y, "within")
+	r <- relate(y, x, "within")
 	e <- apply(r, 1, which)
 	if (length(e) == 0) {
 		e <- list(e)
@@ -280,10 +296,10 @@ function(x, y, ...) {
 		})
 		e <- do.call(rbind, e)
 	} else {
-		e <- cbind(1:nrow(x), e)
+		e <- cbind(1:nrow(y), e)
 	}
-	if (ncol(y) > 0) {
-		d <- as.data.frame(y)	
+	if (ncol(x) > 0) {
+		d <- as.data.frame(x)	
 		e <- data.frame(id.x=e[,1], d[e[,2], ,drop=FALSE])
 		rownames(e) <- NULL
 	} else {

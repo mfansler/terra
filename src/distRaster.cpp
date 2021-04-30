@@ -20,47 +20,8 @@
 #include <limits>
 #include <cmath>
 #include "ggeodesic.h"
-
-void distanceToNearest_lonlat(std::vector<double> &d, const std::vector<double> &lon1, const std::vector<double> &lat1, const std::vector<double> &lon2, const std::vector<double> &lat2) {
-	int n = lon1.size();
-	int m = lon2.size();
-	double a = 6378137.0;
-	double f = 1/298.257223563;
-	double azi1, azi2, s12;
-	struct geod_geodesic g;
-	geod_init(&g, a, f);
-
- 	for (int i=0; i < n; i++) {
-		if (std::isnan(lat1[i])) {
-			continue;
-		}
-		geod_inverse(&g, lat1[i], lon1[i], lat2[0], lon2[0], &d[i], &azi1, &azi2);
-		for (int j=1; j<m; j++) {
-			geod_inverse(&g, lat1[i], lon1[i], lat2[j], lon2[j], &s12, &azi1, &azi2);
-			if (s12 < d[i]) {
-				d[i] = s12;
-			}
-		}		
-	}
-}
-
-
-
-void distanceToNearest_plane(std::vector<double> &d, const std::vector<double> &x1, const  std::vector<double> &y1, const std::vector<double> &x2, const std::vector<double> &y2, const double& lindist) {
-	int n = x1.size();
-	int m = x2.size();
-  	for (int i=0; i < n; i++) {
-		if (std::isnan(x1[i])) continue;
-		d[i] = sqrt(pow((x2[0]-x1[i]),2) + pow((y2[0]-y1[i]), 2)) * lindist;
-		for (int j=1; j < m; j++) {
-			double r = sqrt(pow((x2[j]-x1[i]),2) + pow((y2[j]-y1[i]), 2));
-			if (r < d[i]) {
-				d[i] = r * lindist;
-			}
-		}
-	}
-}
-
+#include "recycle.h"
+#include "math_utils.h"
 
 
 void shortDistPoints(std::vector<double> &d, const std::vector<double> &x, const std::vector<double> &y, const std::vector<double> &px, const std::vector<double> &py, const bool& lonlat, const double &lindist) {
@@ -103,7 +64,7 @@ SpatRaster SpatRaster::distance(SpatVector p, SpatOptions &opt) {
 		return(out);
 	}
 	
-	bool lonlat = is_geographic(); // m == 0
+	bool lonlat = is_lonlat(); // m == 0
 	unsigned nc = ncol();
 	if (!readStart()) {
 		out.setError(getError());
@@ -180,7 +141,7 @@ std::vector<double> SpatVector::distance(bool sequential) {
 	}
 	double m = srs.to_meter();
 	m = std::isnan(m) ? 1 : m;
-	bool lonlat = is_geographic(); // m == 0
+	bool lonlat = is_lonlat(); // m == 0
 	
 //	if ((!lonlat) || (gtype != "points")) {
 	std::string gtype = type();
@@ -254,7 +215,7 @@ std::vector<double>  SpatVector::distance(SpatVector x, bool pairwise) {
 	}
 	double m = srs.to_meter();
 	m = std::isnan(m) ? 1 : m;
-	bool lonlat = is_geographic();
+	bool lonlat = is_lonlat();
 
 	std::string gtype = type();
 	std::string xtype = x.type();
@@ -497,7 +458,7 @@ SpatRaster SpatRaster::gridDistance(SpatOptions &opt) {
 	opt.set_filenames({""});
  	if (!first.writeStart(opt)) { return first; }
 
-//	bool lonlat = is_geographic(); 
+//	bool lonlat = is_lonlat(); 
 	size_t nc = ncol();
 	for (size_t i = 0; i < first.bs.n; i++) {
         v = readBlock(first.bs, i);
@@ -1149,20 +1110,98 @@ SpatRaster SpatRaster::buffer(double d, SpatOptions &opt) {
 }
 
 
+void SpatVector::fix_lonlat_overflow() {
+
+	
+	if (! ((extent.xmin < -180) || (extent.xmax > 180))) { return; }
+
+	SpatExtent world(-180, 180, -90, 90);
+
+	std::string vt = type();
+	if (vt == "points") {
+		for (size_t i=0; i<geoms.size(); i++) {
+			SpatGeom g = geoms[i];
+			for (size_t j=0; j<g.parts.size(); j++) {
+				for (size_t k=0; k<g.parts[j].x.size(); k++) {	
+					if (geoms[i].parts[j].x[k] < -180) { geoms[i].parts[j].x[k] += 360; }
+					if (geoms[i].parts[j].x[k] > 180) { geoms[i].parts[j].x[k] -= 360; }
+				}
+			}
+		}
+	} else {
+		SpatExtent east(-360, -180, -180, 180);
+		SpatExtent west(180, 360, -180, 180);
+	
+		for (size_t i=0; i<geoms.size(); i++) {
+			if (geoms[i].extent.xmin < -180) {
+				SpatVector v(geoms[i]);
+				if (geoms[i].extent.xmax <= -180) {
+					v = v.shift(360, 0);
+				} else {
+					SpatVector add = v.crop(east);
+					add = add.shift(360, 0);
+					v = v.crop(world);
+					v.geoms[i].addPart(add.geoms[0].parts[0]);
+				}
+				replaceGeom(v.geoms[0], i);
+			}
+
+			if (geoms[i].extent.xmax > 180) {
+				SpatVector v(geoms[i]);
+				if (geoms[i].extent.xmin >= 180) {
+					v = v.shift(-360, 0);
+				} else {
+					SpatVector add = v.crop(west);
+					add = add.shift(-360, 0);
+					v = v.crop(world);
+					v.geoms[i].addPart(add.geoms[0].parts[0]);
+				}
+				replaceGeom(v.geoms[0], i);
+			}
+		}
+	}
+
+	if ((extent.ymax > 90) || (extent.ymin < -90)) {	
+		SpatVector out = crop(world);
+		geoms = out.geoms;
+		extent = out.extent;
+		df = out.df;
+		srs = out.srs;
+	}
+	return;
+}
 
 
-SpatVector SpatVector::point_buffer(double d, unsigned quadsegs) { 
 
-	std::vector<std::vector<double>> xy = coordinates();
+
+SpatVector SpatVector::point_buffer(std::vector<double> d, unsigned quadsegs) { 
+
 	SpatVector out;
-	out.srs = srs;
+	std::string vt = type();
+	if (vt != "points") {
+		out.setError("geometry must be points");
+		return out;
+	}
+
+	size_t npts = size();
+
+/*
+# taken care of by `buffer`	
+	for (size_t i=0; i<d.size(); i++) {
+		if (d[i] <= 0) {
+			d[i] = -d[i];
+		}
+	}
+	recycle(d, npts);
+*/
 	size_t n = quadsegs * 4;
 	double step = 360.0 / n;
 	SpatGeom g(polygons);
 	g.addPart(SpatPart(0, 0));
-	size_t npts = size();
 
-	if (is_geographic()) {
+	std::vector<std::vector<double>> xy = coordinates();
+
+	if (is_lonlat()) {
 		std::vector<double> brng(n);
 		for (size_t i=0; i<n; i++) {
 			brng[i] = i * step;
@@ -1171,7 +1210,7 @@ SpatVector SpatVector::point_buffer(double d, unsigned quadsegs) {
 			if (std::isnan(xy[0][i]) || std::isnan(xy[1][i])) {
 				out.addGeom(SpatGeom(polygons));
 			} else {
-				std::vector<std::vector<double>> dp = destpoint_lonlat(xy[0][i], xy[1][i], brng, d);
+				std::vector<std::vector<double>> dp = destpoint_lonlat(xy[0][i], xy[1][i], brng, d[i], false);
 				//close polygons
 				dp[0].push_back(dp[0][0]);
 				dp[1].push_back(dp[1][0]);
@@ -1179,7 +1218,7 @@ SpatVector SpatVector::point_buffer(double d, unsigned quadsegs) {
 				out.addGeom(g);
 			}
 		}
-
+		out.fix_lonlat_overflow();
 	} else {
 		std::vector<double> cosb(n);
 		std::vector<double> sinb(n);
@@ -1188,8 +1227,8 @@ SpatVector SpatVector::point_buffer(double d, unsigned quadsegs) {
 		for (size_t i=0; i<n; i++) {
 			double brng = i * step;
 			brng = toRad(brng);
-			cosb[i] = d * cos(brng);
-			sinb[i] = d * sin(brng);
+			cosb[i] = d[i] * cos(brng);
+			sinb[i] = d[i] * sin(brng);
 		}
 		for (size_t i=0; i<npts; i++) {
 			if (std::isnan(xy[0][i]) || std::isnan(xy[1][i])) {
@@ -1206,24 +1245,791 @@ SpatVector SpatVector::point_buffer(double d, unsigned quadsegs) {
 			}
 		}
 	}
+	out.srs = srs;
+	out.df = df;
 	return(out);
 }
 
 
 
 
-SpatVector SpatVector::buffer(double d, unsigned segments, unsigned capstyle){
-	SpatVector out;
-	std::string vt = type();
-	if (vt != "points") {
-		out.setError("must be points");
-		return out;
+
+double area_polygon_lonlat(geod_geodesic &g, const std::vector<double> &lon, const std::vector<double> &lat) {
+	struct geod_polygon p;
+	geod_polygon_init(&p, 0);
+	size_t n = lat.size();
+	for (size_t i=0; i < n; i++) {
+		geod_polygon_addpoint(&g, &p, lat[i], lon[i]);
 	}
-	if ((vt == "points") && (d <= 0)) {
-		out.setError("buffer size must be >= 0 with points");
-		return out;
-	}
-	out = point_buffer(d, segments); 
-	return out;
+	double area, P;
+	geod_polygon_compute(&g, &p, 0, 1, &area, &P);
+	return(area < 0 ? -area : area);
 }
 
+
+
+double area_polygon_plane(std::vector<double> x, std::vector<double> y) {
+// based on http://paulbourke.net/geometry/polygonmesh/source1.c
+	size_t n = x.size();
+	double area = x[n-1] * y[0];
+	area -= y[n-1] * x[0];
+	for (size_t i=0; i < (n-1); i++) {
+		area += x[i] * y[i+1];
+		area -= x[i+1] * y[i];
+	}
+	area /= 2;
+	return(area < 0 ? -area : area);
+}
+
+
+double area_lonlat(geod_geodesic &g, const SpatGeom &geom) {
+	double area = 0;
+	if (geom.gtype != polygons) return area;
+	for (size_t i=0; i<geom.parts.size(); i++) {
+		area += area_polygon_lonlat(g, geom.parts[i].x, geom.parts[i].y);
+		for (size_t j=0; j < geom.parts[i].holes.size(); j++) {
+			area -= area_polygon_lonlat(g, geom.parts[i].holes[j].x, geom.parts[i].holes[j].y);
+		}
+	}
+	return area;
+}
+
+
+double area_plane(const SpatGeom &geom) {
+	double area = 0;
+	if (geom.gtype != polygons) return area;
+	for (size_t i=0; i < geom.parts.size(); i++) {
+		area += area_polygon_plane(geom.parts[i].x, geom.parts[i].y);
+		for (size_t j=0; j < geom.parts[i].holes.size(); j++) {
+			area -= area_polygon_plane(geom.parts[i].holes[j].x, geom.parts[i].holes[j].y);
+		}
+	}
+	return area;
+}
+
+
+std::vector<double> SpatVector::area() {
+
+	size_t s = size();
+	std::vector<double> ar;
+	ar.reserve(s);
+
+	double m = srs.to_meter();
+	m = std::isnan(m) ? 1 : m;
+	// could_be_lonlat() no more
+	if (m == 0) {
+		struct geod_geodesic g;
+		double a = 6378137;
+		double f = 1 / 298.257223563;
+		geod_init(&g, a, f);
+		for (size_t i=0; i<s; i++) {
+			ar.push_back(area_lonlat(g, geoms[i]));
+		}
+	} else {
+		m = m * m;
+		for (size_t i=0; i<s; i++) {
+			ar.push_back(area_plane(geoms[i]) * m);
+		}
+	}
+	return ar;
+}
+
+
+
+double length_line_lonlat(geod_geodesic &g, const std::vector<double> &lon, const std::vector<double> &lat) {
+	size_t n = lat.size();
+	double length = 0;
+	for (size_t i=1; i < n; i++) {
+		length += distance_lonlat(lon[i-1], lat[i-1], lon[i], lat[i]);
+	}
+	return (length);
+}
+
+
+double length_line_plane(std::vector<double> x, std::vector<double> y) {
+	size_t n = x.size();
+	double length = 0;
+	for (size_t i=1; i<n; i++) {
+		length += sqrt(pow(x[i-1] - x[i], 2) + pow(y[i-1] - y[i], 2));
+	}
+	return (length);
+}
+
+
+double length_lonlat(geod_geodesic &g, const SpatGeom &geom) {
+	double length = 0;
+	if (geom.gtype == points) return length;
+	for (size_t i=0; i<geom.parts.size(); i++) {
+		length += length_line_lonlat(g, geom.parts[i].x, geom.parts[i].y);
+		for (size_t j=0; j<geom.parts[i].holes.size(); j++) {
+			length += length_line_lonlat(g, geom.parts[i].holes[j].x, geom.parts[i].holes[j].y);
+		}
+	}
+	return length;
+}
+
+
+double length_plane(const SpatGeom &geom) {
+	double length = 0;
+	if (geom.gtype == points) return length;
+	for (size_t i=0; i < geom.parts.size(); i++) {
+		length += length_line_plane(geom.parts[i].x, geom.parts[i].y);
+		for (size_t j=0; j < geom.parts[i].holes.size(); j++) {
+			length += length_line_plane(geom.parts[i].holes[j].x, geom.parts[i].holes[j].y);
+		}
+	}
+	return length;
+}
+
+
+std::vector<double> SpatVector::length() {
+
+	size_t s = size();
+	std::vector<double> r;
+	r.reserve(s);
+
+	double m = srs.to_meter();
+	m = std::isnan(m) ? 1 : m;
+
+	if (m == 0) {
+		struct geod_geodesic g;
+		double a = 6378137;
+		double f = 1 / 298.257223563;
+		geod_init(&g, a, f);
+		for (size_t i=0; i<s; i++) {
+			r.push_back(length_lonlat(g, geoms[i]));
+		}
+	} else {
+		for (size_t i=0; i<s; i++) {
+			r.push_back(length_plane(geoms[i]) * m);
+		}
+	}
+	return r;
+}
+
+SpatRaster SpatRaster::rst_area(bool adjust, bool mask, SpatOptions &opt) {
+
+	double m = source[0].srs.to_meter();
+	m = std::isnan(m) ? 1 : m;
+
+	SpatRaster out = geometry(1);
+	if (opt.names.size() == 0) {
+		opt.names = {"area"};
+	}
+	SpatOptions mopt = opt;
+	if (mask) {
+		if (!hasValues()) {
+			out.addWarning("cannot use a SpatRaster with no values as mask");
+			mask = false;
+		} else {
+			opt = SpatOptions(opt);
+		}
+	}
+	
+  	if (!out.writeStart(opt)) { return out; }
+
+	if (m == 0) { //lonlat
+		SpatExtent extent = getExtent();
+		SpatExtent e = {extent.xmin, extent.xmin+xres(), extent.ymin, extent.ymax};
+		SpatOptions optint(opt);
+		SpatRaster onecol = out.crop(e, "near", optint);
+		SpatOptions popt(opt);
+		SpatVector p = onecol.as_polygons(false, false, false, false, popt);
+		if (p.hasError()) {
+			out.setError(p.getError());
+			return out;
+		}
+		std::vector<double> a = p.area();
+		size_t nc = ncol();
+		for (size_t i = 0; i < out.bs.n; i++) {
+			std::vector<double> v;
+			for (size_t j=0; j<out.bs.nrows[i]; j++) {
+				size_t r = out.bs.row[i] + j;
+				v.insert(v.end(), nc, a[r]);
+			}
+			if (!out.writeValues(v, out.bs.row[i], out.bs.nrows[i], 0, ncol())) return out;
+		}
+
+	} else if (adjust) {
+		SpatExtent extent = getExtent();
+		double dy = yres() / 2;
+		SpatOptions popt(opt);
+		for (size_t i = 0; i < out.bs.n; i++) {
+			double ymax = yFromRow(out.bs.row[i]) + dy;
+			double ymin = yFromRow(out.bs.row[i] + out.bs.nrows[i]-1) - dy;
+			SpatExtent e = {extent.xmin, extent.xmax, ymin, ymax};
+			SpatRaster onechunk = out.crop(e, "near", popt);
+			SpatVector p = onechunk.as_polygons(false, false, false, false, popt);
+			//std::vector<double> cells(onechunk.ncell());
+			//std::iota (cells.begin(), cells.end(), 0);
+			//onechunk.setValues(cells);
+			//SpatVector p = onechunk.as_polygons(false, true, false, false, popt);
+			p = p.project("EPSG:4326");
+			std::vector<double> v = p.area();
+			if (!out.writeValues(v, out.bs.row[i], out.bs.nrows[i], 0, ncol())) return out;
+		}
+	} else {
+		double a = xres() * yres() * m * m;
+		for (size_t i = 0; i < out.bs.n; i++) {
+			std::vector<double> v(out.bs.nrows[i]*ncol(), a);
+			if (!out.writeValues(v, out.bs.row[i], out.bs.nrows[i], 0, ncol())) return out;
+		}
+	}
+	out.writeStop();
+	if (mask) {
+		out = out.mask(*this, false, NAN, NAN, opt);
+	}
+	return(out);
+}
+
+
+std::vector<double> SpatRaster::sum_area(bool adjust, SpatOptions &opt) {
+
+	std::vector<double> out(nlyr(), 0);
+
+	if (adjust) { //avoid very large polygon objects
+		opt.set_memfrac(std::max(0.1, opt.get_memfrac()/2));
+	}
+	BlockSize bs = getBlockSize(opt);
+	if (!readStart()) {
+		std::vector<double> err(nlyr(), -1);
+		return(err);
+	}
+
+	double m = source[0].srs.to_meter();
+	m = std::isnan(m) ? 1 : m;
+
+	if (m == 0) {
+		SpatRaster x = geometry(1);
+		SpatExtent extent = x.getExtent();
+		SpatExtent e = {extent.xmin, extent.xmin+xres(), extent.ymin, extent.ymax};
+		SpatOptions opt;
+		SpatRaster onecol = x.crop(e, "near", opt);
+		SpatVector p = onecol.as_polygons(false, false, false, false, opt);
+		std::vector<double> ar = p.area();
+		size_t nc = ncol();
+		if (!hasValues()) {
+			out.resize(1);
+			for (size_t i=0; i<ar.size(); i++) {
+				out[0] += ar[i] * nc;
+			}
+		} else {
+			for (size_t i=0; i<bs.n; i++) {
+				std::vector<double> v = readValues(bs.row[i], bs.nrows[i], 0, ncol());
+				size_t blockoff = bs.nrows[i] * nc;
+				for (size_t lyr=0; lyr<nlyr(); lyr++) {
+					size_t lyroff = lyr * blockoff;
+					for (size_t j=0; j<bs.nrows[i]; j++) {
+						size_t row = bs.row[i] + j;
+						size_t offset = lyroff + row * nc;
+						size_t n = offset + nc;
+						for (size_t k=offset; k<n; k++) {
+							if (!std::isnan(v[k])) out[lyr] += ar[row];
+						}
+					}
+				}
+			}
+		}
+	} else if (adjust) {
+		SpatRaster x = geometry(1);
+		SpatExtent extent = x.getExtent();
+		double dy = x.yres() / 2;
+		SpatOptions popt(opt);
+		if (!hasValues()) {
+			out.resize(1);
+			for (size_t i=0; i<bs.n; i++) {
+				double ymax = x.yFromRow(bs.row[i]) + dy;
+				double ymin = x.yFromRow(bs.row[i] + bs.nrows[i]-1) - dy;
+				SpatExtent e = {extent.xmin, extent.xmax, ymin, ymax};
+				SpatRaster onechunk = x.crop(e, "near", popt);
+				SpatVector p = onechunk.as_polygons(false, false, false, false, popt);
+				p = p.project("EPSG:4326");
+				std::vector<double> v = p.area();
+				out[0] += accumulate(v.begin(), v.end(), 0);
+			}
+		} else {
+			for (size_t i=0; i<bs.n; i++) {
+				double ymax = x.yFromRow(bs.row[i]) + dy;
+				double ymin = x.yFromRow(bs.row[i] + bs.nrows[i]-1) - dy;
+				SpatExtent e = {extent.xmin, extent.xmax, ymin, ymax};
+				SpatRaster onechunk = x.crop(e, "near", popt);
+				SpatVector p = onechunk.as_polygons(false, false, false, false, popt);
+				p = p.project("EPSG:4326");
+				std::vector<double> par = p.area();
+			
+				std::vector<double> v = readValues(bs.row[i], bs.nrows[i], 0, ncol());
+				unsigned off = bs.nrows[i] * ncol() ;
+				for (size_t lyr=0; lyr<nlyr(); lyr++) {
+					unsigned offset = lyr * off;
+					unsigned n = offset + off;
+					for (size_t j=offset; j<n; j++) {
+						if (!std::isnan(v[j])) {
+							out[lyr] += par[j - offset];
+						}
+					}
+				}
+			}
+		
+		}
+	} else {
+		double ar = xres() * yres() * m * m;
+		if (!hasValues()) {
+			out.resize(1);
+			out[0] = ncell() * ar;
+		} else {
+			for (size_t i=0; i<bs.n; i++) {
+				std::vector<double> v = readValues(bs.row[i], bs.nrows[i], 0, ncol());
+				unsigned off = bs.nrows[i] * ncol() ;
+				for (size_t lyr=0; lyr<nlyr(); lyr++) {
+					unsigned offset = lyr * off;
+					unsigned n = offset + off;
+					for (size_t j=offset; j<n; j++) {
+						if (!std::isnan(v[j])) out[lyr]++;
+					}
+				}
+			}
+			for (size_t lyr=0; lyr<nlyr(); lyr++) {
+				out[lyr] = out[lyr] * ar;
+			}
+		}
+	}
+	readStop();
+	return(out);
+}
+
+
+
+//layer<value-area
+std::vector<std::vector<double>> SpatRaster::area_by_value(SpatOptions &opt) {
+
+	double m = source[0].srs.to_meter();
+	m = std::isnan(m) ? 1 : m;
+
+	if (m != 0) {
+		double ar = xres() * yres() * m * m;
+		std::vector<std::vector<double>> f = freq(true, false, 0, opt);
+		for (size_t i=0; i<f.size(); i++) {
+			size_t fs = f[i].size();
+			for (size_t j=fs/2; j<fs; j++) {
+				f[i][j] *= ar;
+			}
+		}
+		return f;
+	} else {
+		// to do
+		// combine freq and area to get area by latitudes
+	
+		std::vector<std::vector<double>> out(nlyr());
+		return out;
+	}
+}
+
+
+
+void do_flowdir(std::vector<double> &val, std::vector<double> const &d, size_t nrow, size_t ncol, double dx, double dy, unsigned seed) {
+
+	size_t n = nrow * ncol;
+	size_t add = val.size();
+	val.resize(add+n, NAN);
+
+	std::vector<double> r = {0, 0, 0, 0, 0, 0, 0, 0};
+	std::vector<double> p = {1, 2, 4, 8, 16, 32, 64, 128}; // pow(2, j)
+	double dxy = sqrt(dx * dx + dy * dy);
+
+	std::default_random_engine generator(seed);
+	std::uniform_int_distribution<> U(0, 1);
+
+	for (size_t i = ncol+1; i < (ncol * (nrow-1)-1); i++) {
+		if (!std::isnan(d[i])) {
+			r[0] = (d[i] - d[i+1]) / dx;
+			r[1] = (d[i] - d[i+1+ncol]) / dxy;
+			r[2] = (d[i] - d[i+ncol]) / dy;
+			r[3] = (d[i] - d[i-1+ncol]) / dxy;
+			r[4] = (d[i] - d[i-1]) / dx;
+			r[5] = (d[i] - d[i-1-ncol]) / dxy;
+			r[6] = (d[i] - d[i-ncol]) / dy;
+			r[7] = (d[i] - d[i+1-ncol]) / dxy;
+			// using the lowest neighbor, even if it is higher than the focal cell.
+			double dmin = r[0];
+			int k = 0;
+			for (size_t j=1; j<8; j++) {
+				if (r[j] > dmin) {
+					dmin = r[j];
+					k = j;
+				} else if (r[j] == dmin) {
+					if (U(generator)) {
+						dmin = r[j];
+						k = j;
+					}
+				}
+			}
+			val[i+add] = p[k];
+		}
+	}
+}
+
+
+void do_TRI(std::vector<double> &val, std::vector<double> const &d, size_t nrow, size_t ncol) {
+	size_t n = nrow * ncol;
+	size_t add = val.size();
+	val.resize(add+n, NAN);
+	for (size_t i = ncol+1; i < (ncol * (nrow-1)-1); i++) {
+		val[i+add] = (fabs(d[i-1-ncol]-d[i]) + fabs(d[i-1]-d[i]) + fabs(d[i-1+ncol]-d[i]) +  fabs(d[i-ncol]-d[i]) + fabs(d[i+ncol]-d[i]) +  fabs(d[i+1-ncol]-d[i]) + fabs(d[i+1]-d[i]) +  fabs(d[i+1+ncol]-d[i])) / 8;
+	}
+}
+
+void do_TPI(std::vector<double> &val, const std::vector<double> &d, size_t nrow, size_t ncol) {
+	size_t n = nrow * ncol;
+	size_t add = val.size();
+	val.resize(add+n, NAN);
+	for (size_t i = ncol+1; i < (ncol * (nrow-1)-1); i++) {
+		val[i+add] = d[i] - (d[i-1-ncol] + d[i-1] + d[i-1+ncol] + d[i-ncol]
+		+ d[i+ncol] + d[i+1-ncol] + d[i+1] + d[i+1+ncol]) / 8;
+	}
+}
+
+
+
+void do_roughness(std::vector<double> &val, const std::vector<double> &d, size_t nrow, size_t ncol) {
+	size_t n = nrow * ncol;
+	size_t add = val.size();
+	val.resize(add+n, NAN);
+	int incol = ncol;
+	int a[9] = { -1-incol, -1, -1+incol, -incol, 0, incol, 1-incol, 1, 1+incol };
+	double min, max, v;
+	for (size_t i = ncol+1; i < (ncol * (nrow-1)-1); i++) {
+		min = d[i + a[0]];
+		max = d[i + a[0]];
+		for (size_t j = 1; j < 9; j++) {
+			v = d[i + a[j]]; 
+			if (v > max) {
+				max = v;
+			} else if (v < min) {
+				min = v;
+			}
+		}
+		val[i+add] = max - min;
+	}
+}
+
+
+#ifndef M_PI
+#define M_PI (3.14159265358979323846)
+#endif
+
+
+
+
+void to_degrees(std::vector<double>& x, size_t start) { 
+	double adj = 180 / M_PI;
+	for (size_t i=start; i<x.size(); i++) {
+		x[i] *= adj;
+	}
+}
+
+
+void do_slope(std::vector<double> &val, const std::vector<double> &d, unsigned ngb, unsigned nrow, unsigned ncol, double dx, double dy, bool geo, std::vector<double> &gy, bool degrees) {
+
+	size_t n = nrow * ncol;
+	size_t add = val.size();
+	val.resize(add+n, NAN);
+
+	std::vector<double> ddx;
+	if (geo) {
+		ddx.resize(nrow);
+		for (size_t i=0; i<nrow; i++) {
+			ddx[i] = distHaversine(-dx, gy[i], dx, gy[i]) / 2 ;
+		}
+	} 
+	double zy, zx; 
+	
+	if (ngb == 4) {
+		if (geo) {
+			int q;
+			double xwi[2] = {-1,1};
+			double xw[2] = {0,0};
+			double yw[2] = {-1,1};
+
+			for (size_t i=0; i<2; i++) {
+				yw[i] = yw[i] / (2 * dy);
+			}		
+			for (size_t i = ncol; i < (ncol * (nrow-1)-1); i++) {
+				if (i % ncol == 0) {
+					q = i / ncol;
+					for (size_t k=0; k<2; k++) {
+						xw[k] = xwi[k] / (-2 * ddx[q]);
+					}
+				}
+				zx = d[i-1] * xw[0] + d[i+1] * xw[1];
+				zy = d[i-ncol] * yw[0] + d[i+ncol] * yw[1];
+				val[i+add] = atan(sqrt( pow(zy, 2) + pow(zx, 2) ));
+			}
+		} else {
+		
+			double xw[2] = {-1,1};
+			double yw[2] = {-1,1};
+			for (size_t i=0; i<2; i++) {
+				xw[i] /= -2 * dx;
+				yw[i] /=  2 * dy;
+			}
+			for (size_t i = ncol+1; i < (ncol * (nrow-1)-1); i++) {
+				zx = d[i-1] * xw[0] + d[i+1] * xw[1];
+				zy = d[i-ncol] * yw[0] + d[i+ncol] * yw[1];
+				val[i+add] =  atan( sqrt( pow(zy, 2) + pow(zx, 2)  ));
+			}
+		}	
+
+		
+	} else {
+	
+		if (geo) {
+			int q;
+			double xwi[6] = {-1,-2,-1,1,2,1};
+			double xw[6] = {0,0,0,0,0,0};
+			double yw[6] = {-1,1,-2,2,-1,1};
+		
+			for (size_t i=0; i<6; i++) {
+				yw[i] = yw[i] / (8 * dy);
+			}
+					
+			for (size_t i = ncol; i < (ncol * (nrow-1)-1); i++) {
+				if (i % ncol == 0) {
+					q = i / ncol;
+					for (size_t k=0; k<6; k++) {
+						xw[k] = xwi[k] / (8 * ddx[q]);
+					}
+				}
+				zx = d[i-1-ncol] * xw[0] + d[i-1] * xw[1] + d[i-1+ncol] * xw[2]
+						+ d[i+1-ncol] * xw[3] + d[i+1] * xw[4] + d[i+1+ncol] * xw[5];
+				zy = d[i-1-ncol] * yw[0] + d[i-1+ncol] * yw[1] + d[i-ncol] * yw[2] 
+						+ d[i+ncol] * yw[3] + d[i+1-ncol] * yw[4] + d[i+1+ncol] * yw[5];
+				val[i+add] = atan(sqrt( pow(zy, 2) + pow(zx, 2)  ));
+							
+			}
+		
+		} else {
+	
+			double xw[6] = {-1,-2,-1,1,2,1};
+			double yw[6] = {-1,1,-2,2,-1,1};
+			for (size_t i=0; i<6; i++) {
+				xw[i] /= -8 * dx;
+				yw[i] /= 8 * dy;
+			}
+			for (size_t i = ncol+1; i < (ncol * (nrow-1)-1); i++) {
+				zx = d[i-1-ncol] * xw[0] + d[i-1] * xw[1] + d[i-1+ncol] * xw[2]
+						+ d[i+1-ncol] * xw[3] + d[i+1] * xw[4] + d[i+1+ncol] * xw[5];
+				zy = d[i-1-ncol] * yw[0] + d[i-1+ncol] * yw[1] + d[i-ncol] * yw[2] 
+						+ d[i+ncol] * yw[3] + d[i+1-ncol] * yw[4] + d[i+1+ncol] * yw[5];
+				val[i+add] = atan(sqrt( pow(zy, 2) + pow(zx, 2) ));
+			}
+		}
+	} 
+
+	if (degrees) {
+		to_degrees(val, add);
+	} 
+}
+
+
+double dmod(double x, double n) {
+	return(x - n * std::floor(x/n));
+}
+
+
+
+void do_aspect(std::vector<double> &val, const std::vector<double> &d, unsigned ngb, unsigned nrow, unsigned ncol, double dx, double dy, bool geo, std::vector<double> &gy, bool degrees) {
+
+	size_t n = nrow * ncol;
+	std::vector<double> ddx;
+	if (geo) {
+		ddx.resize(nrow);
+		for (size_t i=0; i<nrow; i++) {
+			ddx[i] = distHaversine(-dx, gy[i], dx, gy[i]) / 2 ;
+		}
+	} 
+	double zy, zx; 
+	size_t add = val.size();
+	val.resize(add+n, NAN);
+	
+	//double const pi2 = M_PI / 2;
+	double const twoPI = 2 * M_PI;
+	double const halfPI = M_PI / 2;
+	
+	if (ngb == 4) {
+		if (geo) {
+			int q;
+			double xwi[2] = {-1,1};
+			double xw[2] = {0,0};
+			double yw[2] = {-1,1};
+		
+			for (size_t i=0; i<2; i++) {
+				yw[i] = yw[i] / (2 * dy);
+			}			
+			for (size_t i = ncol; i < (ncol * (nrow-1)-1); i++) {
+				if (i % ncol == 0) {
+					q = i / ncol;
+					for (size_t k=0; k<2; k++) {
+						xw[k] = xwi[k] / (-2 * ddx[q]);
+					}
+				}
+				zx = d[i-1] * xw[0] + d[i+1] * xw[1];
+				zy = d[i-ncol] * yw[0] + d[i+ncol] * yw[1];
+				zx = atan2(zy, zx);
+				val[i+add] = dmod( halfPI - zx, twoPI);
+			}
+		} else {
+		
+			double xw[2] = {-1,1};
+			double yw[2] = {-1,1};
+			for (size_t i=0; i<2; i++) {
+				xw[i] = xw[i] / (-2 * dx);
+				yw[i] = yw[i] / (2 * dy);
+			}
+			for (size_t i = ncol+1; i < (ncol * (nrow-1)-1); i++) {
+				zx = d[i-1] * xw[0] + d[i+1] * xw[1];
+				zy = d[i-ncol] * yw[0] + d[i+ncol] * yw[1];
+				zx = atan2(zy, zx);
+				val[i+add] = dmod( halfPI - zx, twoPI);
+			}
+		} 
+	} else {
+		
+		if (geo) {
+			int q;
+			double xwi[6] = {-1,-2,-1,1,2,1};
+			double xw[6] = {0,0,0,0,0,0};
+			double yw[6] = {-1,1,-2,2,-1,1};
+			
+			for (size_t i=0; i<6; i++) {
+				yw[i] = yw[i] / (8 * dy);
+			}
+						
+			for (size_t i = ncol+1; i < (ncol * (nrow-1)-1); i++) {
+				if (i % ncol == 0) {
+					q = i / ncol;
+					for (size_t k=0; k<6; k++) {
+						xw[k] = xwi[k] / (-8 * ddx[q]);
+					}
+				}
+				zx = d[i-1-ncol] * xw[0] + d[i-1] * xw[1] + d[i-1+ncol] * xw[2]
+						+ d[i+1-ncol] * xw[3] + d[i+1] * xw[4] + d[i+1+ncol] * xw[5];
+				zy = d[i-1-ncol] * yw[0] + d[i-1+ncol] * yw[1] + d[i-ncol] * yw[2] 
+						+ d[i+ncol] * yw[3] + d[i+1-ncol] * yw[4] + d[i+1+ncol] * yw[5];
+				zx = atan2(zy, zx);
+				val[i+add] = dmod( halfPI - zx, twoPI);
+			}
+		
+		} else {
+	
+			double xw[6] = {-1,-2,-1,1,2,1};
+			double yw[6] = {-1,1,-2,2,-1,1};
+			for (size_t i=0; i<6; i++) {
+				xw[i] /= -8 * dx;
+				yw[i] /= 8 * dy;
+			}
+			for (size_t i = ncol+1; i < (ncol * (nrow-1)-1); i++) {
+				zx = d[i-1-ncol] * xw[0] + d[i-1] * xw[1] + d[i-1+ncol] * xw[2]
+						+ d[i+1-ncol] * xw[3] + d[i+1] * xw[4] + d[i+1+ncol] * xw[5];
+				zy = d[i-1-ncol] * yw[0] + d[i-1+ncol] * yw[1] + d[i-ncol] * yw[2] 
+						+ d[i+ncol] * yw[3] + d[i+1-ncol] * yw[4] + d[i+1+ncol] * yw[5];
+				zx = atan2(zy, zx);
+				val[i+add] = dmod( halfPI - zx, twoPI);
+			}
+			
+		}
+	}
+
+	if (degrees) {
+		to_degrees(val, add);
+	}
+}
+
+
+SpatRaster SpatRaster::terrain(std::vector<std::string> v, unsigned neighbors, bool degrees, unsigned seed, SpatOptions &opt) {
+
+//aspect, flowdir, TPI, TRI, slope, roughness
+	std::sort(v.begin(), v.end());
+	v.erase(std::unique(v.begin(), v.end()), v.end());
+
+	SpatRaster out = geometry(v.size());
+	bool slope = false, aspect = false, rough=false, tpi=false, tri=false, flow=false;
+	for (size_t i=0; i<v.size(); i++) {
+		if (v[i] == "slope") {
+			slope=true;
+		} else if (v[i] == "aspect") {
+			aspect=true;
+		} else if (v[i] == "roughness") {
+			rough=true;
+		} else if (v[i] == "TPI") {
+			tpi=true;
+		} else if (v[i] == "TRI") {
+			tri=true;
+		} else if (v[i] == "flowdir") {
+			flow=true;
+		} else {
+			out.setError("unknown option: " + v[i]);
+			return out;
+		}
+	}
+	out.setNames(v);
+	if (nlyr() > 1) {
+		out.setError("terrain needs a single layer object");
+		return out;
+	}
+	if ((neighbors != 4) && (neighbors != 8)) {
+		out.setError("neighbors should be 4 or 8");
+		return out;	
+	}
+	bool lonlat = is_lonlat();
+	double yr = yres();
+
+	if (!readStart()) {
+		out.setError(getError());
+		return(out);
+	}
+  	if (!out.writeStart(opt)) {
+		readStop();
+		return out;
+	}
+	std::vector<double> y;
+	for (size_t i = 0; i < out.bs.n; i++) {
+		std::vector<double> d = readValues(out.bs.row[i], out.bs.nrows[i], 0, ncol());
+		if (lonlat && (aspect || slope)) {
+			std::vector<int_64> rows(out.bs.nrows[i]);
+			std::iota(rows.begin(), rows.end(), out.bs.row[i]);
+			y = yFromRow(rows);
+			yr = distHaversine(0, 0, 0, yr);
+		}
+		std::vector<double> val;
+		if (aspect) {
+			do_aspect(val, d, neighbors, out.bs.nrows[i], ncol(), xres(), yr, lonlat, y, degrees);
+		}
+		if (slope) {
+			do_slope(val, d, neighbors, out.bs.nrows[i], ncol(), xres(), yr, lonlat, y, degrees);
+		}
+		if (rough) {
+			do_roughness(val, d, out.bs.nrows[i], ncol());
+		}
+		if (tpi) {
+			do_TPI(val, d, out.bs.nrows[i], ncol());
+		}
+		if (tri) {
+			do_TRI(val, d, out.bs.nrows[i], ncol());
+		}
+		if (flow) {
+			double dx = xres();
+			double dy = yres();
+			if (lonlat) {
+				double yhalf = yFromRow((size_t) nrow()/2);
+				dx = distHaversine(0, yhalf, dx, yhalf);
+				dy = distHaversine(0, 0, 0, dy);
+			}
+			do_flowdir(val, d, out.bs.nrows[i], ncol(), dx, dy, seed);
+		}
+		
+		if (!out.writeValues(val, out.bs.row[i], out.bs.nrows[i], 0, ncol())) return out;
+	}
+	out.writeStop();
+	readStop();
+	return out; 
+}

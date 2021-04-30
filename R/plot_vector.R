@@ -80,6 +80,7 @@ setMethod("dots", signature(x="SpatVector"),
 		gg <- g[[i]]
 		for (j in 1:length(gg)) {
 			a <- gg[[j]]
+			if (any(is.na(a))) next
 			if (any(a[,5] > 0)) {
 				a <- split(a, a[,5]) 
 				a <- lapply(a, function(i) rbind(i, NA))
@@ -447,7 +448,7 @@ setMethod("plot", signature(x="SpatVector", y="character"),
 
 		for (i in 1:length(y)) {
 			if (length(y) > 1) {
-				newrow <- (i %% nrnc[2]) == 1 
+				newrow <- (nrnc[2] == 1) | ((i %% nrnc[2]) == 1)
 				lastrow <- i > (prod(nrnc) - nrnc[2])
 				if (lastrow) {
 					if (newrow) {

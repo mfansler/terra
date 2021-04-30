@@ -27,6 +27,7 @@
 
 #include "crs.h"
 #include "gdalio.h"
+#include "recycle.h"
 
 
 //#include <vector>
@@ -35,18 +36,31 @@
 
 SpatVector SpatRaster::dense_extent() {
 
-	std::vector<int_64> rows(nrow());
-	std::iota(rows.begin(), rows.end(), 0);
-	std::vector<int_64> cols(ncol());
-	std::iota(cols.begin(), cols.end(), 0);
+	std::vector<int_64> rows, cols;
+	if (nrow() < 51) {
+		rows.resize(nrow());
+		std::iota(rows.begin(), rows.end(), 0);
+	} else {
+		rows = seq_steps((int_64) 0, (int_64) nrow(), 50);
+		rows[rows.size()-1] = nrow()-1;
+	} 
+	if (ncol() < 20) {
+		cols.resize(nrow());
+		std::iota(cols.begin(), cols.end(), 0);
+	} else {
+		cols = seq_steps((int_64) 0, (int_64) ncol(), 50);
+		cols[cols.size()-1] = ncol()-1;
+	} 
+	
 
 	std::vector<double> xcol = xFromCol(cols) ;
 	std::vector<double> yrow = yFromRow(rows) ;
 
-	std::vector<double> y0(ncol(), yFromRow(nrow()-1));
-	std::vector<double> y1(ncol(), yFromRow(0));
-	std::vector<double> x0(nrow(), xFromCol(0));
-	std::vector<double> x1(nrow(), xFromCol(ncol()-1));
+	SpatExtent e = getExtent();
+	std::vector<double> y0(cols.size(), e.ymin);
+	std::vector<double> y1(cols.size(), e.ymax);
+	std::vector<double> x0(rows.size(), e.xmin);
+	std::vector<double> x1(rows.size(), e.xmax);
 
 	std::vector<double> x = x0;
 	std::vector<double> y = yrow;
@@ -309,9 +323,11 @@ bool gdal_warper(GDALDatasetH &hSrcDS, GDALDatasetH &hDstDS, std::vector<unsigne
 		hBand = GDALGetRasterBand(hSrcDS, srcbands[i]+1);
 		double naflag = GDALGetRasterNoDataValue(hBand, &hasNA);
 		if (verbose && i == 0) {
+#ifdef useRcpp
 			std::string hna = hasNA ? "true" : "false";
 			Rcpp::Rcout << "hasNA         : " << hna << std::endl;
 			Rcpp::Rcout << "NA flag       : " << naflag << std::endl;
+#endif
 		}
 		if (hasNA) {
 			psWarpOptions->padfSrcNoDataReal[i] = naflag;
@@ -361,6 +377,14 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 
 	SpatRaster out = x.geometry(nlyr());
 	out.setNames(getNames());
+	if (method == "near") {
+		out.source[0].hasColors = hasColors();
+		out.source[0].cols = getColors();
+		out.source[0].hasCategories = hasCategories();
+		out.source[0].cats = getCategories();
+		out.rgb = rgb;
+		out.rgblyrs = rgblyrs;		
+	}
 
 	if (!is_valid_warp_method(method)) {
 		out.setError("not a valid warp method");
@@ -634,26 +658,35 @@ SpatRaster SpatRaster::rectify(std::string method, SpatRaster aoi, unsigned usea
 
 
 
-SpatVector SpatRaster::polygonize(bool trunc, SpatOptions &opt) {
+SpatVector SpatRaster::polygonize(bool trunc, bool values, bool narm, bool aggregate, SpatOptions &opt) {
 
 	SpatVector out;
 	SpatOptions topt(opt);
+
+	if (nlyr() > 1) {
+		out.addWarning("only the first layer is polygonized when 'dissolve=TRUE'");
+	}
 	SpatRaster tmp = subset({0}, topt);
 
-	// to vectorize all values that are not NAN (or Inf)
-	// we could skip this if we know that min(tmp) > 0
-	bool usemask;
-	std::vector<double> rmin = tmp.range_min();
+	bool usemask = false;
 	SpatRaster mask;
-	if (std::isnan(rmin[0]) || rmin[0] > 0) {
-		usemask = false;
-	} else {
+	if (narm) {
 		usemask = true;
-		mask = tmp.isfinite(opt);	
+		mask = tmp.isfinite(topt);	
+	} else if (trunc) {
+		tmp = tmp.math("trunc", topt);
+		trunc = false;
+	} else if (tmp.sources_from_file()) {
+		// for NAN and INT files. Should have a check for that
+		//tmp = tmp.arith(0, "+", false, topt);
+		// riskier  
+		tmp.readAll();
 	}
+	
+	
 	GDALDatasetH rstDS;
 	if (! tmp.sources_from_file() ) {
-		if (!tmp.open_gdal(rstDS, 0, opt)) {
+		if (!tmp.open_gdal(rstDS, 0, topt)) {
 			out.setError("cannot open dataset");
 			return out;
 		}
@@ -673,9 +706,9 @@ SpatVector SpatRaster::polygonize(bool trunc, SpatOptions &opt) {
 	srcDS = srcDS->FromHandle(rstDS);
 #endif
 
-	GDALDatasetH rstMask;
 	GDALDataset *maskDS=NULL;
 	if (usemask) {
+		GDALDatasetH rstMask;
 		if (! mask.sources_from_file() ) {
 			if (!mask.open_gdal(rstMask, 0, opt)) {
 				out.setError("cannot open dataset");
@@ -738,8 +771,9 @@ SpatVector SpatRaster::polygonize(bool trunc, SpatOptions &opt) {
 
 	GDALRasterBand  *poBand;
 	poBand = srcDS->GetRasterBand(1);
+
 	//int hasNA=1;
-	//poBand->GetNoDataValue(&hasNA);
+	//double naflag = poBand->GetNoDataValue(&hasNA);
 
 	CPLErr err;
 	if (usemask) {
@@ -753,9 +787,9 @@ SpatVector SpatRaster::polygonize(bool trunc, SpatOptions &opt) {
 		GDALClose(maskDS);
 	} else {
 		if (trunc) {
-			err = GDALPolygonize(poBand, poBand, poLayer, 0, NULL, NULL, NULL);
+			err = GDALPolygonize(poBand, NULL, poLayer, 0, NULL, NULL, NULL);
 		} else {
-			err = GDALFPolygonize(poBand, poBand, poLayer, 0, NULL, NULL, NULL);
+			err = GDALFPolygonize(poBand, NULL, poLayer, 0, NULL, NULL, NULL);
 		}
 	}
 	if (err == 4) {
@@ -767,22 +801,17 @@ SpatVector SpatRaster::polygonize(bool trunc, SpatOptions &opt) {
 	out.read_ogr(poDS);
 	GDALClose(poDS);
 
-	out = out.aggregate(name, false);
+	if (aggregate && (out.nrow() > 0)) {
+		out = out.aggregate(name, false);
+	}
 
+	if (!values) {
+		out.df = SpatDataFrame();
+	} 
 	return out;
 }
 
-/*
-#else
-
-SpatVector SpatRaster::polygonize(bool trunc, SpatOptions &opt) {
-	SpatVector out;
-	out.setError("not supported with your version of GDAL");
-	return out;
-}
-
-#endif
-*/	
+	
 	
 SpatRaster SpatRaster::rgb2col(size_t r,  size_t g, size_t b, SpatOptions &opt) {	
 	SpatRaster out = geometry(1);
@@ -897,9 +926,9 @@ SpatRaster SpatRaster::rgb2col(size_t r,  size_t g, size_t b, SpatOptions &opt) 
 	return out;
 }
 
-/*	
-SpatRaster SpatRaster::sievefilter(int threshold, int connections, SpatOptions &opt) {	
 	
+SpatRaster SpatRaster::sievefilter(int threshold, int connections, SpatOptions &opt) {	
+	SpatRaster out;
 	std::string filename = opt.get_filename();
 	std::string driver;
 	if (filename == "") {
@@ -924,42 +953,48 @@ SpatRaster SpatRaster::sievefilter(int threshold, int connections, SpatOptions &
 		}	
 	}
 
+	SpatOptions ops(opt);
+	GDALDatasetH hSrcDS, hDstDS;
+	if (!open_gdal(hSrcDS, 0, ops)) {
+		out.setError("cannot open input dataset");
+		return out;
+	}
+	
 	GDALDriverH hDriver = GDALGetDriverByName( driver.c_str() );
 	if ( hDriver == NULL ) {
-		msg = "empty driver";
-		return false;
+		out.setError("empty driver");
+		return out;
 	}
-	GDALDatasetH hDS;
-	if (filename != "") {
-		writeRaster(opt);
-		hDS = GDALOpen(filename.c_str(), GA_ReadOnly);
-	} else {
-		hDS = GDALCreate( hDriver, "", nPixels, nLines, 1, eDT, NULL );
-	} 
-	if ( hDstDS == NULL ) {
-		msg = "cannot create output dataset";
-		return false;	
-	}
-
 	if (!out.create_gdalDS(hDstDS, filename, driver, true, 0, opt)) {
 		out.setError("cannot create new dataset");
 		GDALClose(hSrcDS);
 		return out;
 	}
-	
-	GDALRasterBandH hTarget = GDALGetRasterBand(hDstDS, 1);
-	GDALSetRasterColorInterpretation(hTarget, GCI_PaletteIndex);
-	if (GDALDitherRGB2PCT(R, G, B, hTarget, hColorTable, NULL, NULL) != CE_None) {
-		out.setError("cannot set color table");
+
+	GDALRasterBandH hSrcBand = GDALGetRasterBand(hSrcDS, 1);
+	GDALRasterBandH hTargetBand = GDALGetRasterBand(hDstDS, 1);
+
+	if (!GDALSieveFilter(hSrcBand, NULL, hTargetBand, threshold, connections, NULL, NULL, NULL)) {
+		out.setError("sieve failed");
 		GDALClose(hSrcDS);
 		GDALClose(hDstDS);
-		return out;		
-	}
+		return out;
+	}	
+	
 	GDALClose(hSrcDS);
-
-	CPLErr err = GDALSieveFilter(GDALRasterBandH hSrcBand, GDALRasterBandH hMaskBand, NULL, threshold, connections, NULL, NULL, NULL)
+	if (driver == "MEM") {
+		if (!out.from_gdalMEM(hDstDS, false, true)) {
+			out.setError("conversion failed (mem)");
+			GDALClose(hDstDS);
+			return out;
+		}
+	} else {
+		out = SpatRaster(filename, {-1}, {""});
+	}
+	GDALClose(hDstDS);
+	return out;
 }
-*/
+
 
 /*	
 SpatRaster SpatRaster::fillna(int threshold, int connections, SpatOptions &opt) {	

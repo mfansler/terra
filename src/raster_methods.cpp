@@ -18,11 +18,301 @@
 //#include <vector>
 #include "spatRasterMultiple.h"
 #include "recycle.h"
-#include "vecmathfun.h"
+#include "vecmath.h"
 //#include "vecmath.h"
 #include <cmath>
 #include "math_utils.h"
 #include "file_utils.h"
+#include "string_utils.h"
+
+
+/*
+std::vector<double> flat(std::vector<std::vector<double>> v) {
+    unsigned s1 = v.size();
+    unsigned s2 = v[0].size();
+
+	std::size_t s = s1 * s2;
+    std::vector<double> result(s);
+    for (size_t i=0; i<s1; i++) {
+		for (size_t j=0; j<s2; j++) {
+			result[i*s2+j] = v[i][j];
+		}
+	}
+	return result;
+}
+*/
+
+bool SpatRaster::get_aggregate_dims(std::vector<unsigned> &fact, std::string &message ) {
+
+	unsigned fs = fact.size();
+	if ((fs > 3) | (fs == 0)) {
+		message = "argument 'fact' should have length 1, 2, or 3";
+		return false;
+	}
+	auto min_value = *std::min_element(fact.begin(),fact.end());
+	if (min_value < 1) {
+		message = "values in argument 'fact' should be > 0";
+		return false;
+	}
+	auto max_value = *std::max_element(fact.begin(),fact.end());
+	if (max_value == 1) {
+		message = "all values in argument 'fact' are 1, nothing to do";
+		return false;
+	}
+
+	fact.resize(6);
+	if (fs == 1) {
+		fact[1] = fact[0];
+		fact[2] = 1;
+	} else if (fs == 2) {
+		fact[2] = 1;
+	}
+	// int dy = dim[0], dx = dim[1], dz = dim[2];
+	fact[0] = fact[0] < 1 ? 1 : fact[0];
+	fact[0] = fact[0] > nrow() ? nrow() : fact[0];
+	fact[1] = fact[1] < 1 ? 1 : fact[1];
+	fact[1] = fact[1] > ncol() ? ncol() : fact[1];
+	fact[2] = std::max(unsigned(1), std::min(fact[2], nlyr()));
+	// new dimensions: rows, cols, lays
+	fact[3] = std::ceil(double(nrow()) / fact[0]);
+	fact[4] = std::ceil(double(ncol()) / fact[1]);
+	fact[5] = std::ceil(double(nlyr()) / fact[2]);
+	return true;
+}
+
+
+std::vector<unsigned> SpatRaster::get_aggregate_dims2(std::vector<unsigned> fact) {
+	// for use with R
+	std::string message = "";
+	get_aggregate_dims(fact, message);
+	return(fact);
+}
+
+
+std::vector<std::vector<double>> SpatRaster::get_aggregates(std::vector<double> &in, size_t nr, std::vector<unsigned> dim) {
+
+// dim 0, 1, 2, are the aggregations factors dy, dx, dz
+// and 3, 4, 5 are the new nrow, ncol, nlyr
+
+// adjust for chunk
+	//dim[3] = std::ceil(double(nr) / dim[0]);
+	//size_t bpC = dim[3];
+	size_t bpC = std::ceil(double(nr) / dim[0]);
+
+	size_t dy = dim[0], dx = dim[1], dz = dim[2];
+	size_t bpR = dim[4];
+	size_t bpL = bpR * bpC;
+
+	// new number of layers
+	size_t newNL = dim[5];
+
+	// new number of rows, adjusted for additional (expansion) rows
+	size_t adjnr = bpC * dy;
+
+	// number of aggregates
+	size_t nblocks = (bpR * bpC * newNL);
+	// cells per aggregate
+	size_t blockcells = dx * dy * dz;
+
+	// output: each row is a block
+	std::vector< std::vector<double> > a(nblocks, std::vector<double>(blockcells, std::numeric_limits<double>::quiet_NaN()));
+
+    size_t nc = ncol();
+    // size_t ncells = ncell();
+    size_t ncells = nr * nc;
+    size_t nl = nlyr();
+    size_t lstart, rstart, cstart, lmax, rmax, cmax, f, lj, cell;
+
+	for (size_t b = 0; b < nblocks; b++) {
+		lstart = dz * (b / bpL);
+		rstart = (dy * (b / bpR)) % adjnr;
+		cstart = dx * (b % bpR);
+
+		lmax = std::min(nl, (lstart + dz));
+		rmax = std::min(nr, (rstart + dy));  // nrow -> nr
+		cmax = std::min(nc, (cstart + dx));
+
+		f = 0;
+		for (size_t j = lstart; j < lmax; j++) {
+			lj = j * ncells;
+			for (size_t r = rstart; r < rmax; r++) {
+				cell = lj + r * nc;
+				for (size_t c = cstart; c < cmax; c++) {
+					a[b][f] = in[cell + c];
+					f++;
+				}
+			}
+		}
+	}
+	return(a);
+}
+
+
+std::vector<double> compute_aggregates(std::vector<double> &in, size_t nr, size_t nc, size_t nl, std::vector<unsigned> dim, std::function<double(std::vector<double>&, bool)> fun, bool narm) {
+
+// dim 0, 1, 2, are the aggregations factors dy, dx, dz
+// and 3, 4, 5 are the new nrow, ncol, nlyr
+
+	size_t dy = dim[0], dx = dim[1], dz = dim[2];
+//	size_t bpC = dim[3];
+// adjust for chunk
+	size_t bpC = std::ceil(double(nr) / dim[0]);
+	size_t bpR = dim[4];
+	size_t bpL = bpR * bpC;
+
+	// new number of layers
+	size_t newNL = dim[5];
+
+	// new number of rows, adjusted for additional (expansion) rows
+	size_t adjnr = bpC * dy;
+
+	// number of aggregates
+	size_t nblocks = (bpR * bpC * newNL);
+	// cells per aggregate
+	size_t blockcells = dx * dy * dz;
+
+	// output: each row is a block
+	std::vector<double> out(nblocks, NAN);
+
+//    size_t nl = nlyr();
+//    size_t nc = ncol();
+    size_t ncells = nr * nc;
+    size_t lstart, rstart, cstart, lmax, rmax, cmax, f, lj, cell;
+
+	for (size_t b = 0; b < nblocks; b++) {
+		lstart = dz * (b / bpL);
+		rstart = (dy * (b / bpR)) % adjnr;
+		cstart = dx * (b % bpR);
+
+		lmax = std::min(nl, (lstart + dz));
+		rmax = std::min(nr, (rstart + dy));  // nrow -> nr
+		cmax = std::min(nc, (cstart + dx));
+
+		f = 0;
+		std::vector<double> a(blockcells, NAN);
+		for (size_t j = lstart; j < lmax; j++) {
+			lj = j * ncells;
+			for (size_t r = rstart; r < rmax; r++) {
+				cell = lj + r * nc;
+				for (size_t c = cstart; c < cmax; c++) {
+					a[f] = in[cell + c];
+					f++;
+				}
+			}
+		}
+		out[b] = fun(a, narm);
+	}
+	return(out);
+}
+
+
+
+SpatRaster SpatRaster::aggregate(std::vector<unsigned> fact, std::string fun, bool narm, SpatOptions &opt) {
+
+	SpatRaster out;
+	std::string message = "";
+	bool success = get_aggregate_dims(fact, message);
+
+// fact 0, 1, 2, are the aggregation factors dy, dx, dz
+// and  3, 4, 5 are the new nrow, ncol, nlyr
+	if (!success) {
+		out.setError(message);
+		return out;
+	}
+
+	SpatExtent extent = getExtent();
+	double xmax = extent.xmin + fact[4] * fact[1] * xres();
+	double ymin = extent.ymax - fact[3] * fact[0] * yres();
+	SpatExtent e = SpatExtent(extent.xmin, xmax, ymin, extent.ymax);
+	out = SpatRaster(fact[3], fact[4], fact[5], e, "");
+	out.source[0].srs = source[0].srs;
+	// there is much more. categories, time. should use geometry and then
+	// set extent and row col
+	if (fact[5] == nlyr()) {
+		out.setNames(getNames());
+	}
+
+	if (!source[0].hasValues) { 
+		return out; 
+	}
+
+	if (!haveFun(fun)) {
+		out.setError("unknown function argument");
+		return out;
+	}
+
+/*
+	size_t ifun = std::distance(f.begin(), it);
+	std::string gstring = "";
+	if (ifun > 0) {
+		std::vector<std::string> gf {"average", "min", "max", "med", "mode"};
+		gstring = gf[ifun-1]; 
+	}
+
+#ifdef useGDAL 
+#if GDAL_VERSION_MAJOR >= 3
+	if (gstring != "") {
+		out = warper(out, "", gstring, opt);
+		return out;
+	}
+#endif
+#endif
+*/
+
+	std::function<double(std::vector<double>&, bool)> agFun = getFun(fun);
+
+	unsigned outnc = out.ncol();
+
+	//BlockSize bs = getBlockSize(4, opt.get_memfrac());
+	BlockSize bs = getBlockSize(opt);
+	//bs.n = floor(nrow() / fact[0]); # ambiguous on solaris
+	bs.n = std::floor(static_cast <double> (nrow() / fact[0]));
+
+	bs.nrows = std::vector<size_t>(bs.n, fact[0]);
+	bs.row.resize(bs.n);
+	for (size_t i =0; i<bs.n; i++) {
+		bs.row[i] = i * fact[0];
+	}
+	size_t lastrow = bs.row[bs.n - 1] + bs.nrows[bs.n - 1] + 1;
+	if (lastrow < nrow()) {
+		bs.row.push_back(lastrow);
+		bs.nrows.push_back(std::min(bs.nrows[bs.n-1], nrow()-lastrow));
+		bs.n += 1;
+	}
+	if (!readStart()) {
+		out.setError(getError());
+		return(out);
+	}
+
+	opt.steps = bs.n;
+	opt.minrows = fact[0];
+
+	if (fun == "modal") {
+		if (nlyr() == out.nlyr()) {
+			out.source[0].hasColors = hasColors();
+			out.source[0].cols = getColors();
+			out.source[0].hasCategories = hasCategories();
+			out.source[0].cats = getCategories();
+		}
+	}
+	
+	if (!out.writeStart(opt)) {
+		readStop();
+		return out;
+	}
+
+	size_t nc = ncol();
+	for (size_t i = 0; i < bs.n; i++) {
+        std::vector<double> vin = readValues(bs.row[i], bs.nrows[i], 0, nc);
+		std::vector<double> v  = compute_aggregates(vin, bs.nrows[i], nc, nlyr(), fact, agFun, narm);
+		if (!out.writeValues(v, i, 1, 0, outnc)) return out;
+	}
+	out.writeStop();
+	readStop();
+	return(out);
+}
+
+
 
 
 SpatRaster SpatRaster::weighted_mean(SpatRaster w, bool narm, SpatOptions &opt) {
@@ -604,7 +894,8 @@ SpatRaster SpatRaster::transpose(SpatOptions &opt) {
 
 
 
-SpatRaster SpatRaster::trim(unsigned padding, SpatOptions &opt) {
+
+SpatRaster SpatRaster::trim(double value, unsigned padding, SpatOptions &opt) {
 
 	long nrl = nrow() * nlyr();
 	long ncl = ncol() * nlyr();
@@ -618,60 +909,105 @@ SpatRaster SpatRaster::trim(unsigned padding, SpatOptions &opt) {
 		out.setError(getError());
 		return(out);
 	}
-	for (r=0; r<nr; r++) {
-		v = readValues(r, 1, 0, ncol());
-		if (std::count_if( v.begin(), v.end(), [](double d) { return std::isnan(d); } ) < ncl) {
-			rowfound = true;
-			break;
+
+
+	size_t firstrow, lastrow, firstcol, lastcol;
+	if (std::isnan(value)) {
+		for (r=0; r<nr; r++) {
+			v = readValues(r, 1, 0, ncol());
+			if (std::count_if( v.begin(), v.end(), [](double d) { return std::isnan(d); } ) < ncl) {
+				rowfound = true;
+				break;
+			}
 		}
-	}
 
-	if (!rowfound) { 
-		SpatRaster out;
-		out.setError("only NA values found");
-		return out;
-	}
-
-	size_t firstrow = std::max(r - padding, size_t(0));
-
-	for (r=nrow()-1; r>firstrow; r--) {
-		v = readValues(r, 1, 0, ncol());
-		if (std::count_if(v.begin(), v.end(), [](double d) { return std::isnan(d); } ) < ncl) {
-			break;
+		if (!rowfound) { 
+			SpatRaster out;
+			out.setError("only cells with NA found");
+			return out;
 		}
-	}
 
-	size_t lastrow = std::max(std::min(r+padding, nrow()), size_t(0));
+		firstrow = std::max(r - padding, size_t(0));
 
-	size_t tmp;
-	if (lastrow < firstrow) {
-		tmp = firstrow;
-		firstrow = lastrow;
-		lastrow = tmp;
-	}
-	size_t c;
-	for (c=0; c<ncol(); c++) {
-		v = readValues(0, nrow(), c, 1);
-		if (std::count_if( v.begin(), v.end(), [](double d) { return std::isnan(d); } ) < nrl) {
-			break;
+		for (r=nrow()-1; r>firstrow; r--) {
+			v = readValues(r, 1, 0, ncol());
+			if (std::count_if(v.begin(), v.end(), [](double d) { return std::isnan(d); } ) < ncl) {
+				break;
+			}
 		}
-	}
-	size_t firstcol = std::min(std::max(c-padding, size_t(0)), ncol());
 
+		lastrow = std::max(std::min(r+padding, nrow()), size_t(0));
 
-	for (c=ncol()-1; c>firstcol; c--) {
-		v = readValues(0, nrow(), c, 1);
-		if (std::count_if( v.begin(), v.end(), [](double d) { return std::isnan(d); } ) < nrl) {
-			break;
+		if (lastrow < firstrow) {
+			std::swap(firstrow, lastrow);
 		}
+		size_t c;
+		for (c=0; c<ncol(); c++) {
+			v = readValues(0, nrow(), c, 1);
+			if (std::count_if( v.begin(), v.end(), [](double d) { return std::isnan(d); } ) < nrl) {
+				break;
+			}
+		}
+		firstcol = std::min(std::max(c-padding, size_t(0)), ncol());
+
+		for (c=ncol()-1; c>firstcol; c--) {
+			v = readValues(0, nrow(), c, 1);
+			if (std::count_if( v.begin(), v.end(), [](double d) { return std::isnan(d); } ) < nrl) {
+				break;
+			}
+		}
+		lastcol = std::max(std::min(c+padding, ncol()), size_t(0));
+	} else {	
+		for (r=0; r<nr; r++) {
+			v = readValues(r, 1, 0, ncol());
+			if (std::count( v.begin(), v.end(), value) < ncl) {
+				rowfound = true;
+				break;
+			}
+		}
+
+		if (!rowfound) { 
+			SpatRaster out;
+			out.setError("only cells with value: " + std::to_string(value) + " found");
+			return out;
+		}
+
+		firstrow = std::max(r - padding, size_t(0));
+
+		for (r=nrow()-1; r>firstrow; r--) {
+			v = readValues(r, 1, 0, ncol());
+			if (std::count( v.begin(), v.end(), value) < ncl) {
+				break;
+			}
+		}
+
+		lastrow = std::max(std::min(r+padding, nrow()), size_t(0));
+
+		if (lastrow < firstrow) {
+			std::swap(firstrow, lastrow);
+		}
+		size_t c;
+		for (c=0; c<ncol(); c++) {
+			v = readValues(0, nrow(), c, 1);
+			if (std::count( v.begin(), v.end(), value) < nrl) {
+				break;
+			}
+		}
+		firstcol = std::min(std::max(c-padding, size_t(0)), ncol());
+
+
+		for (c=ncol()-1; c>firstcol; c--) {
+			v = readValues(0, nrow(), c, 1);
+			if (std::count( v.begin(), v.end(), value) < nrl) {
+				break;
+			}
+		}
+		lastcol = std::max(std::min(c+padding, ncol()), size_t(0));
+
 	}
-	size_t lastcol = std::max(std::min(c+padding, ncol()), size_t(0));
 	readStop();
-
 	if (lastcol < firstcol) {
-		tmp = firstcol;
-		firstcol = lastcol;
-		lastcol = tmp;
+		std::swap(firstcol, lastcol);
 	}
 
 	std::vector<double> res = resolution();
@@ -815,7 +1151,7 @@ SpatRaster SpatRaster::selRange(SpatRaster x, int z, int recycleby, SpatOptions 
 }
 
 
-SpatRaster SpatRaster::rapply(SpatRaster x, double first, double last, std::string fun, bool narm, SpatOptions &opt) {
+SpatRaster SpatRaster::rapply(SpatRaster x, double first, double last, std::string fun, bool clamp, bool narm, SpatOptions &opt) {
 
 	SpatRaster out = geometry(1);
 	if (!haveFun(fun)) {
@@ -873,7 +1209,7 @@ SpatRaster SpatRaster::rapply(SpatRaster x, double first, double last, std::stri
 		for (size_t j=0; j<ncell; j++) {
 			if (std::isnan(idx[j])) continue;
 			if (sval) {
-				end   = idx[j] - 1;	
+				end = idx[j] - 1;	
 			} else if (eval) {
 				start = idx[j] - 1;
 			} else {
@@ -881,6 +1217,10 @@ SpatRaster SpatRaster::rapply(SpatRaster x, double first, double last, std::stri
 				double dend = idx[j+ncell]-1;
 				if (std::isnan(dend)) continue;
 				end   = dend;
+			}
+			if (clamp) {
+				start = start < 0 ? 0 : start; 
+				end = end > nl ? nl : end; 
 			}
 			if ((start <= end) && (end <= nl) && (start >= 0)) {
 				std::vector<double> se;
@@ -901,7 +1241,7 @@ SpatRaster SpatRaster::rapply(SpatRaster x, double first, double last, std::stri
 }
 
 
-std::vector<std::vector<double>> SpatRaster::rappvals(SpatRaster x, double first, double last, bool all, double fill, size_t startrow, size_t nrows) {
+std::vector<std::vector<double>> SpatRaster::rappvals(SpatRaster x, double first, double last, bool clamp, bool all, double fill, size_t startrow, size_t nrows) {
 
 	std::vector<std::vector<double>> r;
 
@@ -954,13 +1294,19 @@ std::vector<std::vector<double>> SpatRaster::rappvals(SpatRaster x, double first
 			continue;
 		}
 		if (sval) {
-			end   = idx[j] - 1;	
+			//end = idx[j] - 1;	
+			end = idx[j];	
 		} else if (eval) {
 			start = idx[j] - 1;
 		} else {
 			start = idx[j] - 1;
-			double dend = idx[j+ncell]-1;
+			double dend = idx[j+ncell];
+			//double dend = idx[j+ncell]-1;
 			end = std::isnan(dend) ? -99 : (int) dend;
+		}
+		if (clamp) {
+			start = start < 0 ? 0 : start; 
+			end = end > nl ? nl : end; 
 		}
 
 		if (all) {
@@ -1712,25 +2058,26 @@ SpatRaster SpatRaster::flip(bool vertical, SpatOptions &opt) {
 		readStop();
 		return out;
 	}
-	std::vector<double> b;
 	unsigned nc = ncol();
 	unsigned nl = nlyr();
 
 	if (vertical) {
 		for (size_t i=0; i < out.bs.n; i++) {
+			std::vector<double> b;
 			size_t ii = out.bs.n - 1 - i;
 			std::vector<double> a = readBlock(out.bs, ii);
-			unsigned lyrrows = nl * out.bs.nrows[ii];
-			for (size_t j=0; j < lyrrows; j++) {
-				unsigned start = (lyrrows - 1 - j) * nc;
-				unsigned end = start + nc;
-				b.insert(b.end(), a.begin()+start, a.begin()+end);
+			for (size_t j=0; j < out.nlyr(); j++) {
+				size_t offset = j * out.bs.nrows[ii] * nc;
+				for (size_t k=0; k < out.bs.nrows[ii]; k++) {
+					unsigned start = offset + (out.bs.nrows[ii] - 1 - k) * nc;
+					b.insert(b.end(), a.begin()+start, a.begin()+start+nc);
+				}
 			}
 			if (!out.writeValues(b, out.bs.row[i], out.bs.nrows[i], 0, ncol())) return out;
-			b.resize(0);
 		}
 	} else {
 		for (size_t i=0; i < out.bs.n; i++) {
+			std::vector<double> b;
 			std::vector<double> a = readBlock(out.bs, i);
 			unsigned lyrrows = nl * out.bs.nrows[i];
 			for (size_t j=0; j < lyrrows; j++) {
@@ -1913,30 +2260,50 @@ SpatRaster SpatRasterCollection::mosaic(std::string fun, SpatOptions &opt) {
 	hvals[0] = ds[0].hasValues();
 	SpatExtent e = ds[0].getExtent();
 	unsigned nl = ds[0].nlyr();
+	std::vector<bool> resample(n, false);
 	for (size_t i=1; i<n; i++) {
 									//  lyrs, crs, warncrs, ext, rowcol, res
 		if (!ds[0].compare_geom(ds[i], false, false, false, false, false, true)) {
 			out.setError(ds[0].msg.error);
 			return(out);
-		}
+		}		
 		e.unite(ds[i].getExtent());
 		hvals[i] = ds[i].hasValues();
 		nl = std::max(nl, ds[i].nlyr());
 	}
 	out = ds[0].geometry(nl, false);
-	out.setExtent(e, true);
+	out.setExtent(e, true, "");
 	
 	for (int i=(n-1); i>=0; i--) {
-		 if (!hvals[i]) erase(i);
+		if (!hvals[i]) {
+			erase(i);
+		}
 	}
+	
 	n = size();
-
 	if (size() == 0) {
 		return out;
 	}	
-	
+
 	SpatExtent eout = out.getExtent();
 	double hyr = out.yres()/2;
+
+	std::string warn = "";
+	for (size_t i=0; i<n; i++) {
+		SpatOptions topt(opt);
+		if(!ds[i].shared_basegeom(out, 0.1, true)) {
+			SpatRaster temp = out.crop(ds[i].getExtent(), "near", topt);
+			std::vector<bool> hascats = ds[i].hasCategories();
+			std::string method = hascats[0] ? "near" : "bilinear";
+			ds[i] = ds[i].warper(temp, "", method, false, topt);
+			if (ds[i].hasError()) {
+				out.setError(ds[i].getError());
+				return out;
+			}
+			warn = "rasters did not align and were resampled";
+		}
+	}
+	if (warn != "") out.addWarning(warn);
 	
  	if (!out.writeStart(opt)) { return out; }
 	SpatOptions sopt(opt);
@@ -1949,9 +2316,15 @@ SpatRaster SpatRasterCollection::mosaic(std::string fun, SpatOptions &opt) {
 		for (size_t j=0; j<n; j++) {
 			e = ds[j].getExtent();
 			e.intersect(eout);
-			if ( e.valid() ) {
+			if ( e.valid_notequal() ) {
+				//Rcpp::Rcout << "e : " << e.ymin << " " << e.ymax << std::endl; 
+				//Rcpp::Rcout << "eo: " << eout.ymin << " " << eout.ymax << std::endl; 
 				r = ds[j].crop(eout, "near", sopt);
+				//SpatExtent ec = r.getExtent();
+				//Rcpp::Rcout << "ec: " << ec.ymin << " " << ec.ymax << std::endl; 
 				r = r.extend(eout, sopt);
+				//SpatExtent ee = r.getExtent();
+				//Rcpp::Rcout << "ee: " << ee.ymin << " " << ee.ymax << std::endl; 
 				if (!s.push_back(r, "", "", "", false)) {
 					out.setError("internal error: " + s.getError());
 					out.writeStop();
@@ -2300,7 +2673,7 @@ void reclass_vector(std::vector<double> &v, std::vector<std::vector<double>> rcl
 					} else {
 						for (size_t j=1; j<nr; j++) {
 							if (v[i] <= rc[j]) {
-								v[i] = j;
+								v[i] = j-1;
 								break;
 							}
 						}
@@ -2315,7 +2688,7 @@ void reclass_vector(std::vector<double> &v, std::vector<std::vector<double>> rcl
 					} else {
 						for (size_t j=1; j<nr; j++) {
 							if (v[i] <= rc[j]) {
-								v[i] = j;
+								v[i] = j-1;
 								break;
 							}
 						}
@@ -2334,7 +2707,7 @@ void reclass_vector(std::vector<double> &v, std::vector<std::vector<double>> rcl
 					} else {
 						for (size_t j=1; j<nr; j++) {
 							if (v[i] < rc[j]) {
-								v[i] = j;
+								v[i] = j-1;
 								break;
 							}
 						}
@@ -2349,7 +2722,7 @@ void reclass_vector(std::vector<double> &v, std::vector<std::vector<double>> rcl
 					} else {
 						for (size_t j=1; j<nr; j++) {
 							if (v[i] < rc[j]) {
-								v[i] = j;
+								v[i] = j-1;
 								break;
 							}
 						}
@@ -2589,9 +2962,36 @@ SpatRaster SpatRaster::reclassify(std::vector<std::vector<double>> rcl, unsigned
 		out.setError("matrix must have 1, 2 or 3 columns, and at least one row");
 		return out;
 	}
-	if (nc == 1 && nr == 1) {
-		out.setError("cannot classify with a single number");
-		return out;
+	if (nc == 1) {
+		if (nr == 1) {
+			int breaks = rcl[0][0];
+			if (breaks < 2) {
+				out.setError("cannot classify with a single number that is smaller than 2");
+				return out;
+			}
+			std::vector<bool> hr = hasRange();
+			bool hasR = true;
+			for (size_t i=0; i<hr.size(); i++) {
+				if (!hr[i]) hasR = false;
+			}
+			if (!hasR) setRange();
+			std::vector<double> mn = range_min();
+			std::vector<double> mx = range_max();
+			double mnv = vmin(mn, true);
+			double mxv = vmax(mx, true);
+			rcl[0] = seq_steps(mnv, mxv, breaks);
+		}
+		
+		if (rcl[0].size() < 256) {
+			std::vector<std::string> s;
+			for (size_t i=1; i<rcl[0].size(); i++) {
+				s.push_back(double_to_string(rcl[0][i-1]) + " - " + double_to_string(rcl[0][i]));
+			}
+			for (size_t i=0; i<out.nlyr(); i++) {
+				out.setLabels(i, s);
+			}
+		}
+		nr = rcl[0].size();
 	}
 	for (size_t i=0; i<nc; i++) {
 		if (rcl[i].size() != nr) {
@@ -2876,4 +3276,6 @@ SpatRaster SpatRaster::clumps(int directions, bool zeroAsNA, SpatOptions &opt) {
 	}
 	return out;
 }
+
+
 
