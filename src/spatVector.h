@@ -24,7 +24,7 @@
 #endif
 
 
-enum SpatGeomType { points, multipoints, lines, polygons, unknown };
+enum SpatGeomType { points, lines, polygons, unknown };
 
 
 class SpatHole {
@@ -157,7 +157,8 @@ class SpatVector {
 		void setGeometry(std::string type, std::vector<unsigned> gid, std::vector<unsigned> part, std::vector<double> x, std::vector<double> y, std::vector<unsigned> hole);
 		void setPointsGeometry(std::vector<double> x, std::vector<double> y);
 
-		std::vector<double> area();
+		std::vector<double> area(std::string unit, bool transform, std::vector<double> mask);
+
 		std::vector<double> length();
 		std::vector<double> distance(SpatVector x, bool pairwise);
 		std::vector<double> distance(bool sequential);
@@ -238,11 +239,20 @@ class SpatVector {
 		std::vector<std::string> wkt();
 		std::vector<std::string> wkb();
 		std::vector<std::string> hex();
+		SpatVector from_hex(std::vector<std::string> x, std::string srs);
+		SpatVector make_nodes();
+		SpatVector polygonize();
+		SpatVector normalize();
+		SpatVector boundary();
+		SpatVector line_merge();
+		SpatVector simplify(double tolerance, bool preserveTopology);
+		SpatVector shared_paths();
 
 		SpatVector allerretour();
 		SpatVectorCollection bienvenue();
 		SpatVector aggregate(bool dissolve);
 		SpatVector aggregate(std::string field, bool dissolve);
+
         SpatVector buffer(std::vector<double> d, unsigned quadsegs);
 		SpatVector point_buffer(std::vector<double>	 d, unsigned quadsegs);
 
@@ -251,18 +261,20 @@ class SpatVector {
 		SpatVector crop(SpatVector e);
 		SpatVector voronoi(SpatVector e, double tolerance, int onlyEdges);		
 		SpatVector delauny(double tolerance, int onlyEdges);		
-		SpatVector convexhull();
+		SpatVector convexhull(std::string by="");
 		SpatVector intersect(SpatVector v);
 		SpatVector unite(SpatVector v);
 		SpatVector unite();
 		SpatVector erase(SpatVector v);
 		SpatVector cover(SpatVector v, bool identity);
+		SpatVectorCollection split(std::string field);
 		SpatVector symdif(SpatVector v);
 		std::vector<int> relate(SpatVector v, std::string relation);
 		std::vector<int> relate(std::string relation, bool symmetrical);
 		std::vector<int> relateFirst(SpatVector v, std::string relation);
 		std::vector<double> geos_distance(SpatVector v, bool parallel);
 		std::vector<double> geos_distance(bool sequential);
+
 
 		SpatVector nearest_point(SpatVector v, bool parallel);
 		SpatVector nearest_point();

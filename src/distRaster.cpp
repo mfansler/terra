@@ -50,7 +50,7 @@ SpatRaster SpatRaster::distance(SpatVector p, SpatOptions &opt) {
 	if (gtype != "points") {
 		SpatOptions ops;
 		std::vector<double> feats(p.size(), 1) ;
-		x = rasterize(p, "", feats, NAN, false, false, false, false, ops);
+		x = rasterize(p, "", feats, NAN, false, false, false, false, false, ops);
 		if (gtype == "polygons") {
 			std::string etype = "inner";
 			x = x.edges(false, etype, 8, 0, ops);
@@ -633,7 +633,7 @@ std::vector<double> do_edge(std::vector<double> &d, size_t nrow, size_t ncol, bo
 				} // first cell for last row
 				size_t cell = (nrows-1) * ncol;
 				size_t outcell = (nrows-1-rowoff) * ncol;
-				if (!std::isnan(d[cell])) {
+				if (!std::isnasn(d[cell])) {
 					val[outcell] = 0;
 					for (size_t k=0; k < hcdirs; k++) {		
 						if ( std::isnan(d[cell + afr[k] * ncol + afc[k] ])) {
@@ -1308,28 +1308,87 @@ double area_plane(const SpatGeom &geom) {
 }
 
 
-std::vector<double> SpatVector::area() {
+std::vector<double> SpatVector::area(std::string unit, bool transform, std::vector<double> mask) {
 
 	size_t s = size();
+	size_t m = mask.size();
+	bool domask = false;
+	if (m > 0) {
+		if (s != mask.size()) {
+			setError("mask size is not correct");
+			return {NAN};
+		} else {
+			domask = true;
+		}
+	}
+
+
 	std::vector<double> ar;
 	ar.reserve(s);
 
-	double m = srs.to_meter();
-	m = std::isnan(m) ? 1 : m;
-	// could_be_lonlat() no more
-	if (m == 0) {
-		struct geod_geodesic g;
-		double a = 6378137;
-		double f = 1 / 298.257223563;
-		geod_init(&g, a, f);
-		for (size_t i=0; i<s; i++) {
-			ar.push_back(area_lonlat(g, geoms[i]));
+	std::vector<std::string> ss {"m", "km", "ha"};
+	if (std::find(ss.begin(), ss.end(), unit) == ss.end()) {
+		setError("invalid unit");
+		return {NAN};
+	}
+	double adj = unit == "m" ? 1 : unit == "km" ? 1000000 : 10000;
+	
+
+	if (srs.wkt == "") {
+		addWarning("unknown CRS. Results can be wrong");
+		if (domask) {
+			for (size_t i=0; i<s; i++) {
+				if (std::isnan(mask[i])) {
+					ar.push_back(NAN);
+				} else {
+					ar.push_back(area_plane(geoms[i]));
+				}
+			}
+		} else {	
+			for (size_t i=0; i<s; i++) {
+				ar.push_back(area_plane(geoms[i]));
+			}
 		}
 	} else {
-		m = m * m;
-		for (size_t i=0; i<s; i++) {
-			ar.push_back(area_plane(geoms[i]) * m);
+		if (!srs.is_lonlat()) {
+			if (transform) {
+				SpatVector v = project("EPSG:4326");
+				if (v.hasError()) {
+					setError(v.getError());
+					return {NAN};
+				}
+				return v.area(unit, false, {});
+			} else {
+				double m = srs.to_meter();
+				adj *= std::isnan(m) ? 1 : m * m;	
+				for (size_t i=0; i<s; i++) {
+					ar.push_back(area_plane(geoms[i]));
+				}
+			}
+		} else {
+
+			struct geod_geodesic g;
+			double a = 6378137;
+			double f = 1 / 298.257223563;
+			geod_init(&g, a, f);
+			if (domask) {
+				for (size_t i=0; i<s; i++) {
+					if (std::isnan(mask[i])) {
+						ar.push_back(NAN);
+					} else {
+						ar.push_back(area_lonlat(g, geoms[i]));
+					}
+				}
+			} else {
+				for (size_t i=0; i<s; i++) {
+					ar.push_back(area_lonlat(g, geoms[i]));
+				}
+			}
 		}
+	}
+	
+	if (adj != 1) {
+		for (double& i : ar) i /= adj;
 	}
 	return ar;
 }
@@ -1407,28 +1466,45 @@ std::vector<double> SpatVector::length() {
 	return r;
 }
 
-SpatRaster SpatRaster::rst_area(bool adjust, bool mask, SpatOptions &opt) {
-
-	double m = source[0].srs.to_meter();
-	m = std::isnan(m) ? 1 : m;
+SpatRaster SpatRaster::rst_area(bool mask, std::string unit, bool transform, SpatOptions &opt) {
 
 	SpatRaster out = geometry(1);
+	if (out.source[0].srs.wkt == "") {
+		out.setError("empty CRS");
+		return out;
+	}
+
+	std::vector<std::string> f {"m", "km", "ha"};
+	if (std::find(f.begin(), f.end(), unit) == f.end()) {
+		out.setError("invalid unit");	
+		return out;
+	}
+
 	if (opt.names.size() == 0) {
 		opt.names = {"area"};
 	}
+	bool lonlat = is_lonlat();
+
 	SpatOptions mopt = opt;
 	if (mask) {
 		if (!hasValues()) {
-			out.addWarning("cannot use a SpatRaster with no values as mask");
 			mask = false;
 		} else {
-			opt = SpatOptions(opt);
+			if (lonlat) {
+				opt = SpatOptions(opt);			
+			} else {
+				if (!readStart()) {
+					out.setError(getError());
+					return(out);
+				}
+			}
 		}
 	}
 	
   	if (!out.writeStart(opt)) { return out; }
 
-	if (m == 0) { //lonlat
+
+	if (lonlat) { 
 		SpatExtent extent = getExtent();
 		SpatExtent e = {extent.xmin, extent.xmin+xres(), extent.ymin, extent.ymax};
 		SpatOptions optint(opt);
@@ -1439,7 +1515,7 @@ SpatRaster SpatRaster::rst_area(bool adjust, bool mask, SpatOptions &opt) {
 			out.setError(p.getError());
 			return out;
 		}
-		std::vector<double> a = p.area();
+		std::vector<double> a = p.area(unit, true, {});
 		size_t nc = ncol();
 		for (size_t i = 0; i < out.bs.n; i++) {
 			std::vector<double> v;
@@ -1450,44 +1526,69 @@ SpatRaster SpatRaster::rst_area(bool adjust, bool mask, SpatOptions &opt) {
 			if (!out.writeValues(v, out.bs.row[i], out.bs.nrows[i], 0, ncol())) return out;
 		}
 
-	} else if (adjust) {
-		SpatExtent extent = getExtent();
-		double dy = yres() / 2;
-		SpatOptions popt(opt);
-		for (size_t i = 0; i < out.bs.n; i++) {
-			double ymax = yFromRow(out.bs.row[i]) + dy;
-			double ymin = yFromRow(out.bs.row[i] + out.bs.nrows[i]-1) - dy;
-			SpatExtent e = {extent.xmin, extent.xmax, ymin, ymax};
-			SpatRaster onechunk = out.crop(e, "near", popt);
-			SpatVector p = onechunk.as_polygons(false, false, false, false, popt);
-			//std::vector<double> cells(onechunk.ncell());
-			//std::iota (cells.begin(), cells.end(), 0);
-			//onechunk.setValues(cells);
-			//SpatVector p = onechunk.as_polygons(false, true, false, false, popt);
-			p = p.project("EPSG:4326");
-			std::vector<double> v = p.area();
-			if (!out.writeValues(v, out.bs.row[i], out.bs.nrows[i], 0, ncol())) return out;
-		}
 	} else {
-		double a = xres() * yres() * m * m;
-		for (size_t i = 0; i < out.bs.n; i++) {
-			std::vector<double> v(out.bs.nrows[i]*ncol(), a);
-			if (!out.writeValues(v, out.bs.row[i], out.bs.nrows[i], 0, ncol())) return out;
+		if (transform) {
+			SpatExtent extent = getExtent();
+			double dy = yres() / 2;
+			SpatOptions popt(opt);
+			for (size_t i = 0; i < out.bs.n; i++) {
+				double ymax = yFromRow(out.bs.row[i]) + dy;
+				double ymin = yFromRow(out.bs.row[i] + out.bs.nrows[i]-1) - dy;
+				SpatExtent e = {extent.xmin, extent.xmax, ymin, ymax};
+				SpatRaster onechunk = out.crop(e, "near", popt);
+				SpatVector p = onechunk.as_polygons(false, false, false, false, popt);
+				//std::vector<double> cells(onechunk.ncell());
+				//std::iota (cells.begin(), cells.end(), 0);
+				//onechunk.setValues(cells);
+				//SpatVector p = onechunk.as_polygons(false, true, false, false, popt);
+				std::vector<double> v;
+				if (mask) {
+					std::vector<double> m = readValues(bs.row[i], bs.nrows[i], 0, ncol());
+					v = p.area(unit, true, m);
+				} else {
+					v = p.area(unit, true, {});
+				}
+				if (!out.writeValues(v, out.bs.row[i], out.bs.nrows[i], 0, ncol())) return out;
+			}
+		} else {
+			double u = unit == "m" ? 1 : unit == "km" ? 1000000 : 10000;
+			double m = out.source[0].srs.to_meter();
+			double a = std::isnan(m) ? 1 : m;
+			a *= xres() * yres() / u;
+			for (size_t i = 0; i < out.bs.n; i++) {
+				std::vector<double> v(out.bs.nrows[i]*ncol(), a);
+				if (!out.writeValues(v, out.bs.row[i], out.bs.nrows[i], 0, ncol())) return out;
+			}
 		}
-	}
+	} 
 	out.writeStop();
 	if (mask) {
-		out = out.mask(*this, false, NAN, NAN, opt);
+		if (lonlat) {
+			out = out.mask(*this, false, NAN, NAN, opt);
+		} else {
+			readStop();
+		}
 	}
 	return(out);
 }
 
 
-std::vector<double> SpatRaster::sum_area(bool adjust, SpatOptions &opt) {
+std::vector<double> SpatRaster::sum_area(std::string unit, bool transform, SpatOptions &opt) {
+
+	if (source[0].srs.wkt == "") {
+		setError("empty CRS");
+		return {NAN};
+	}
+
+	std::vector<std::string> f {"m", "km", "ha"};
+	if (std::find(f.begin(), f.end(), unit) == f.end()) {
+		setError("invalid unit");	
+		return {NAN};
+	}
 
 	std::vector<double> out(nlyr(), 0);
 
-	if (adjust) { //avoid very large polygon objects
+	if (transform) { //avoid very large polygon objects
 		opt.set_memfrac(std::max(0.1, opt.get_memfrac()/2));
 	}
 	BlockSize bs = getBlockSize(opt);
@@ -1496,17 +1597,14 @@ std::vector<double> SpatRaster::sum_area(bool adjust, SpatOptions &opt) {
 		return(err);
 	}
 
-	double m = source[0].srs.to_meter();
-	m = std::isnan(m) ? 1 : m;
-
-	if (m == 0) {
+	if (is_lonlat()) {
 		SpatRaster x = geometry(1);
 		SpatExtent extent = x.getExtent();
 		SpatExtent e = {extent.xmin, extent.xmin+xres(), extent.ymin, extent.ymax};
 		SpatOptions opt;
 		SpatRaster onecol = x.crop(e, "near", opt);
 		SpatVector p = onecol.as_polygons(false, false, false, false, opt);
-		std::vector<double> ar = p.area();
+		std::vector<double> ar = p.area(unit, true, {});
 		size_t nc = ncol();
 		if (!hasValues()) {
 			out.resize(1);
@@ -1530,7 +1628,7 @@ std::vector<double> SpatRaster::sum_area(bool adjust, SpatOptions &opt) {
 				}
 			}
 		}
-	} else if (adjust) {
+	} else if (transform) {
 		SpatRaster x = geometry(1);
 		SpatExtent extent = x.getExtent();
 		double dy = x.yres() / 2;
@@ -1544,7 +1642,7 @@ std::vector<double> SpatRaster::sum_area(bool adjust, SpatOptions &opt) {
 				SpatRaster onechunk = x.crop(e, "near", popt);
 				SpatVector p = onechunk.as_polygons(false, false, false, false, popt);
 				p = p.project("EPSG:4326");
-				std::vector<double> v = p.area();
+				std::vector<double> v = p.area(unit, true, 	{});
 				out[0] += accumulate(v.begin(), v.end(), 0);
 			}
 		} else {
@@ -1555,7 +1653,7 @@ std::vector<double> SpatRaster::sum_area(bool adjust, SpatOptions &opt) {
 				SpatRaster onechunk = x.crop(e, "near", popt);
 				SpatVector p = onechunk.as_polygons(false, false, false, false, popt);
 				p = p.project("EPSG:4326");
-				std::vector<double> par = p.area();
+				std::vector<double> par = p.area(unit, true, {});
 			
 				std::vector<double> v = readValues(bs.row[i], bs.nrows[i], 0, ncol());
 				unsigned off = bs.nrows[i] * ncol() ;
@@ -1572,7 +1670,10 @@ std::vector<double> SpatRaster::sum_area(bool adjust, SpatOptions &opt) {
 		
 		}
 	} else {
-		double ar = xres() * yres() * m * m;
+		double adj = unit == "m" ? 1 : unit == "km" ? 1000000 : 10000;
+		double m = source[0].srs.to_meter();
+		m = std::isnan(m) ? 1 : m;
+		double ar = xres() * yres() * m * m / adj;
 		if (!hasValues()) {
 			out.resize(1);
 			out[0] = ncell() * ar;

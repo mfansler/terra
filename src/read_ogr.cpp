@@ -345,15 +345,15 @@ bool SpatVector::read_ogr(GDALDataset *poDS) {
 		//SpatPart p(0,0);
 		while( (poFeature = poLayer->GetNextFeature()) != NULL ) {
 			OGRGeometry *poGeometry = poFeature->GetGeometryRef();
-			if (poGeometry != NULL) {
-				
+			if (poGeometry != NULL) {				
 				if ( wkbFlatten(poGeometry->getGeometryType()) == wkbPoint ) {
 					g = getPointGeom(poGeometry);			
 				} else {
 					g = getMultiPointGeom(poGeometry);			
 				}
 			} else {
-				SpatPart p(NAN, NAN);
+				SpatPart p;
+				g = SpatGeom();
 				g.addPart(p);
 			}
 			addGeom(g);
@@ -368,6 +368,10 @@ bool SpatVector::read_ogr(GDALDataset *poDS) {
 				} else {
 					g = getMultiLinesGeom(poGeometry);
 				}
+			} else {
+				SpatPart p;
+				g = SpatGeom();
+				g.addPart(p);
 			}
 			addGeom(g);
 			OGRFeature::DestroyFeature( poFeature );
@@ -375,15 +379,16 @@ bool SpatVector::read_ogr(GDALDataset *poDS) {
 	} else if ( wkbgeom == wkbPolygon || wkbgeom == wkbMultiPolygon) {
 		while ( (poFeature = poLayer->GetNextFeature()) != NULL ) {
 			OGRGeometry *poGeometry = poFeature->GetGeometryRef();
-			wkbgeom = wkbFlatten(poGeometry ->getGeometryType());
 			if (poGeometry != NULL) {
+				wkbgeom = wkbFlatten(poGeometry->getGeometryType());
 				if (wkbgeom == wkbPolygon) {
 					g = getPolygonsGeom(poGeometry);
 				} else if (wkbgeom == wkbMultiPolygon ) {
 					g = getMultiPolygonsGeom(poGeometry);
-				} else {
-				}
-			} 
+				} 
+			} else {
+				g = SpatGeom();
+			}
 			addGeom(g);
 			OGRFeature::DestroyFeature( poFeature );
 		}

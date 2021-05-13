@@ -2,13 +2,13 @@
 
 \docType{methods}
 
+\alias{size}
 \alias{length}
 \alias{ncol}
 \alias{nrow}
 \alias{ncell}
 \alias{nlyr}
 \alias{nsrc}
-\alias{size}
 \alias{dim}
 \alias{res}
 \alias{xres}
@@ -17,6 +17,7 @@
 \alias{nrow<-}
 \alias{nlyr<-}
 \alias{res<-}
+\alias{size,SpatRaster-method}
 \alias{ncell,ANY-method}
 \alias{nrow,SpatRaster-method}
 \alias{ncol,SpatRaster-method}
@@ -33,13 +34,10 @@
 \alias{ncell,SpatRaster-method}
 \alias{ncell,SpatRasterDataset-method}
 \alias{length,SpatRasterDataset-method}
-\alias{size,SpatRaster-method}
-\alias{size,SpatRasterDataset-method}
 \alias{dim,SpatRaster-method}
 \alias{dim,SpatRasterDataset-method}
 \alias{dim<-,SpatRaster-method}
 \alias{dim,SpatVector-method}
-\alias{size,SpatVector-method}
 
 \alias{res,SpatRasterDataset-method}
 \alias{res,SpatRaster-method}
@@ -57,9 +55,11 @@
 \title{Dimensions of a SpatRaster or SpatVector and related objects}
 
 \description{
-Get the number of rows (\code{nrow}), columns (\code{ncol}), cells (\code{ncell}), layers (\code{nlyr}), sources (\code{nsrc}) or the spatial resolution of a SpatRaster; (\code{length}) returns the number of sub-datasets in a SpatRasterDataset or SpatVectorCollection.
+Get the number of rows (\code{nrow}), columns (\code{ncol}), cells (\code{ncell}), layers (\code{nlyr}), sources (\code{nsrc}), the size \code{size} (\code{nlyr(x)*ncell(x)}), or spatial resolution of a SpatRaster.
 
-The \code{size} of a SpatRaster \code{x} is \code{ncell(x) * nlyr(x)}. For a SpatVector \code{length(x)} is the same as \code{nrow(x)}.
+\code{length} returns the number of sub-datasets in a SpatRasterDataset or SpatVectorCollection.
+
+For a SpatVector \code{length(x)} is the same as \code{nrow(x)}.
 
 You can also set the number of rows or columns or layers. When setting dimensions, all cell values are dropped.
 }
@@ -72,8 +72,6 @@ You can also set the number of rows or columns or layers. When setting dimension
 \S4method{nlyr}{SpatRaster}(x)
 
 \S4method{ncell}{SpatRaster}(x)
-
-\S4method{size}{SpatRaster}(x)
 
 \S4method{nsrc}{SpatRaster}(x)
 
@@ -94,8 +92,6 @@ You can also set the number of rows or columns or layers. When setting dimension
 \S4method{ncol}{SpatVector}(x)
 
 \S4method{nrow}{SpatVector}(x)
-
-\S4method{size}{SpatVector}(x)
 
 \S4method{length}{SpatVector}(x)
 
@@ -121,13 +117,11 @@ nlyr(r)
 dim(r)
 nsrc(r)
 ncell(r)
-size(r)
 
 rr  <- c(r,r)
 nlyr(rr)
 nsrc(rr)
 ncell(rr)
-size(rr)
 
 nrow(r) <- 18
 ncol(r) <- 36

@@ -262,6 +262,14 @@ RCPP_MODULE(spat){
 		.method("wkt", &SpatVector::wkt, "")
 		.method("wkb", &SpatVector::wkb, "")
 		.method("hex", &SpatVector::hex, "")
+		.method("from_hex", &SpatVector::from_hex, "")
+		.method("make_nodes", &SpatVector::make_nodes, "")
+		.method("boundary", &SpatVector::boundary, "")
+		.method("polygonize", &SpatVector::polygonize, "")
+		.method("normalize", &SpatVector::normalize, "")
+		.method("line_merge", &SpatVector::line_merge, "")
+		.method("simplify", &SpatVector::simplify, "")
+		.method("shared_paths", &SpatVector::shared_paths, "")
 
 		.field_readonly("df", &SpatVector::df )
 
@@ -364,6 +372,8 @@ RCPP_MODULE(spat){
 		.method("near_between", (SpatVector (SpatVector::*)(SpatVector, bool))( &SpatVector::nearest_point))
 		.method("near_within", (SpatVector (SpatVector::*)())( &SpatVector::nearest_point))
 		//.method("knearest", &SpatVector::knearest)
+
+		.method("split", &SpatVector::split)
 		
 		.method("sample", &SpatVector::sample)
 		.method("sampleGeom", &SpatVector::sample_geom)
@@ -542,6 +552,7 @@ RCPP_MODULE(spat){
 		.method("writeRaster", &SpatRaster::writeRaster, "writeRaster")
 		.method("canProcessInMemory", &SpatRaster::canProcessInMemory, "canProcessInMemory")
 		.method("chunkSize", &SpatRaster::chunkSize, "chunkSize")
+		.method("to_memory", &SpatRaster::to_memory, "to_memory")
 
 		.method("adjacent", &SpatRaster::adjacent, "adjacent")
 		.method("aggregate", &SpatRaster::aggregate, "aggregate")
@@ -556,6 +567,7 @@ RCPP_MODULE(spat){
 		.method("area_by_value", &SpatRaster::area_by_value, "area_by_value")
 
 		.method("as_points", &SpatRaster::as_points, "as_points")
+		.method("as_lines", &SpatRaster::as_lines, "as_lines")
 		.method("as_polygons", &SpatRaster::as_polygons, "as_polygons")
 		.method("polygonize", &SpatRaster::polygonize, "polygonize")
 

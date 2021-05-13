@@ -431,6 +431,7 @@ SpatVector vect_from_geos(std::vector<GeomPtr> &geoms , GEOSContextHandle_t hGEO
 bool pointsFromGeom(GEOSContextHandle_t hGEOSCtxt, const GEOSGeometry* part, 
 const unsigned i, const unsigned j, std::vector<double> &x, std::vector<double> &y, 
 std::vector<unsigned> &gid, std::vector<unsigned> &gp, std::vector<unsigned> &hole, std::string &msg) {
+
 	const GEOSCoordSequence* crds = GEOSGeom_getCoordSeq_r(hGEOSCtxt, part); 		
 	int npts = -1;
 	npts = GEOSGetNumCoordinates_r(hGEOSCtxt, part);
@@ -453,6 +454,7 @@ std::vector<unsigned> &gid, std::vector<unsigned> &gp, std::vector<unsigned> &ho
 	}
 	return true;
 }
+
 
 
 bool polysFromGeom(GEOSContextHandle_t hGEOSCtxt, const GEOSGeometry* part, 
@@ -507,7 +509,17 @@ std::vector<unsigned> &gid, std::vector<unsigned> &gp, std::vector<unsigned> &ho
 }
 
 
-SpatVectorCollection coll_from_geos(std::vector<GeomPtr> &geoms , GEOSContextHandle_t hGEOSCtxt) {
+void emptyGeom(const unsigned i, std::vector<double> &x, std::vector<double> &y, 
+std::vector<unsigned> &gid, std::vector<unsigned> &gp, std::vector<unsigned> &hole) {
+	x.push_back(NAN);
+	y.push_back(NAN);
+	gid.push_back(i);			
+	gp.push_back(0);
+	hole.push_back(0);
+}
+
+
+SpatVectorCollection coll_from_geos(std::vector<GeomPtr> &geoms, GEOSContextHandle_t hGEOSCtxt, bool keepnull=true, bool increment = true) {
 
 	SpatVectorCollection out;
 
@@ -519,67 +531,107 @@ SpatVectorCollection coll_from_geos(std::vector<GeomPtr> &geoms , GEOSContextHan
 
 	std::string msg;
 	//Rcpp::Rcout << ng << " geoms" << std::endl;
+	
+	size_t f = 0;
 	for(size_t i = 0; i < ng; i++) {
 		const GEOSGeometry* g = geoms[i].get();
 		char* geostype = GEOSGeomType_r(hGEOSCtxt, g);
 		std::string gt = geostype;
 		free(geostype);
+		//Rcpp::Rcout << gt << std::endl;
+	
 		size_t np = GEOSGetNumGeometries_r(hGEOSCtxt, g);
 
-
 		if (gt == "Point" || gt == "MultiPoint") {
+			if (np == 0 && keepnull) {
+				emptyGeom(f, pt_x, pt_y, pt_gid, pt_gp, pt_hole);
+			}
 			for(size_t j = 0; j<np; j++) {
 				const GEOSGeometry* part = GEOSGetGeometryN_r(hGEOSCtxt, g, j);
-
-				if (!pointsFromGeom(hGEOSCtxt, part, i, j, pt_x, pt_y, pt_gid, pt_gp, pt_hole, msg)) {
+				if (!pointsFromGeom(hGEOSCtxt, part, f, j, pt_x, pt_y, pt_gid, pt_gp, pt_hole, msg)) {
 					out.setError(msg);
 					return out;
 				}
 			}	
+			f++;
 		} else if (gt == "LineString" || gt == "MultiLineString") {
+			if (np == 0 && keepnull) {
+				emptyGeom(f, ln_x, ln_y, ln_gid, ln_gp, ln_hole);
+			}
 			for(size_t j = 0; j<np; j++) {
 				const GEOSGeometry* part = GEOSGetGeometryN_r(hGEOSCtxt, g, j);
-				if (!pointsFromGeom(hGEOSCtxt, part, i, j, ln_x, ln_y, ln_gid, ln_gp, ln_hole, msg)) {
+				if (!pointsFromGeom(hGEOSCtxt, part, f, j, ln_x, ln_y, ln_gid, ln_gp, ln_hole, msg)) {
 					out.setError(msg);
 					return out;
 				}
 			}
+			f++;
 		} else if (gt == "Polygon" || gt == "MultiPolygon") {
+			if (np == 0 && keepnull) {
+				emptyGeom(f, pl_x, pl_y, pl_gid, pl_gp, pl_hole);
+			}
 			for(size_t j = 0; j<np; j++) {
 				const GEOSGeometry* part = GEOSGetGeometryN_r(hGEOSCtxt, g, j);
-				if (!polysFromGeom(hGEOSCtxt, part, i, j, pl_x, pl_y, pl_gid, pl_gp, pl_hole, msg)) {
+				if (!polysFromGeom(hGEOSCtxt, part, f, j, pl_x, pl_y, pl_gid, pl_gp, pl_hole, msg)) {
 					out.setError(msg);
 					return out;
 				}
 			}
+			f++;
+
 		} else if (gt == "GeometryCollection") {
-			//Rcpp::Rcout << GEOSGeom_getDimensions_r(hGEOSCtxt, g) << std::endl;
+
+			//Rcpp::Rcout << np << std::endl;
+
+
 			for(size_t j = 0; j<np; j++) {
+
 				const GEOSGeometry* gg = GEOSGetGeometryN_r(hGEOSCtxt, g, j);
 
 				char* geostype = GEOSGeomType_r(hGEOSCtxt, gg);
 				std::string ggt = geostype;
 				free(geostype);
+				size_t npp = GEOSGetNumGeometries_r(hGEOSCtxt, gg);
 
-				const GEOSGeometry* part = GEOSGetGeometryN_r(hGEOSCtxt, gg, j);
-				if (ggt == "Polygon" || ggt == "MultiPolygon") {
-					if (!polysFromGeom(hGEOSCtxt, part, i, j, pl_x, pl_y, pl_gid, pl_gp, pl_hole, msg)) {
-						out.setError(msg);
-						return out;
+				//Rcpp::Rcout << geostype << " " << npp << std::endl;
+
+				if (npp == 0 && keepnull) {
+					if (ggt == "Polygon" || ggt == "MultiPolygon") {
+						emptyGeom(f, pl_x, pl_y, pl_gid, pl_gp, pl_hole);
+					} else if (ggt == "Point" || ggt == "MultiPoint") {
+						emptyGeom(f, pt_x, pt_y, pt_gid, pt_gp, pt_hole);
+					} else if (ggt == "LineString" || ggt == "MultiLineString") {
+						emptyGeom(f, ln_x, ln_y, ln_gid, ln_gp, ln_hole);
 					}
-				} else if (ggt == "Point" || ggt == "MultiPoint") {
-					if (!polysFromGeom(hGEOSCtxt, part, i, j, pt_x, pt_y, pt_gid, pt_gp, pt_hole, msg)) {
-						out.setError(msg);
-						return out;
-					}
-				} else if (ggt == "Line" || ggt == "MultiLine") {
-					if (!polysFromGeom(hGEOSCtxt, part, i, j, pl_x, pl_y, pl_gid, pl_gp, pl_hole, msg)) {
-						out.setError(msg);
-						return out;
-					}
-				} else {
-					out.addWarning("unhandeled Collection geom: " + ggt);
+					if (increment) f++;
 				}
+
+	
+				for(size_t k = 0; k<npp; k++) {
+
+					const GEOSGeometry* part = GEOSGetGeometryN_r(hGEOSCtxt, gg, k);
+
+					if (ggt == "Polygon" || ggt == "MultiPolygon") {
+						if (!polysFromGeom(hGEOSCtxt, part, f, k, pl_x, pl_y, pl_gid, pl_gp, pl_hole, msg)) {
+							out.setError(msg);
+							return out;
+						}
+					} else if (ggt == "Point" || ggt == "MultiPoint") {
+						if (!pointsFromGeom(hGEOSCtxt, part, f, k, pt_x, pt_y, pt_gid, pt_gp, pt_hole, msg)) {
+							out.setError(msg);
+							return out;
+						}
+					} else if (ggt == "LineString" || ggt == "MultiLineString") {
+						if (!pointsFromGeom(hGEOSCtxt, part, f, k, ln_x, ln_y, ln_gid, ln_gp, ln_hole, msg)) {
+							out.setError(msg);
+							return out;
+						}
+					} else {
+						out.addWarning("unhandeled Collection geom: " + ggt);
+					}
+					if (increment) f++;
+				}
+				if (!increment) f++;
 			}
 		} else {
 			out.setError("what is this: " + gt + "?");

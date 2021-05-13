@@ -1,10 +1,5 @@
 
 
-setMethod ("size" , "SpatVector", 
-	function(x) {
-		x@ptr$size()
-	}
-)
 
 setMethod("geomtype", signature(x="SpatVector"), 
 	function(x){ 
@@ -67,7 +62,7 @@ setMethod("geom", signature(x="SpatVector"),
 	}
 )
 
-setMethod("coords", signature(x="SpatVector"), 
+setMethod("crds", signature(x="SpatVector"), 
 	function(x, df=FALSE){
 		g <- x@ptr$coordinates()
 		g <- do.call(cbind, g)
@@ -80,10 +75,10 @@ setMethod("coords", signature(x="SpatVector"),
 	}
 )
 
-setMethod("coords", signature(x="SpatRaster"), 
+setMethod("crds", signature(x="SpatRaster"), 
 	function(x, df=FALSE){
 		x <- as.points(x)
-		coords(x, df=df)
+		crds(x, df=df)
 	}
 )
 
@@ -120,15 +115,16 @@ setMethod("as.list", signature(x="SpatVector"),
 
 
 
-setMethod("area", signature(x="SpatVector"), 
-	function(x) {
-		a <- x@ptr$area();
-		x <- messages(x, "area");
+setMethod ("expanse", "SpatVector", 
+	function(x, unit="m", transform=TRUE) {
+		a <- x@ptr$area(unit, transform, double());
+		x <- messages(x, "expanse");
 		return(a)
 	}
 )
 
-setMethod("perimeter", signature(x="SpatVector"), 
+
+setMethod("perim", signature(x="SpatVector"), 
 	function(x) {
 		p <- x@ptr$length();
 		x <- messages(x, "length");
@@ -138,7 +134,7 @@ setMethod("perimeter", signature(x="SpatVector"),
 
 setMethod("length", signature(x="SpatVector"), 
 	function(x) {
-		size(x)
+		x@ptr$size()
 	}
 )
 

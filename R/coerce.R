@@ -1,4 +1,4 @@
-# Author: Robfert J. Hijmans 
+# Author: Robert J. Hijmans 
 # Date : October 2018
 # Version 1.0
 # License GPL v3
@@ -67,6 +67,15 @@ setMethod("as.polygons", signature(x="SpatRaster"),
 	}
 )
 
+setMethod("as.lines", signature(x="SpatRaster"), 
+	function(x) {
+		p <- methods::new("SpatVector")
+		p@ptr <- x@ptr$as_lines()
+		messages(p, "as.lines")
+	}
+)
+
+
 setMethod("as.polygons", signature(x="SpatExtent"), 
 	function(x, crs="") {
 		p <- methods::new("SpatVector")
@@ -97,6 +106,12 @@ setMethod("as.lines", signature(x="SpatVector"),
 	}
 )
 
+setMethod("as.polygons", signature(x="SpatVector"), 
+	function(x) {
+		x@ptr <- x@ptr$polygonize()
+		messages(x, "as.polygons")
+	}
+)
 
 setMethod("as.points", signature(x="SpatVector"), 
 	function(x, multi=FALSE) {
@@ -244,6 +259,7 @@ setMethod("as.array", signature(x="SpatRaster"),
 					levels(r) <- levs
 				}
 			}
+			crs(r) <- wkt(from)
 		}
 		if (from@file@NAchanged) {
 			NAflag(r) <- from@file@nodatavalue
@@ -361,8 +377,33 @@ setAs("SpatRaster", "Raster",
 	eval(parse(text = txt))
 }
 
-# from sf. first incomplete draft
+# sf bbox
+.ext_from_sf <- function(from) {
+	sfi <- attr(from, "sf_column")
+	geom <- from[[sfi]]
+	e <- attr(geom, "bbox")
+	ext(e[c(1,3,2,4)])
+}
+
+
 .from_sf <- function(from) {
+	sfi <- attr(from, "sf_column")
+	geom <- from[[sfi]]
+	crs <- attr(geom, "crs")$wkt
+	if (is.na(crs)) crs <- ""
+	#geom <- st_as_text(geom)
+	#v <- vect(geom, crs=crs)
+	v <- vect()
+	v@ptr <- v@ptr$from_hex(sf::rawToHex(sf::st_as_binary(geom)), crs)
+	if (ncol(from) > 1) {
+		from[[sfi]] <- NULL
+		values(v) <- as.data.frame(from)
+	}
+	v
+}
+
+
+...from_sf <- function(from) {
 	sfi <- attr(from, "sf_column")
 	geom <- from[[sfi]]
 	crs <- attr(geom, "crs")$wkt
@@ -415,7 +456,9 @@ setAs("SpatRaster", "Raster",
 }
 
 
-.from_sfc <- function(from) {
+
+
+...from_sfc <- function(from) {
 	geom = from
 	v <- list()
 	for (i in 1:length(geom)) {
@@ -451,8 +494,7 @@ setAs("SpatRaster", "Raster",
 }
 
 
-
-.from_sfg <- function(from) {
+...from_sfg <- function(from) {
 	geom = from
 	v <- list()
 	for (i in 1:length(geom)) {
@@ -489,6 +531,13 @@ setAs("sf", "SpatVector",
 	}
 )
 
+.from_sfc <- function(from) {
+	v <- vect()
+	v@ptr <- v@ptr$from_hex(sf::rawToHex(sf::st_as_binary(from)), "")
+	v
+}
+
+
 setAs("sfc", "SpatVector", 
 	function(from) {
 		v <- try(.from_sfc(from), silent=TRUE)
@@ -500,6 +549,25 @@ setAs("sfc", "SpatVector",
 )
 
 
+setAs("sfg", "SpatVector", 
+	function(from) {
+		v <- try(.from_sfc(from), silent=TRUE)
+		if (inherits(v, "try-error")) {
+			error("as,sfg", "coercion failed. You can try coercing via a Spatial* (sp) class")
+		}
+		v
+	}
+)
+
+setAs("XY", "SpatVector", 
+	function(from) {
+		v <- try(.from_sfc(from), silent=TRUE)
+		if (inherits(v, "try-error")) {
+			error("as,sfc", "coercion failed. You can try coercing via a Spatial* (sp) class")
+		} 
+		v
+	}
+)
 
 setAs("im", "SpatRaster", 
 	function(from) {

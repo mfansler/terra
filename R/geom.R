@@ -25,6 +25,47 @@ setMethod("is.valid", signature(x="SpatVector"),
 	}
 )
 
+
+
+setMethod("copy", signature("SpatVector"), 
+	function(x) {
+		x@ptr <- x@ptr$deepcopy() 
+		x
+	}
+)
+
+
+as.list.svc <- function(x) {
+	v <- vect()
+	lapply(1:x$size(), 
+		function(i) {
+			v@ptr <- x$get(i-1)
+			v
+		})
+}
+
+
+
+setMethod("split", signature(x="SpatVector"), 
+	function(x, f) {
+		if (length(f) > 1) {
+			x <- copy(x)
+			x$f <- f
+			f <- "f"
+		}
+		x <- messages(x@ptr$split(f), "split")
+		as.list.svc(x)
+	}
+)
+
+
+setMethod("sharedPaths", signature(x="SpatVector"), 
+	function(x) {
+		x@ptr <- x@ptr$shared_paths()
+		messages(x, "sharedPaths")
+	}
+)
+
 setMethod("cover", signature(x="SpatVector", y="SpatVector"), 
 	function(x, y, identity=FALSE) {
 		x@ptr <- x@ptr$cover(y@ptr, identity[1])
@@ -54,6 +95,8 @@ setMethod("erase", signature(x="SpatVector", y="SpatExtent"),
 		messages(x, "erase")
 	}
 )
+
+
 
 setMethod("union", signature(x="SpatVector", y="missing"), 
 	function(x, y) {
@@ -144,7 +187,7 @@ setMethod("crop", signature(x="SpatVector", y="ANY"),
 
 setMethod("crop", signature(x="SpatVector", y="SpatVector"), 
 	function(x, y) {
-		if (size(y) > 1) {
+		if (length(y) > 1) {
 			y <- aggregate(y)
 		}
 		x@ptr <- x@ptr$crop_vct(y@ptr)
@@ -152,10 +195,10 @@ setMethod("crop", signature(x="SpatVector", y="SpatVector"),
 	}
 )
 
-setMethod("convexhull", signature(x="SpatVector"), 
-	function(x) {
-		x@ptr <- x@ptr$chull()
-		messages(x, "convexhull")
+setMethod("convHull", signature(x="SpatVector"), 
+	function(x, by="") {
+		x@ptr <- x@ptr$chull(by[1])
+		messages(x, "convHull")
 	}
 )
 
@@ -166,6 +209,7 @@ setMethod("disaggregate", signature(x="SpatVector"),
 		messages(x, "disaggregate")
 	}
 )
+
 
 
 setMethod("voronoi", signature(x="SpatVector"), 

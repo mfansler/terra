@@ -379,34 +379,46 @@ void jointstats(const std::vector<double> &u, const std::vector<double> &v, cons
 	std::vector<std::vector<double>> dat(u.size());
 	if (narm) {
 		for (size_t i=0; i<z.size(); i++) {
-			if (!std::isnan(v[i])) {
+			if ((!std::isnan(z[i])) && (!std::isnan(v[i]))) {
 				dat[z[i]].push_back(v[i]);	
 			}
 		}
 	} else {
 		for (size_t i=0; i<z.size(); i++) {
-			dat[z[i]].push_back(v[i]);	
-		}		
+			if (!std::isnan(z[i])) {
+				dat[z[i]].push_back(v[i]);	
+			}
+		}
 	}
 	if (fun=="sum") {
 		for (size_t i=0; i<u.size(); i++) {	
-			out[i] += vsum(dat[i], false);
+			if (dat[i].size() > 0) {
+				out[i] += vsum(dat[i], false);
+			}
 		}
 	}
 	if (fun=="mean") {
 		for (size_t i=0; i<u.size(); i++) {	
-			out[i] += vsum(dat[i], false);
-			cnt[i] += dat[i].size();
+			if (dat[i].size() > 0) {
+				out[i] += vsum(dat[i], false);
+				cnt[i] += dat[i].size();
+			}
 		}
 	}
 	if (fun=="min") {
 		for (size_t i=0; i<u.size(); i++) {	
-			out[i] += std::min(out[i], vmin(dat[i], false));
+			if (dat[i].size() > 0) {
+				double mn = vmin(dat[i], false);
+				out[i] = std::min(out[i], mn);
+			}
 		}
 	}
 	if (fun=="max") {
 		for (size_t i=0; i<u.size(); i++) {	
-			out[i] += std::max(out[i], vmax(dat[i], false));
+			if (dat[i].size() > 0) {
+				double mx = vmax(dat[i], false);
+				out[i] = std::max(out[i], mx);
+			}
 		}
 	}
 }
@@ -461,6 +473,7 @@ SpatDataFrame SpatRaster::zonal(SpatRaster z, std::string fun, bool narm, SpatOp
 	opt.ncopies = 6;
 	BlockSize bs = getBlockSize(opt);
 	for (size_t i=0; i<bs.n; i++) {
+//		Rcpp::Rcout << i << std::endl;
 		std::vector<double> v =    readValues(bs.row[i], bs.nrows[i], 0, ncol());
 		std::vector<double> zv = z.readValues(bs.row[i], bs.nrows[i], 0, ncol());
 		std::vector<double> zvr(zv.size());
@@ -502,7 +515,9 @@ SpatDataFrame SpatRaster::zonal(SpatRaster z, std::string fun, bool narm, SpatOp
 				}
 			}
 		}
-	} else if (fun == "min") {
+	} 
+	
+	else if (fun == "min") {
 		for (size_t lyr=0; lyr<nlyr(); lyr++) {
 			for (size_t j=0; j<u.size(); j++) {
 				if (stats[lyr][j] == posinf) {

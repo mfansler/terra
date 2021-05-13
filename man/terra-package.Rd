@@ -15,7 +15,7 @@ The package implements two main classes (R data types): \code{SpatRaster} and \c
 
 Additional classes include \code{SpatExtent}, which is used to define a spatial extent (bounding box); \code{SpatRasterDataset}, which represents a collection of sub-datasets for the same area. Each sub-dataset is a SpatRaster with possibly many layers, and may, for example, represent different weather variables; and \code{SpatRasterCollection} and \code{SpatVectorCollection} that are vectors of SpatRaster or SpatVector.
 
-The classes used wrap a C++ pointer that holds pr points to the data, and almost all data manipulation is done in C++ (for better speed). These objects cannot be directly saved to a ".Rds" file or used in cluster computing. They cannot be recovered from a saved R session either. See \code{\link{pack}} or \code{\link{writeRaster}} to work around that limitation. 
+These classes wrap a C++ pointer to the data, and almost all data manipulation is done in C++ (for speed). These objects cannot be directly saved to a ".Rds" file or used in cluster computing. They cannot be recovered from a saved R session either. See \code{\link{pack}} or \code{\link{writeRaster}} to work around that limitation. 
 
 The \code{terra} package is conceived as a replacement of the \code{raster} package. \code{terra} has a very similar, but simpler, interface, and it is faster than \code{raster}. At the bottom of this page there is a table that shows differences in the methods between the two packages. 
 
@@ -71,7 +71,7 @@ Also see the methods in section VIII
 
   \tabular{ll}{
     \code{\link{app}} \tab Apply a function to all cells, across layers, typically to summarize (as in \code{base::apply}) \cr
-    \code{\link{tapp}} \tab Apply a function to groups of layers (as in \code{base::tapply} and \code{base::aggregate})\cr
+    \code{\link{tapp}} \tab Apply a function to groups of layers (as in \code{base::tapply} and \code{stats::aggregate})\cr
     \code{\link{lapp}} \tab Apply a function to using the layers of a SpatRaster as variables\cr
     \code{\link{sapp}} \tab Apply a function to each layer\cr
     \code{\link{rapp}} \tab Apply a function to a spatially variable range of layers\cr
@@ -95,7 +95,7 @@ Also see the methods in section VIII
 \subsection{Other methods}{
 
   \tabular{ll}{
-    \code{\link{area}} \tab Compute the area of cells \cr
+    \code{\link{cellSize}} \tab Compute the area of cells \cr
     \code{\link{classify}} \tab (Re-)classify values \cr
     \code{\link{cover}} \tab First layer covers second layer except where the first layer is \code{NA} \cr
     \code{\link{init}} \tab Initialize cells with new values \cr	
@@ -110,7 +110,7 @@ Also see the methods in section VIII
 
 \section{IV. Zonal and global computation}{
   \tabular{ll}{
-    \code{\link{area}} \tab Compute the total area covered by cells \cr
+    \code{\link{expanse}} \tab Compute the summed area of cells \cr
     \code{\link{crosstab}} \tab Cross-tabulate two SpatRasters\cr
     \code{\link{freq}} \tab Frequency table of SpatRaster cell values \cr
     \code{\link{global}} \tab Summarize SpatRaster cell values with a function \cr
@@ -296,7 +296,7 @@ A SpatRasterDataset contains SpatRaster objects that are sub-datasets for the sa
   \code{\link{centroids}} \tab Get the centroids of a SpatVector\cr
   \code{\link{voronoi}} \tab Voronoi diagram \cr
   \code{\link{delauny}} \tab Delauny triangles\cr
-  \code{\link{convexhull}} \tab Compute the convex hull of a SpatVector \cr  
+  \code{\link{convHull}} \tab Compute the convex hull of a SpatVector \cr  
   \code{\link{fillHoles}}\tab Remove or extract holes from polygons\cr
   --------------------------- \tab ------------------------------------------------------------------------------------------ \cr  
 }}
@@ -305,6 +305,7 @@ A SpatRasterDataset contains SpatRaster objects that are sub-datasets for the sa
 \section{XIV. Properties of SpatVector objects}{
 \tabular{ll}{
   \code{\link{geom}} \tab returns the geometries as matrix or WKT\cr
+  \code{\link{crds}} \tab returns the coordinates as a matrix\cr
   \code{\link{linearUnits}} \tab returns the linear units of the crs (in meter)\cr
   \code{\link{ncol}}\tab The number of columns (of the attributes)\cr
   \code{\link{nrow}} \tab The number of rows (of the geometries and attributes)\cr
@@ -319,11 +320,11 @@ A SpatRasterDataset contains SpatRaster objects that are sub-datasets for the sa
 \section{XV. Geometric queries}{
 \tabular{ll}{
   \code{\link{adjacent}} \tab find adjacent polygons\cr
-  \code{\link{area}} \tab computes the area covered by polygons\cr
+  \code{\link{expanse}} \tab computes the area covered by polygons\cr
   \code{\link{nearby}} \tab find nearby geometries\cr
   \code{\link{nearest}} \tab find the nearest geometries\cr
   \code{\link{relate}} \tab geometric relationships such as "intersects", "overlaps", and "touches"\cr
-  \code{\link{perimeter}} \tab computes the length of the perimeter of polygons, and the length of lines\cr
+  \code{\link{perim}} \tab computes the length of the perimeter of polygons, and the length of lines\cr
   --------------------------- \tab ------------------------------------------------------------------------------------------ \cr  
 }}
 
@@ -451,7 +452,8 @@ You can coerce SpatRasters to Raster* objects after loading the \code{raster} pa
 	\code{\link{polys}} \tab Add polygons to a map \cr
     \code{\link{text}} \tab Add text (such as the values of a SpatRaster or SpatVector) to a map \cr
     \code{\link{image}} \tab Alternative to plot to make a map with a SpatRaster \cr
-    \code{\link{plotRGB}} \tab Combine three layers (red, green, blue channels) into a single "real color" image \cr
+    \code{\link{plotRGB}} \tab Combine three layers (red, green, blue channels) into a single "real color" plot \cr
+    \code{\link{RGB2col}} \tab Combine three layers (red, green, blue channels) into a single layer with a color-table \cr
     \code{\link{dots}} \tab Make a dot-density map \cr
     \code{\link{cartogram}} \tab Make a cartogram \cr
     \code{\link{persp}} \tab Perspective plot of a SpatRaster \cr
@@ -465,7 +467,7 @@ You can coerce SpatRasters to Raster* objects after loading the \code{raster} pa
   \tabular{ll}{
     \code{\link{zoom}} \tab Zoom in to a part of a map by drawing a bounding box on it \cr
     \code{\link{click}} \tab Query values of SpatRaster or SpatVector by clicking on a map \cr
-    \code{\link{select}} \tab Select a spatial subset of a SpatRaster or SpatVector by drawing on a map\cr
+    \code{\link{sel}} \tab Select a spatial subset of a SpatRaster or SpatVector by drawing on a map\cr
     \code{\link{draw}} \tab Create a SpatExtent or SpatVector by drawing on a map \cr
 	}
 }
@@ -504,6 +506,7 @@ You can coerce SpatRasters to Raster* objects after loading the \code{raster} pa
 \code{rasterFromXYZ}\tab\code{\link{rast}( , type="xyz")}\cr
 \code{stack, addLayer} (combining Raster* objects or files)\tab\code{\link{c}}\cr
 \code{addLayer} \tab\code{\link{add<-}}\cr
+\code{area} \tab\code{\link{cellSize}}\cr
 \code{extent}\tab\code{\link{ext}}\cr
 \code{calc}\tab\code{\link{app}}\cr
 \code{overlay}\tab\code{\link{lapp}}\cr
@@ -534,8 +537,6 @@ You can coerce SpatRasters to Raster* objects after loading the \code{raster} pa
 Also note that even if function names are the same in \code{terra} and \code{raster}, their output can be different. In most cases this was done to get more consistency in the returned values (and thus fewer errors in the downstream code that uses them). It other cases it simply seemed better. Here are some examples:
 
 \tabular{ll}{
-\code{\link{area}}\tab By default, \code{terra} returns the summed area of the raster cells that are not \code{NA}.\cr
-\tab \code{raster} returns a \code{RasterLayer}. Use \code{sum=FALSE} in \code{terra} for that behavior\cr
 \code{\link{as.polygons}}\tab By default, \code{terra} returns dissolved polygons\cr
 \code{\link{extract}}\tab By default, \code{terra} returns a matrix, with the first column the sequential ID of the vectors. \cr
 \tab \code{raster} returns a list (for lines or polygons) or a matrix (for points, but without the ID\cr

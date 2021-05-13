@@ -1,41 +1,43 @@
-\name{area}
+\name{expanse}
+
+\alias{expanse}
+\alias{expanse,SpatRaster-method}
+\alias{expanse,SpatVector-method}
 
 \alias{area}
-\alias{perimeter}
 \alias{area,SpatRaster-method}
 \alias{area,SpatVector-method}
-\alias{perimeter,SpatVector-method}
+
   
-\title{Area and perimeter}
+\title{Get the expanse (area) of individual polygons or for all (summed) raster cells}
 
 \description{
-Compute the area of polygons or for raster cells that are not \code{NA}. Computing the surface area of raster cells is particularly relevant for longitude/latitude rasters, as the size of the cells is constant in degrees, but not in meters. But it can also be very important with raster data if the coordinate reference system is not equal-area. In that case, you can detect variation in true cell size using the \code{correct=TRUE} option. 
+Compute the area covered by polygons or for all raster cells that are not \code{NA}. 
 
-For vector data, the best way to compute area is to use the longitude/latitude crs if that is what the data come in. This is contrary to (erroneous) popular belief that suggest that you should use a planar coordinate reference system.
+This method computes areas for longitude/latitude rasters, as the size of the cells is constant in degrees, but not in meters. But it can also be important if the coordinate reference system is planar, but not equal-area. 
 
-The perimeter method works only on SpatVector objects, and computes the length of lines or the perimeter of polygons.
+For vector data, the best way to compute area is to use the longitude/latitude CRS. This is contrary to (erroneous) popular belief that suggest that you should use a planar coordinate reference system. This is done automatically, if \code{transform=TRUE}.
 }
 
 \usage{
-\S4method{area}{SpatRaster}(x, sum=TRUE, correct=FALSE, mask=FALSE, filename="", ...)
+\S4method{expanse}{SpatRaster}(x, unit="m", transform=TRUE)
 
-\S4method{area}{SpatVector}(x)
-
-\S4method{perimeter}{SpatVector}(x)
+\S4method{expanse}{SpatVector}(x, unit="m", transform=TRUE)
 }
 
 
 \arguments{
   \item{x}{SpatRaster or SpatVector}
-  \item{sum}{logical. If \code{TRUE} the summed area of the cells that are not \code{NA} is returned. Otherwise, a SpatRaster with the area for each cell is returned}
-  \item{correct}{logical. If \code{TRUE}, the area is not computed based on the linear units of the coordinate reference system, but on the *actual* area, correcting for distortion. This may be considerably slower. Only relevant for planar coordinate references, not for lon/lat data}
-  \item{mask}{logical. If \code{TRUE}, cells that are \code{NA} in \code{x} are also \code{NA} in the output}
-  \item{filename}{character. Output filename}
-  \item{...}{additional arguments for writing files as in \code{\link{writeRaster}}}
+  \item{unit}{character. One of "m", "km", or "ha"}
+  \item{transform}{logical. If \code{TRUE}, planar CRS are transformed to lon/lat for accuracy}
 }
 
 \value{
-area or perimeter in m2
+numeric. The sum of the size of the cells that are not \code{NA} 
+}
+
+\seealso{
+\code{\link{cellSize}} for a the size of individual cells of a raster, that can be summed with \code{\link{global}} or with \code{\link{zonal}} to get the area for different categories.
 }
 
 \examples{
@@ -46,34 +48,21 @@ v <- 1:ncell(r)
 v[200:400] <- NA
 values(r) <- v
 
-# area for each raster cell
-a <- area(r, sum=FALSE)
-
 # summed area in km2
-area(r) / 1000000
+expanse(r, unit="km")
 
-## you can use mask to remove the cells in r that are NA
-## and compute the global sum to get the same result
-am <- mask(a, r)
-global(am, "sum", na.rm=TRUE) / 1000000
+r <- rast(ncol=90, nrow=45, ymin=-80, ymax=80)
+m <- project(r, "+proj=merc")
 
-# effect of "correct" (commented out as this does not work with old GDAL)
-#r <- rast(ncol=90, nrow=45, ymin=-80, ymax=80)
-#m <- project(r, "+proj=merc")
-
-#a <- area(m, sum=FALSE, names="naive")
-#b <- area(m, correct=TRUE, sum=FALSE, names="corrected")
-#plot(c(a, b)/1000000, nc=1)
-
+expanse(m, unit="km")
+expanse(m, unit="km", transform=FALSE)
 
 ### SpatVector
-f <- system.file("ex/lux.shp", package="terra")
-v <- vect(f)
-a <- area(v)
+v <- vect(system.file("ex/lux.shp", package="terra"))
+
+a <- expanse(v)
 a
 sum(a)
-perimeter(v)
-
 }
 
 \keyword{methods}

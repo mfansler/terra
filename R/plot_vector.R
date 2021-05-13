@@ -36,7 +36,7 @@ setMethod("dots", signature(x="SpatVector"),
 
 .plotLines <- function(x, out, lty=1, lwd=1, ...) {
 	cols <- out$cols
-	if (is.null(cols)) cols = rep("black", size(x))
+	if (is.null(cols)) cols = rep("black", length(x))
 
 	g <- geom(x, df=TRUE)
 	g <- split(g, g[,1])
@@ -107,7 +107,7 @@ setMethod("dots", signature(x="SpatVector"),
 			points(x, col=out$main_cols, cex=cex, pch=pch, ...)
 		} else {
 			e <- out$lim
-			plot(e[1:2], e[3:4], type="n", axes=FALSE, xlab=xlab, ylab=ylab, asp=out$asp)
+			#plot(e[1:2], e[3:4], type="n", axes=FALSE, xlab=xlab, ylab=ylab, asp=out$asp)
 			points(x, col=out$main_cols, cex=cex, pch=pch, ...)
 		}
 		out$leg$pch = pch
@@ -428,6 +428,10 @@ setMethod("dots", signature(x="SpatVector"),
 setMethod("plot", signature(x="SpatVector", y="character"), 
 	function(x, y, col=NULL, type, mar=NULL, legend=TRUE, add=FALSE, axes=!add, 
 	main=y, plg=list(), pax=list(), nr, nc, ...) {
+
+		if (nrow(x) == 0) {
+			error("plot", "SpatVector has zero geometries")
+		}
 
 		y <- trimws(y)
 		if (any(is.na(match(y, c("", names(x)))))) {

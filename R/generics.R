@@ -54,26 +54,32 @@ setMethod("align", signature(x="SpatExtent", y="numeric"),
 	}
 )
 
+setMethod("cellSize", signature(x="SpatRaster"), 
+	function(x, mask=TRUE, unit="m", transform=TRUE, filename="", ...) {
+		opt <- spatOptions(filename, ...)
+		x@ptr <- x@ptr$rst_area(mask, unit, transform, opt)
+		messages(x, "cellSize")
+	}
+)
 
-setMethod("area", signature(x="SpatRaster"), 
-	function(x, sum=TRUE, correct=FALSE, mask=FALSE, filename="", ...) {
-		if (sum) {
-			byvalue = FALSE
-			opt <- spatOptions()
-			if (byvalue) {
-				v <- x@ptr$area_by_value(opt)
-				v <- lapply(1:length(v), function(i) cbind(i, matrix(v[[i]], ncol=2)))
-				v <- do.call(rbind, v)
-				colnames(v) <- c("layer", "value", "area")
-				return(v)
-			} else {
-				x@ptr$sum_area(correct, opt)
-			}
+
+
+setMethod ("expanse", "SpatRaster", 
+	function(x, unit="m", transform=TRUE) {
+
+		byvalue = FALSE
+		opt <- spatOptions()
+		if (byvalue) {
+			v <- x@ptr$area_by_value(opt)
+			x <- messages(x, "expanse")
+			v <- lapply(1:length(v), function(i) cbind(i, matrix(v[[i]], ncol=2)))
+			v <- do.call(rbind, v)
+			colnames(v) <- c("layer", "value", "area")
 		} else {
-			opt <- spatOptions(filename, ...)
-			x@ptr <- x@ptr$rst_area(correct, mask, opt)
-			messages(x, "area")
-		} 
+			v <- x@ptr$sum_area(unit, transform, opt)
+			x <- messages(x, "expanse")
+		}
+		return(v)
 	}
 )
 
@@ -107,6 +113,17 @@ setMethod("copy", signature("SpatRaster"),
 	function(x) {
 		x@ptr <- x@ptr$deepcopy() 
 		x
+	}
+)
+
+
+
+setMethod("split", signature(x="SpatRaster"), 
+	function(x, f) {
+		stopifnot(length(f) == nlyr(x))
+		stopifnot(!any(is.na(f)))
+		u <- unique(f)
+		lapply(u, function(i) x[[f==i]])
 	}
 )
 
@@ -265,10 +282,14 @@ setMethod("crop", signature(x="SpatRaster", y="ANY"),
 		opt <- spatOptions(filename, ...)
 
 		if (!inherits(y, "SpatExtent")) {
-			y <- try(ext(y), silent=TRUE)
-			if (class(y) == "try-error") { 
-				error("crop", "cannot get a SpatExtent from y")
+			e <- try(ext(y), silent=TRUE)
+			if (class(e) == "try-error") { 
+				e <- try(ext(vect(y)), silent=TRUE)
+				if (class(e) == "try-error") { 
+					error("crop", "cannot get a SpatExtent from y")
+				}
 			}
+			y <- e
 		}
 		
 		x@ptr <- x@ptr$crop(y@ptr, snap[1], opt)
