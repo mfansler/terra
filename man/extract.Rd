@@ -29,7 +29,8 @@ When argument \code{y} is a \code{SpatVector}, and \code{list=FALSE}, the first 
 
 \usage{
 \S4method{extract}{SpatRaster,SpatVector}(x, y, fun=NULL, method="simple", list=FALSE, factors=TRUE, 
-        cells=FALSE, xy=FALSE, weights=FALSE, exact=FALSE, touches=is.lines(y), ...)
+        cells=FALSE, xy=FALSE, weights=FALSE, exact=FALSE,
+        touches=is.lines(y), layer=NULL, ...)
 
 \S4method{extract}{SpatRaster,SpatExtent}(x, y, factors=TRUE, cells=FALSE, xy=FALSE)
 
@@ -51,6 +52,7 @@ When argument \code{y} is a \code{SpatVector}, and \code{list=FALSE}, the first 
 \item{weights}{logical. If \code{TRUE} and \code{y} has polygons, the approximate fraction of each cell that is covered is returned as well, for example to compute a weighted mean}
 \item{exact}{logical. If \code{TRUE} and \code{y} has polygons, the exact fraction of each cell that is covered is returned as well, for example to compute a weighted mean}
 \item{touches}{logical. If \code{TRUE}, values for all cells touched by lines or polygons are extracted, not just those on the line render path, or whose center point is within the polygon. Not relevant for points; and always considered \code{TRUE} when \code{weights=TRUE} or \code{exact=TRUE}}
+\item{layer}{character or numeric to select the layer to exctract from for each geometry. If \code{layer} is a character it can be a name in \code{y} or a vector of layer names. If it is numeric, it must be integer values between \code{1} and \code{nlyr(x)}}
 }
 
 \value{matrix, list, or data.frame}
@@ -58,7 +60,7 @@ When argument \code{y} is a \code{SpatVector}, and \code{list=FALSE}, the first 
 \seealso{\link{values}}
 
 \examples{
-r <- rast(ncol=5, nrow=5, xmin=0, xmax=5, ymin=0, ymax=5)
+r <- rast(ncols=5, nrows=5, xmin=0, xmax=5, ymin=0, ymax=5)
 values(r) <- 1:25
 xy <- rbind(c(0.5,0.5), c(2.5,2.5))
 p <- vect(xy, crs="+proj=longlat +datum=WGS84")
@@ -99,7 +101,7 @@ y[i]
 f <- system.file("ex/lux.shp", package="terra")
 v <- vect(f)
 v <- v[1:2,]
-z <- rast(v, res=.1, names="test")
+z <- rast(v, resolution=.1, names="test")
 values(z) <- 1:ncell(z)
 
 rf <- system.file("ex/elev.tif", package="terra")

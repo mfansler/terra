@@ -27,6 +27,30 @@ setMethod("is.valid", signature(x="SpatVector"),
 
 
 
+setMethod("na.omit", signature("SpatVector"), 
+	function(object, field=NA, geom=FALSE) {
+		if (geom) {
+			g <- geom(object)
+			g <- g[is.na(g[,"x"]) | is.na(g[,"y"]), 1]
+			if (length(g) > 0) {
+				object <- object[-g, ]
+			}
+		}
+		if (!is.na(field)) {
+			v <- values(object)
+			if (field != "") {
+				v <- v[, field, drop=FALSE]
+			}
+			i <- apply(v, 1, function(i) any(is.na(i)))
+			if (any(i)) {
+				object <- object[!i, ]
+			}
+		}
+		object
+	}
+)
+
+
 setMethod("copy", signature("SpatVector"), 
 	function(x) {
 		x@ptr <- x@ptr$deepcopy() 
@@ -197,7 +221,14 @@ setMethod("crop", signature(x="SpatVector", y="SpatVector"),
 
 setMethod("convHull", signature(x="SpatVector"), 
 	function(x, by="") {
-		x@ptr <- x@ptr$chull(by[1])
+		x@ptr <- x@ptr$hull("convex", by[1])
+		messages(x, "convHull")
+	}
+)
+
+setMethod("minRect", signature(x="SpatVector"), 
+	function(x, by="") {
+		x@ptr <- x@ptr$hull("minrot", by[1])
 		messages(x, "convHull")
 	}
 )
@@ -211,26 +242,6 @@ setMethod("disaggregate", signature(x="SpatVector"),
 )
 
 
-
-setMethod("voronoi", signature(x="SpatVector"), 
-	function(x, bnd=NULL, tolerance=0, as.lines=FALSE) {
-		if (is.null(bnd)) {
-			bnd <- vect()
-		} else {
-			bnd <- as.polygons(ext(bnd))
-		}
-		x@ptr <- x@ptr$voronoi(bnd@ptr, tolerance, as.lines)
-		messages(x, "voronoi")
-	}
-)
-
-
-setMethod("delauny", signature(x="SpatVector"), 
-	function(x, tolerance=0, as.lines=FALSE) {
-		x@ptr <- x@ptr$delauny(tolerance, as.lines)
-		messages(x, "delauny")
-	}
-)
 
 
 setMethod("flip", signature(x="SpatVector"), 
@@ -258,3 +269,67 @@ setMethod("spin", signature(x="SpatVector"),
 		messages(x, "spin")
 	}
 )
+
+
+setMethod("delauny", signature(x="SpatVector"), 
+	function(x, tolerance=0, as.lines=FALSE) {
+		x@ptr <- x@ptr$delauny(tolerance, as.lines)
+		messages(x, "delauny")
+	}
+)
+
+
+
+voronoi_deldir <- function(x, bnd=NULL, eps=1e-09, ...){
+
+	xy <- crds(x)
+	dat <- values(x)
+	if (nrow(dat > 0)) {
+		dups <- duplicated(xy)
+		if (any(dups)) {
+			xy <- xy[!dups, ,drop=FALSE]
+			dat <- dat[!dups, ,drop=FALSE]
+		}
+	} else {
+		xy <- stats::na.omit(xy[, 1:2])
+		xy <- unique(xy)
+	}
+	
+	e <- bnd
+	if (!is.null(e)) {
+		e <- as.vector(ext(bnd))
+	}
+	
+	dd <- deldir::deldir(xy[,1], xy[,2], rw=e, eps=eps, suppressMsge=TRUE)
+	g <- lapply(deldir::tile.list(dd), function(i) cbind(i$ptNum, 1, i$x, i$y))
+	g <- do.call(rbind, g)
+	g <- vect(g, "polygons", crs=crs(x))
+	if (nrow(g) == nrow(dat)) {
+		values(g) <- dat 
+	} else {
+		values(g) <- data.frame(id=dd$ind.orig)
+	}
+	g
+}
+
+
+
+setMethod("voronoi", signature(x="SpatVector"), 
+	function(x, bnd=NULL, tolerance=0, as.lines=FALSE, deldir=FALSE) {
+		if (geomtype(x) != "points") {
+			x <- as.points(x)
+		}
+		if (deldir) {
+			voronoi_deldir(x, bnd, tolerance=tolerance)
+		} else {
+			if (is.null(bnd)) {
+				bnd <- vect()
+			} else {
+				bnd <- as.polygons(ext(bnd))
+			}
+			x@ptr <- x@ptr$voronoi(bnd@ptr, tolerance, as.lines)
+			messages(x, "voronoi")
+		}
+	}
+)
+

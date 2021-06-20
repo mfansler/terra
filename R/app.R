@@ -94,8 +94,8 @@ function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 			v <- readValues(x, b$row[i], b$nrows[i], 1, nc, TRUE)
 			icsz <- max(min(100, ceiling(b$nrows[i] / cores)), b$nrows[i])
 			r <- parallel::parRapply(cls, v, fun, ..., chunk.size=icsz)
-			if (trans) {
-				r <- t(r)
+			if (nlyr(out) > 1) {
+				r <- matrix(r, ncol=nlyr(out), byrow=TRUE)
 			}
 			writeValues(out, r, b$row[i], b$nrows[i])
 		}
@@ -230,7 +230,7 @@ function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 	v <- lapply(1:length(x), function(i) readValues(x[i], round(0.51*nrx), 1, 1, ncx, mat=TRUE))
 	test <- .app_test_stack(v, fun, ncx, ...)
 	if (test$nl < 1) error("app", "cannot find 'fun'")
-	out <- rast(x[1], nlyr=test$nl)
+	out <- rast(x[1], nlyrs=test$nl)
 	if (length(test$names == test$nl)) {
 		if (is.null(wopt$names)) wopt$names <- test$names
 	}

@@ -3,6 +3,29 @@
 # Version 0.9
 # License GPL v3
 
+
+is.proj <- function(crs) {
+	substr(crs, 1, 6) == "+proj="
+}
+
+.check_proj4_datum <- function(crs) {
+	crs <- trimws(tolower(crs))
+	if (!is.proj(crs)) return() 
+	x <- trimws(unlist(strsplit(crs, "\\+")))
+	d <- grep("datum=", x, value=TRUE)
+	if (length(d) > 0) {  
+		d <- gsub("datum=", "", d)
+		if (!(d %in% c("wgs84", "nad83"))) {
+			warn("crs", "a datum other than WGS84 or NAD83 cannot be used in a PROJ4 string")
+		}		
+	}
+	d <- grep("towgs84=", x, value=TRUE)
+	if (length(d) > 0) {  
+		warn("crs", "+towgs84 parameters in a PROJ4 string are ignored")
+	}
+}
+
+
 .proj4 <- function(x) {
 	x@ptr$get_crs("proj4")
 }
@@ -22,14 +45,14 @@
 }
 
 setMethod("crs", signature("SpatRaster"), 
-	function(x, proj4=FALSE, describe=FALSE) {
+	function(x, proj=FALSE, describe=FALSE) {
 		if (describe) {
 			d <- .srs_describe(x@ptr$get_crs("wkt"))
-			if (proj4) {
-				d$proj4 <- x@ptr$get_crs("proj4")		
+			if (proj) {
+				d$proj <- x@ptr$get_crs("proj4")		
 			}
 			d
-		} else if (proj4) {
+		} else if (proj) {
 			x@ptr$get_crs("proj4")		
 		}  else {
 			x@ptr$get_crs("wkt")
@@ -57,6 +80,7 @@ setMethod("crs", signature("SpatRaster"),
 	} else {
 		error("crs", "I do not know what to do with this argument (expected a character string)")
 	}
+	#check_proj4_datum(x)
 	x
 }
 
@@ -78,14 +102,14 @@ setMethod("crs<-", signature("SpatRaster", "ANY"),
 
 
 setMethod("crs", signature("SpatVector"), 
-	function(x, proj4=FALSE, describe=FALSE) {
+	function(x, proj=FALSE, describe=FALSE) {
 		if (describe) {
 			d <- .srs_describe(x@ptr$get_crs("wkt"))
-			if (proj4) {
-				d$proj4 <- x@ptr$get_crs("proj4")		
+			if (proj) {
+				d$proj <- x@ptr$get_crs("proj4")		
 			}
 			d
-		} else if (proj4) {
+		} else if (proj) {
 			x@ptr$get_crs("proj4")		
 		} else {
 			x@ptr$get_crs("wkt")

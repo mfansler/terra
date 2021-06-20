@@ -36,7 +36,7 @@ SpatRaster::SpatRaster(std::string fname, std::vector<int> subds, std::vector<st
 
 
 SpatRaster::SpatRaster(std::vector<std::string> fname, std::vector<int> subds, std::vector<std::string> subdsname, bool multi, std::vector<size_t> xyz) {
-// argument "x" is ignored. It is only there to have four arguments such that the Rcpp module
+// argument "x" is ignored. It is only there to have four arguments such that the 	 module
 // can distinguish this constructor from another with three arguments. 
 #ifdef useGDAL
 	if (multi) {
@@ -44,7 +44,10 @@ SpatRaster::SpatRaster(std::vector<std::string> fname, std::vector<int> subds, s
 		return;
 	}
 
-	constructFromFile(fname[0], subds, subdsname);
+	if (!constructFromFile(fname[0], subds, subdsname)) {
+		setError("cannot open file: " + fname[0]);
+		return;
+	}
 	for (size_t i=1; i<fname.size(); i++) {
 		SpatRaster r;
 		bool ok = r.constructFromFile(fname[i], subds, subdsname);
@@ -206,7 +209,7 @@ SpatRaster::SpatRaster(const SpatRaster &r) {
 
 
 
-SpatRaster SpatRaster::geometry(long nlyrs, bool properties) {
+SpatRaster SpatRaster::geometry(long nlyrs, bool properties, bool time) {
 	SpatRasterSource s;
 	//s.values.resize(0);
 	s.nrow = nrow();
@@ -224,17 +227,14 @@ SpatRaster SpatRaster::geometry(long nlyrs, bool properties) {
 		s.cols = getColors();
 		s.hasCategories = hasCategories();
 		s.cats = getCategories();
-		if (hasTime()) {
-			s.hasTime = true;
-			s.timestep = getTimeStep();
-			s.time = getTime();
-		}
 	}
 	s.resize(nlyrs);
 	std::vector<std::string> nms;
 	if (keepnlyr) {
 		nms = getNames();
-		if (hasTime()) {
+		if (time && hasTime()) {
+			s.hasTime = true;
+			s.timestep = getTimeStep();
 			s.time = getTime();
 		}
 	} else {
@@ -1518,17 +1518,85 @@ std::vector<std::vector<int_64>>  SpatRaster::rowColFromExtent(SpatExtent e) {
 }
 
 
-
-std::vector<std::vector<double>> SpatRaster::adjacent(std::vector<double> cells, std::string directions, bool include) {
-
+std::vector<double> SpatRaster::adjacentMat(std::vector<double> cells, std::vector<bool> mat, std::vector<unsigned> dim, bool include) {
+	std::vector<double> out;
+	if ((dim.size() != 2) || (dim[0] % 2 == 0) || (dim[1] %2 == 0)) {
+		setError("invalid matrix dimensions (must be odd sized)");
+		return out;
+	}
+	if ((dim[0] == 1) && (dim[1] == 1)) {
+		setError("invalid matrix dimensions (too small)");
+		return out;
+	}
+	
+	int dy = dim[0] / 2;
+	int dx = dim[1] / 2;
+	
 	unsigned n = cells.size();
-	std::vector<std::vector<double>> out(n);
+	int nngb = std::accumulate(mat.begin(), mat.end(), 0);
+	out.reserve(n * (nngb + include));
 
-	std::vector<std::string> f {"rook", "queen", "bishop", "16"};
+    std::vector<int> offcols(nngb);
+    std::vector<int> offrows(nngb);
+
+	size_t i = 0;
+	size_t j = 0;
+	for (int r = -dy; r<=dy; r++) {
+		for (int c = -dx; c<=dx; c++) {
+			if (mat[i]) {
+				offrows[j] = r;
+				offcols[j] = c;
+				j++;
+			}
+			i++;
+		}
+	}
+
+	bool globlatlon = is_global_lonlat();
+
+	std::vector<std::vector<int_64>> rc = rowColFromCell(cells);
+	std::vector<int_64> r = rc[0];
+	std::vector<int_64> c = rc[1];
+    std::vector<int_64> cols(nngb);
+    std::vector<int_64> rows(nngb);
+    int_64 nc = ncol();
+    int_64 lc = nc-1;
+	
+	for (size_t i=0; i<n; i++) {
+		for (int j = 0; j<nngb; j++) {
+			rows[j] = r[i] + offrows[j];
+			cols[j] = c[i] + offcols[j];
+		}
+	
+		if (globlatlon) {
+			for (int j = 0; j<nngb; j++) {
+				if (cols[j] < 0) cols[j] = nc + cols[j];
+				if (cols[j] > lc) cols[j] = cols[j] - nc;
+			}
+		}
+		std::vector<double> adjcells = cellFromRowCol(rows, cols);
+        if (include) {
+			out.push_back(cells[i]);
+        }
+		out.insert(out.end(), adjcells.begin(), adjcells.end());
+	}
+	return out;
+}
+
+std::vector<double> SpatRaster::adjacent(std::vector<double> cells, std::string directions, bool include) {
+
+	std::vector<double> out;
+
+	std::vector<std::string> f {"rook", "queen", "bishop", "4", "8", "16"};
 	if (std::find(f.begin(), f.end(), directions) == f.end()) {
         setError("argument directions is not valid");
         return(out);
 	}
+	unsigned n = cells.size();
+
+	unsigned nngb = (directions=="queen" || directions=="8") ? 8 : (directions=="16" ? 16 : 4);
+	nngb += include;
+	out.reserve(n * nngb);
 
 	std::vector<std::vector<int_64>> rc = rowColFromCell(cells);
 	std::vector<int_64> r = rc[0];
@@ -1537,7 +1605,7 @@ std::vector<std::vector<double>> SpatRaster::adjacent(std::vector<double> cells,
     int_64 nc = ncol();
     int_64 lc = nc-1;
     std::vector<int_64> cols, rows;
-	if (directions == "rook") {
+	if (directions == "rook" || directions == "4") {
 		for (size_t i=0; i<n; i++) {
 			rows = {r[i]-1, r[i]   , r[i]  , r[i]+1};
             cols = {c[i]  , c[i]-1 , c[i]+1, c[i]};
@@ -1549,13 +1617,12 @@ std::vector<std::vector<double>> SpatRaster::adjacent(std::vector<double> cells,
                 }
             }
             if (include) {
-                rows.push_back(r[i]);
-                cols.push_back(c[i]);
+				out.push_back(cells[i]);
             }
-			out[i] = cellFromRowCol(rows, cols);
-			//std::sort(out[i].begin(), out[i].end());
+			std::vector<double> adjcells = cellFromRowCol(rows, cols);
+			out.insert(out.end(), adjcells.begin(), adjcells.end());
 		}
-	} else if (directions == "queen") {
+	} else if (directions == "queen" || directions == "8") {
 		for (size_t i=0; i<n; i++) {
             rows = {r[i]-1, r[i]-1, r[i]-1, r[i], r[i], r[i]+1, r[i]+1, r[i]+1};
             cols = {c[i]-1, c[i], c[i]+1, c[i]-1, c[i]+1, c[i]-1, c[i], c[i]+1};
@@ -1567,11 +1634,10 @@ std::vector<std::vector<double>> SpatRaster::adjacent(std::vector<double> cells,
                 }
             }
             if (include) {
-                rows.push_back(r[i]);
-                cols.push_back(c[i]);
+				out.push_back(cells[i]);
             }
-			out[i] = cellFromRowCol(rows, cols);
-			//std::sort(out[i].begin(), out[i].end());
+			std::vector<double> adjcells = cellFromRowCol(rows, cols);
+			out.insert(out.end(), adjcells.begin(), adjcells.end());
 		}
 	} else if (directions == "bishop") {
 		for (size_t i=0; i<n; i++) {
@@ -1585,11 +1651,10 @@ std::vector<std::vector<double>> SpatRaster::adjacent(std::vector<double> cells,
                 }
             }
             if (include) {
-                rows.push_back(r[i]);
-                cols.push_back(c[i]);
+				out.push_back(cells[i]);
             }
-			out[i] = cellFromRowCol(rows, cols);
-			//std::sort(out[i].begin(), out[i].end());
+			std::vector<double> adjcells = cellFromRowCol(rows, cols);
+			out.insert(out.end(), adjcells.begin(), adjcells.end());
 		}
 	} else if (directions == "16") {
 		for (size_t i=0; i<n; i++) {
@@ -1607,11 +1672,10 @@ std::vector<std::vector<double>> SpatRaster::adjacent(std::vector<double> cells,
                 }
             }
             if (include) {
-                rows.push_back(r[i]);
-                cols.push_back(c[i]);
+				out.push_back(cells[i]);
             }
-			out[i] = cellFromRowCol(rows, cols);
-			//std::sort(out[i].begin(), out[i].end());
+			std::vector<double> adjcells = cellFromRowCol(rows, cols);
+			out.insert(out.end(), adjcells.begin(), adjcells.end());
 		}
 	}
 	return(out);
@@ -1918,7 +1982,7 @@ SpatVector SpatRaster::as_lines() {
 bool SpatRaster::setRGB(int r, int g, int b) {
 	size_t mxlyr = std::max(std::max(r, g), b);
 	if (nlyr() <= mxlyr) {
-		setError("layer number for R, G, B, cannot exceed the number of layers");		
+		//addWarning("layer number for R, G, B, cannot exceed the number of layers");		
 		return false;
 	} else {
 		size_t mnlyr = std::min(std::min(r, g), b);

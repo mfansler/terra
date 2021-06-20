@@ -62,11 +62,15 @@ parfun <- function(cls, data, fun, model, ...) {
 		}
 		r <- as.matrix(r)
 	}
+	if (inherits(model, "gstat")) {
+		nr <- max(nrow(d), 5)
+		xy <- as.matrix(d[1:nr,1:2])
+		if (all(xy == r[1:nr, 1:2])) {	
+			r <- r[,-c(1:2)]   # x, y
+		}
+	}
 	if (!is.null(index)) {
 		r <- r[, index,drop=FALSE]
-	}
-	if (inherits(model, "gstat")) {
-		r <- r[,-c(1:2)]   # x, y
 	}
 	r
 }
@@ -108,7 +112,7 @@ parfun <- function(cls, data, fun, model, ...) {
 }
 
 setMethod("predict", signature(object="SpatRaster"), 
-	function(object, model, fun=predict, ..., factors=NULL, const=NULL, na.rm=FALSE, index=NULL, cores=1, filename="", overwrite=FALSE, wopt=list()) {
+	function(object, model, fun=predict, ..., factors=NULL, const=NULL, na.rm=FALSE, index=NULL, cores=1, cpkgs=NULL, filename="", overwrite=FALSE, wopt=list()) {
 
 		nms <- names(object)
 		if (length(unique(nms)) != length(nms)) {
@@ -148,14 +152,18 @@ setMethod("predict", signature(object="SpatRaster"),
 		} else {
 			warn("predict", "Cannot determine the number of output variables. Assuming 1. Use argument 'index' to set it manually")
 		}
-		out <- rast(object, nlyr=nl)
+		out <- rast(object, nlyrs=nl)
 		cn <- colnames(r)
 		if (length(cn) == nl) names(out) <- make.names(cn, TRUE)
 
 		if (cores > 1) {
 			cls <- parallel::makeCluster(cores)
-			on.exit(parallel::stopCluster(cls)) #  add=TRUE?)
+			on.exit(parallel::stopCluster(cls), add=TRUE)
 			parallel::clusterExport(cls, c("model", "fun"), environment())
+			if (!is.null(cpkgs)) {
+				parallel::clusterExport(cls, "cpkgs", environment())
+				parallel::clusterCall(cls, function() for (i in 1:length(cpkgs)) {library(cpkgs[i], character.only=TRUE) })
+			}
 			dots <- list(...)
 			if (length(dots) > 0) {
 				nms <- names(dots)

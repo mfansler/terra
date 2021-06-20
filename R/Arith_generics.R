@@ -330,7 +330,7 @@ setMethod("is.infinite", signature(x="SpatRaster"),
 )
 
 
-.summarize <- function(x, ..., fun, na.rm=FALSE) {
+.summarize <- function(x, ..., fun, na.rm=FALSE, filename="", overwrite=FALSE, wopt=list()) {
 	dots <- list(...)
 	add <- NULL
 	cls <- FALSE
@@ -338,15 +338,21 @@ setMethod("is.infinite", signature(x="SpatRaster"),
 		cls <- sapply(dots, function(i) inherits(i, "SpatRaster"))
 		if (!all(cls)) {
 			dots <- dots[!cls]
+			if (!is.null(names(dots))) {
+				error(fun, "additional arguments cannot be names (except for `filename`, `overwrite` and `wopt`)")
+			}
 			i <- sapply(dots, function(x) class(x) %in% c("logical", "integer", "numeric"))
 			add <- unlist(dots[i], use.names = FALSE)
+			if (any(!i)) {
+				error(fun, "invalid argument(s)")
+			}
 		}
 	}
 	if (any(cls)) {
 		x <- sds(c(list(x), dots[cls]))
 	} 
 
-	opt <- spatOptions()
+	opt <- spatOptions(filename, overwrite, wopt=wopt)
 	r <- rast()
 	if (is.null(add)) {
 		r@ptr <- x@ptr$summary(fun, na.rm, opt)
@@ -392,6 +398,15 @@ setMethod("Summary", signature(x="SpatRaster"),
 	}
 )
 
+setMethod("Summary", signature(x="SpatVector"),
+	function(x, ..., na.rm=FALSE){
+		apply(values(x), 2, sys.call()[[1L]], ...)
+	}
+)
+
+
+
+
 setMethod("Summary", signature(x="SpatExtent"),
 	function(x, ..., na.rm=FALSE){
 		e <- as.vector(x)
@@ -423,12 +438,24 @@ setMethod("mean", signature(x="SpatRaster"),
 	}
 )
 
+setMethod("mean", signature(x="SpatVector"),
+	function(x, ..., trim=NA, na.rm=FALSE){
+		if (!is.na(trim)) {	warn("mean", "argument 'trim' is ignored") }
+		colMeans(values(x))
+	}
+)
+
 setMethod("median", signature(x="SpatRaster"),
 	function(x, na.rm=FALSE){
 		.summarize(x, fun="median", na.rm=na.rm)
 	}
 )
 
+setMethod("median", signature(x="SpatVector"),
+	function(x, na.rm=FALSE){
+		apply(values(x), 2, median, na.rm=na.rm)
+	}
+)
 
 setMethod("Compare", signature(e1="SpatExtent", e2="SpatExtent"),
     function(e1, e2){ 

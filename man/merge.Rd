@@ -4,6 +4,7 @@
 
 \alias{merge}
 \alias{merge,SpatRaster,SpatRaster-method}
+\alias{merge,SpatRasterCollection,missing-method}
 \alias{merge,SpatExtent,SpatExtent-method}
 \alias{merge,SpatVector,data.frame-method}
 
@@ -20,6 +21,8 @@ There is a also a method for merging SpatVector with a data.frame; that is, to j
 \usage{
 \S4method{merge}{SpatRaster,SpatRaster}(x, y, ..., filename="", overwrite=FALSE, wopt=list())
 
+\S4method{merge}{SpatRasterCollection,missing}(x, filename="", ...)
+
 \S4method{merge}{SpatExtent,SpatExtent}(x, y, ...)
 
 \S4method{merge}{SpatVector,data.frame}(x, y, ...)
@@ -28,7 +31,7 @@ There is a also a method for merging SpatVector with a data.frame; that is, to j
 \arguments{
   \item{x}{SpatRaster or SpatExtent}
   \item{y}{object of same class as \code{x}}
-  \item{...}{if \code{x} is a SpatRaster or SpatVector: additional objects of the same class as \code{x}. If \code{x} is a SpatVector, the same arguments as in \code{\link[base]{merge}}}
+  \item{...}{if \code{x} is a SpatRaster: additional objects of the same class as \code{x}. If \code{x} is a SpatRasterCollection: options for writing files as in \code{\link{writeRaster}}. If \code{x} is a SpatVector, the same arguments as in \code{\link[base]{merge}}}
   \item{filename}{character. Output filename}
   \item{overwrite}{logical. If \code{TRUE}, \code{filename} is overwritten}
   \item{wopt}{list with named options for writing files as in \code{\link{writeRaster}}}
@@ -52,24 +55,25 @@ You can use \code{merge} with \code{do.call} to merge a list of SpatRasters (see
 
 
 \examples{
-x <- rast(xmin=-110, xmax=-50, ymin=40, ymax=70, ncols=60, nrows=30)
-y <- rast(xmin=-80, xmax=-20, ymax=60, ymin=30)
-res(y) <- res(x)
+x <- rast(xmin=-110, xmax=-80, ymin=40, ymax=70, ncols=30, nrows=30)
+y <- rast(xmin=-85, xmax=-55, ymax=60, ymin=30, ncols=30, nrows=30)
+z <- rast(xmin=-60, xmax=-30, ymax=50, ymin=20, ncols=30, nrows=30)
 values(x) <- 1:ncell(x)
 values(y) <- 1:ncell(y)
-mr <- merge(x, y)
-plot(mr)
-mr <- merge(y, x)
+values(z) <- 1:ncell(z)
 
-# if you have many SpatRaster objects in a list
-# you can use do.call:
-s <- list(x, y)
-# add arguments such as filename
-s$filename <- ""
-m <- do.call(merge, s)
+m1 <- merge(x, y, z)
+m2 <- merge(z, y, x)
+m3 <- merge(y, x, z)
 
-##
-# SpatVector with data.frame
+# if you have many SpatRasters make a SpatRasterCollection from a list
+rlist <- list(x, y, z)
+rsrc <- src(rlist)
+
+m <- merge(rsrc)
+
+
+## SpatVector with data.frame
 f <- system.file("ex/lux.shp", package="terra")
 p <- vect(f)
 dfr <- data.frame(District=p$NAME_1, Canton=p$NAME_2, Value=round(runif(length(p), 100, 1000)))

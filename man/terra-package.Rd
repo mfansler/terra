@@ -136,6 +136,7 @@ Also see the methods in section VIII
     \code{localFun} \tab Local association (using neighborhoods) functions \cr
     \code{\link{patches}} \tab Find patches (clumps) \cr
     \code{\link{terrain}} \tab Compute slope, aspect and other terrain characteristics from elevation data \cr	
+    \code{\link{shade}} \tab Compute hill shade from slope and aspect layers \cr	
     \code{\link{autocor}} \tab Compute global or local spatial autocorrelation  \cr	
   --------------------------- \tab ------------------------------------------------------------------------------------------ \cr
   }
@@ -291,6 +292,7 @@ A SpatRasterDataset contains SpatRaster objects that are sub-datasets for the sa
   \code{\link{vect}} \tab Create a SpatVector from a file (for example a "shapefile") or from another object\cr
   \code{rbind} \tab append SpatVectors of the same geometry type\cr
   \code{\link{unique}} \tab remove duplicates \cr
+  \code{\link{na.omit}} \tab remove empty geometries and/or fields that are \code{NA} \cr
   \code{\link{project}} \tab Project a SpatVector to a different coordinate reference system \cr
   \code{\link{writeVector}} \tab Write SpatVector data to disk \cr
   \code{\link{centroids}} \tab Get the centroids of a SpatVector\cr
@@ -561,7 +563,7 @@ Also note that even if function names are the same in \code{terra} and \code{ras
 Except where indicated otherwise, the methods and functions in this package were written by Robert Hijmans. The configuration scripts were written by Roger Bivand for \code{rgdal} and \code{sf}. Some of the C++ code for GDAL/GEOS was adapted from code by Edzer Pebesma for \code{sf}. The progress bar code is by Karl Forner (RcppProgress). Jeroen Ooms provided the compiled GDAL and GEOS libraries for installation on windows}
 
 \section{Acknowledgments}{
-This package is an attempt to climb on the shoulders of giants (GDAL, PROJ, GEOS, NCDF, GeographicLib, Rcpp, R). Many people have contributed by asking questions or \href{https://github.com/rspatial/terra}{filing bug reports}. The feedback and suggestions by Kendon Bell, Jean-Luc Dupouey, Gerald Nelson, and Michael Sumner have been especially helpful.
+This package is an attempt to climb on the shoulders of giants (GDAL, PROJ, GEOS, NCDF, GeographicLib, Rcpp, R). Many people have contributed by asking questions or \href{https://github.com/rspatial/terra}{filing bug reports}. The feedback and suggestions by Kendon Bell, Jean-Luc Dupouey, Krzysztof Dyba, Jakub Nowosad, Gerald Nelson, and Michael Sumner have been especially helpful.
 }
 
 \keyword{ package }

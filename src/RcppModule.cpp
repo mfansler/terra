@@ -5,7 +5,6 @@
 
 
 //void SpatRaster_finalizer( SpatRaster* ptr ){
-//   Rcpp::Rcout << "finalizer" << std::endl;
 //}
 
 Rcpp::List getBlockSizeR(SpatRaster* r, unsigned n, double frac) { 
@@ -19,11 +18,6 @@ Rcpp::List getBlockSizeR(SpatRaster* r, unsigned n, double frac) {
 
 
 bool sameObject(SpatRaster* a, SpatRaster* b) {
-//	Rcpp::Rcout << a->source[0].time[0] << std::endl;
-//	size_t n = a->source[0].time.size();
-//	Rcpp::Rcout << n << std::endl;
-//	Rcpp::Rcout << a->nlyr() << std::endl;
-//	Rcpp::Rcout << a->source[0].time[n-1] << std::endl;
 	return a == b;
 }
 
@@ -270,6 +264,7 @@ RCPP_MODULE(spat){
 		.method("line_merge", &SpatVector::line_merge, "")
 		.method("simplify", &SpatVector::simplify, "")
 		.method("shared_paths", &SpatVector::shared_paths, "")
+		.method("snap", &SpatVector::snap, "")
 
 		.field_readonly("df", &SpatVector::df )
 
@@ -362,7 +357,11 @@ RCPP_MODULE(spat){
 		.method("intersect", &SpatVector::intersect)
 		.method("delauny", &SpatVector::delauny)
 		.method("voronoi", &SpatVector::voronoi)
-		.method("chull", &SpatVector::convexhull)
+		.method("hull", &SpatVector::hull)
+		
+		.method("width", &SpatVector::width)
+		.method("clearance", &SpatVector::clearance)
+
 		.method("relate_first", &SpatVector::relateFirst)
 		.method("relate_between", ( std::vector<int> (SpatVector::*)(SpatVector, std::string))( &SpatVector::relate ))
 		.method("relate_within", ( std::vector<int> (SpatVector::*)(std::string, bool))( &SpatVector::relate ))
@@ -406,6 +405,8 @@ RCPP_MODULE(spat){
 	 // .constructor<std::string, int>()
 	    .constructor<std::vector<std::string>, std::vector<int>, std::vector<std::string>, bool, std::vector<size_t>>()
 		.constructor<std::vector<unsigned>, std::vector<double>, std::string>()
+
+		.method("fromFiles", &SpatRaster::fromFiles)
 
         //.finalizer( &SpatRaster_finalizer)    
 
@@ -554,6 +555,7 @@ RCPP_MODULE(spat){
 		.method("chunkSize", &SpatRaster::chunkSize, "chunkSize")
 		.method("to_memory", &SpatRaster::to_memory, "to_memory")
 
+		.method("adjacentMat", &SpatRaster::adjacentMat, "adjacent with matrix")
 		.method("adjacent", &SpatRaster::adjacent, "adjacent")
 		.method("aggregate", &SpatRaster::aggregate, "aggregate")
 		.method("align", &SpatRaster::align, "align")
@@ -657,7 +659,11 @@ RCPP_MODULE(spat){
 
     class_<SpatRasterCollection>("SpatRasterCollection")
 		.constructor()
-		.field("messages", &SpatRasterCollection::msg, "messages")
+		.method("has_error", &SpatRasterCollection::has_error)
+		.method("has_warning", &SpatRasterCollection::has_warning)
+		.method("getError", &SpatRasterCollection::getError)
+		.method("getWarnings", &SpatRasterCollection::getWarnings)
+		//.field("messages", &SpatRasterCollection::msg, "messages")
 		.field_readonly("x", &SpatRasterCollection::ds)
 		.method("length", &SpatRasterCollection::size, "size")
 		.method("resize", &SpatRasterCollection::resize, "resize")

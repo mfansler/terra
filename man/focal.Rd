@@ -12,7 +12,7 @@ Calculate focal ("moving window") values for the neighborhood of focal cells usi
 
 \usage{
 \S4method{focal}{SpatRaster}(x, w=3, fun="sum", na.rm=TRUE, na.only=FALSE, 
-			fillvalue=NA, expand=FALSE, filename="", ...) 
+		fillvalue=NA, expand=FALSE, filename="", ...) 
 }
 
 \arguments{
@@ -45,10 +45,16 @@ Example weight matrices
 
 Laplacian filter: \code{filter=matrix(c(0,1,0,1,-4,1,0,1,0), nrow=3)}
 
-Sobel filter: \code{filter=matrix(c(1,2,1,0,0,0,-1,-2,-1) / 4, nrow=3)}
+Sobel filters (for edge detection):
+\code{fx=matrix(c(-1,-2,-1,0,0,0,1,2,1), nrow=3)}
+\code{fy=matrix(c(1,0,-1,2,0,-2,1,0,-1), nrow=3)}
 }
 
+
 \value{SpatRaster}
+
+
+\seealso{ \code{\link{focalMat}}, \code{\link{focalValues}} }
 
 
 \examples{

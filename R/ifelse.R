@@ -10,14 +10,14 @@ setMethod("ifel", signature(test="SpatRaster"),
 			if (length(no) > 1) warn("ifel", 'only the first element of "no" is used')
 			no <- classify(test, rbind(c(0, no[1]), c(1, NA)))
 		} else {
-			no <- mask(no, test, maskvalue=TRUE)
+			no <- mask(no, test, maskvalues=TRUE)
 		}
 		if (!inherits(yes, "SpatRaster")) {
 			stopifnot(is.numeric(yes) || is.logical(yes)) 
 			if (length(yes) > 1) warn("ifel", 'only the first element of "yes" is used')
 			yes <- classify(test, rbind(c(1, yes[1]), c(0, NA)))
 		}
-		cover(no, yes, value=NA, filename=filename, ...)
+		cover(no, yes, values=NA, filename=filename, ...)
 	}
 )
 

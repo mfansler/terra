@@ -187,7 +187,7 @@ setMethod("text", signature(x="SpatRaster"),
 		xy <- geom(p)[, c("x", "y")]
 		if (is.factor(labels)) {
 			labels <- substr(as.character(labels), 1, max(1, digits))
-		} else {
+		} else if (is.numeric(labels)) {
 			labels <- as.character(round(labels, digits=digits) )
 		}
 		if (halo) {
@@ -290,12 +290,12 @@ setMethod("barplot", "SpatRaster",
 
 
 
-shade <- function(slope, aspect, angle=45, direction=0, normalize=FALSE, ...) {
+shade <- function(slope, aspect, angle=45, direction=0, normalize=FALSE, filename="", ...) {
 	
-	x <- c(slope, aspect)
+	x <- c(slope[[1]], aspect[[1]])
 
-	direction <- direction * pi/180
-	zenith <- (90 - angle)*pi/180
+	direction <- direction[1] * pi/180
+	zenith <- (90 - angle[1]) * pi/180
 	
 	if (normalize) {
 		fun <- function(slp, asp) { 
@@ -306,7 +306,6 @@ shade <- function(slope, aspect, angle=45, direction=0, normalize=FALSE, ...) {
 	} else {
 		fun <- function(slp, asp) { cos(slp) * cos(zenith) + sin(slp) * sin(zenith) * cos(direction-asp) }
 	}
-	x <- lapp(x, fun=fun, ...)		
-	return(x)
+	lapp(x, fun=fun, filename=filename, wopt=list(...))		
 }
 

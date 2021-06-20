@@ -16,13 +16,14 @@ new_rast <- function(nrows=10, ncols=10, nlyrs=1, xmin=0, xmax=1, ymin=0, ymax=1
 
 		if (missing(crs)) {
 			if (e[1] > -360.01 & e[2] < 360.01 & e[3] > -90.01 & e[4] < 90.01) {
-				crs <- "EPSG:4326"
+				crs <- "OGC:CRS84"
 			} else {
 				crs <- ""
 			}
 		} else {
 			crs <- as.character(crs)
 		}
+		#check_proj4_datum(crs)
 
 		r <- methods::new("SpatRaster")
 		r@ptr <- SpatRaster$new(c(nrows, ncols, nlyrs), e, crs)
@@ -61,15 +62,16 @@ setMethod("rast", signature(x="list"),
 			if (!any(i)) {
 				error("rast,list", "none of the elements of x are a SpatRaster")
 			} else {
-				warn("rast", sum(!i), " out of ", length(x), " elements of x are a SpatRaster")
+				warn("rast", sum(!i), " out of ", length(x), " elements of x are not a SpatRaster")
 				x <- x[i]
 			}
 		}
+		# start with an empty raster (alternatively use a deep copy)
 		out <- rast(x[[1]])
 		for (i in 1:length(x)) {
 			out@ptr$addSource(x[[i]]@ptr)
 		}
-		out
+		messages(out, "rast")
 	}
 )
 
@@ -132,16 +134,18 @@ setMethod("rast", signature(x="character"),
 		x <- trimws(x)
 		x <- x[x!=""]
 		if (length(x) == 0) {
-			error("rast,character", "provide a valid filename")
+			error("rast", "filename is empty. Provide a valid filename")
 		}
 		r <- methods::new("SpatRaster")
 		f <- .fullFilename(x)
 		#subds <- subds[1]
 		if (is.character(subds)) { 
+			#r@ptr <- SpatRaster$new(f, -1, subds, FALSE, 0[])
 			r@ptr <- SpatRaster$new(f, -1, subds, FALSE, 0[])
 		} else {
 			r@ptr <- SpatRaster$new(f, subds-1, "", FALSE, 0[])
 		}
+		r <- messages(r, "rast")
 		if (r@ptr$getMessage() == "ncdf extent") {
 			test <- try(r <- .ncdf_extent(r), silent=TRUE)
 			if (inherits(test, "try-error")) {
@@ -152,7 +156,7 @@ setMethod("rast", signature(x="character"),
 
 		if (crs(r) == "") {
 			if (is.lonlat(r, perhaps=TRUE, warn=FALSE)) {
-				crs(r) <- "EPSG:4326"
+				crs(r) <- "OGC:CRS84"
 			}
 		}
 		r
@@ -185,7 +189,7 @@ multi <- function(x, subds=0, xyz=c(1,2,3)) {
 
 		if (crs(r) == "") {
 			if (is.lonlat(r, perhaps=TRUE, warn=FALSE)) {
-				crs(r) <- "EPSG:4326"
+				crs(r) <- "OGC:CRS84"
 			}
 		}
 		r
@@ -193,8 +197,8 @@ multi <- function(x, subds=0, xyz=c(1,2,3)) {
 
 
 setMethod("rast", signature(x="SpatRaster"),
-	function(x, nlyrs=nlyr(x)) {
-		x@ptr <- x@ptr$geometry(nlyrs, FALSE)
+	function(x, nlyrs=nlyr(x), props=FALSE, time=FALSE) {
+		x@ptr <- x@ptr$geometry(nlyrs, props, time)
 		messages(x, "rast")
 	}
 )
@@ -279,7 +283,7 @@ setMethod("rast", signature(x="ANY"),
 	maxy <- max(y) + 0.5 * ry
 
 	d <- dim(xyz)
-	r <- rast(xmin=minx, xmax=maxx, ymin=miny, ymax=maxy, crs=crs, nl=d[2]-2)
+	r <- rast(xmin=minx, xmax=maxx, ymin=miny, ymax=maxy, crs=crs, nlyrs=d[2]-2)
 	res(r) <- c(rx, ry)
 	cells <- cellFromXY(r, xyz[,1:2])
 	if (d[2] > 2) {
@@ -300,7 +304,7 @@ setMethod("rast", signature(x="matrix"),
 		if (type == "xyz") {
 			r <- .rastFromXYZ(x, crs=crs, digits=digits)
 		} else {
-			r <- rast(nrow=nrow(x), ncol=ncol(x), crs=crs, extent=ext(c(0, 1, 0, 1)))
+			r <- rast(nrows=nrow(x), ncols=ncol(x), crs=crs, extent=ext(c(0, 1, 0, 1)))
 			values(r) <- t(x)
 		}
 		messages(r, "rast")

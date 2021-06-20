@@ -46,6 +46,8 @@ setMethod("RGB", signature(x="SpatRaster"),
 setMethod("plotRGB", signature(x="SpatRaster"), 
 function(x, r=1, g=2, b=3, scale, maxcell=500000, mar=0, stretch=NULL, ext=NULL, smooth=FALSE, colNA="white", alpha, bgalpha, addfun=NULL, zlim=NULL, zlimcol=NULL, axes=FALSE, xlab="", ylab="", asp=NULL, add=FALSE, interpolate, ...) { 
 
+	x <- x[[c(r, g, b)]]
+	
 	if (!is.null(mar)) {
 		mar <- rep_len(mar, 4)
 		if (!any(is.na(mar))) {	
@@ -65,7 +67,7 @@ function(x, r=1, g=2, b=3, scale, maxcell=500000, mar=0, stretch=NULL, ext=NULL,
 	if (!is.null(ext)) {
 		x <- crop(x, ext)
 	}
-	x <- spatSample(x[[c(r, g, b)]], maxcell, method="regular", as.raster=TRUE)
+	x <- spatSample(x, maxcell, method="regular", as.raster=TRUE)
 
 	RGB <- values(x)
 
@@ -117,11 +119,11 @@ function(x, r=1, g=2, b=3, scale, maxcell=500000, mar=0, stretch=NULL, ext=NULL,
 	naind <- as.vector( attr(RGB, "na.action") )
 	if (!is.null(naind)) {
 		bg <- grDevices::col2rgb(colNA)
-		bg <- grDevices::rgb(bg[1], bg[2], bg[3], alpha=bgalpha, max=255)
+		bg <- grDevices::rgb(bg[1], bg[2], bg[3], alpha=bgalpha, maxColorValue=255)
 		z <- rep( bg, times=ncell(x))
-		z[-naind] <- grDevices::rgb(RGB[,1], RGB[,2], RGB[,3], alpha=alpha, max=scale)
+		z[-naind] <- grDevices::rgb(RGB[,1], RGB[,2], RGB[,3], alpha=alpha, maxColorValue=scale)
 	} else {
-		z <- grDevices::rgb(RGB[,1], RGB[,2], RGB[,3], alpha=alpha, max=scale)
+		z <- grDevices::rgb(RGB[,1], RGB[,2], RGB[,3], alpha=alpha, maxColorValue=scale)
 	}
 
 	z <- matrix(z, nrow=nrow(x), ncol=ncol(x), byrow=TRUE)
@@ -284,7 +286,7 @@ setMethod("RGB2col", signature(x="SpatRaster"),
 		v <- median_cut(stats::na.omit(v))
 		
 		a <- aggregate(v[,3:5], list(v[,1]), median)
-		a$cols <- grDevices::rgb(a[,2], a[,3], a[,4], max=255)
+		a$cols <- grDevices::rgb(a[,2], a[,3], a[,4], maxColorValue=255)
 		m <- merge(v[,1:2], a[, c(1,5)], by=1)
 		r <- rast(x, 1)
 		r[m$id] <- m$group - 1

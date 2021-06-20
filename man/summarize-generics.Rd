@@ -13,9 +13,12 @@
 
 \alias{Summary,SpatExtent-method}
 \alias{Summary,SpatRaster-method}
+\alias{Summary,SpatVector-method}
 \alias{mean,SpatRaster-method}
+\alias{mean,SpatVector-method}
 \alias{mean,SpatExtent-method}
 \alias{median,SpatRaster-method}
+\alias{median,SpatVector-method}
 \alias{stdev}
 \alias{stdev,SpatRaster-method}
 \alias{min,SpatRaster-method}
@@ -66,10 +69,10 @@ This is different than the sample standard deviation returned by \code{sd} (whic
 
 \arguments{
   \item{x}{SpatRaster}
-  \item{...}{additional SpatRaster objects or numeric values}
+  \item{...}{additional SpatRaster objects or numeric values; and arguments \code{filename}, \code{overwrite} and \code{wopt} as for \code{writeRaster}}
+  \item{na.rm}{logical. If \code{TRUE}, \code{NA} values are ignored. If \code{FALSE}, \code{NA} is returned if \code{x} has any \code{NA} values}
   \item{trim}{ignored}
   \item{pop}{logical. If \code{TRUE}, the population standard deviation is computed. Otherwise the sample standard deviation is computed}
-  \item{na.rm}{logical. If \code{TRUE}, \code{NA} values are ignored. If \code{FALSE}, \code{NA} is returned if \code{x} has any \code{NA} values}
 }
 
 
@@ -80,7 +83,7 @@ This is different than the sample standard deviation returned by \code{sd} (whic
 
 \examples{
 set.seed(0)
-r <- rast(nrow=10, ncol=10, nlyr=3)
+r <- rast(nrows=10, ncols=10, nlyrs=3)
 values(r) <- runif(ncell(r) * nlyr(r))
 
 x <- mean(r)

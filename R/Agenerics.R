@@ -4,6 +4,11 @@ if (!isGeneric("weighted.mean")) {setGeneric("weighted.mean", function(x, w, ...
 if (!isGeneric("split")) {setGeneric("split", function(x, ...) standardGeneric("split"))}
 if (!isGeneric("cellSize")) {setGeneric("cellSize", function(x, ...) standardGeneric("cellSize"))}
 
+if (!isGeneric("na.omit")) {setGeneric("na.omit", function(object, ...) standardGeneric("na.omit"))}
+if (!isGeneric("catalyze")) {setGeneric("catalyze", function(x, ...) standardGeneric("catalyze"))}
+if (!isGeneric("activeCat")) {setGeneric("activeCat", function(x, ...) standardGeneric("activeCat"))}
+if (!isGeneric("activeCat<-")) {setGeneric("activeCat<-", function(x, ..., value) standardGeneric("activeCat<-"))}
+
 if (!isGeneric("sharedPaths")) {setGeneric("sharedPaths", function(x, ...) standardGeneric("sharedPaths"))}
 if (!isGeneric("isTRUE")) {setGeneric("isTRUE", function(x) standardGeneric("isTRUE"))}
 if (!isGeneric("subst")) {setGeneric("subst", function(x, ...) standardGeneric("subst"))}
@@ -14,6 +19,7 @@ if (!isGeneric("autocor")) {setGeneric("autocor", function(x, ...) standardGener
 if (!isGeneric("delauny")) {setGeneric("delauny", function(x, ...) standardGeneric("delauny"))}
 if (!isGeneric("voronoi")) {setGeneric("voronoi", function(x, ...) standardGeneric("voronoi"))}
 if (!isGeneric("convHull")) {setGeneric("convHull", function(x, ...) standardGeneric("convHull"))}
+if (!isGeneric("minRect")) {setGeneric("minRect", function(x, ...) standardGeneric("minRect"))}
 if (!isGeneric("relate")) {setGeneric("relate", function(x, y, ...) standardGeneric("relate"))}
 if (!isGeneric("intersect")) {setGeneric("intersect", function(x, y, ...) standardGeneric("intersect"))}
 if (!isGeneric("erase")) {setGeneric("erase", function(x, y, ...) standardGeneric("erase"))}
@@ -84,6 +90,7 @@ if (!isGeneric("as.raster")) { setGeneric("as.raster", function(x, ...) standard
 if (!isGeneric("rast") ) { setGeneric("rast", function(x, ...) standardGeneric("rast")) }
 if (!isGeneric("rev") ) { setGeneric("rev", function(x) standardGeneric("rev")) }
 if (!isGeneric("sds") ) { setGeneric("sds", function(x, ...) standardGeneric("sds")) }
+if (!isGeneric("src") ) { setGeneric("src", function(x, ...) standardGeneric("src")) }
 if (!isGeneric("svc") ) { setGeneric("svc", function(x, ...) standardGeneric("svc")) }
 if (!isGeneric("sel")) {setGeneric("sel", function(x, ...) standardGeneric("sel"))}
 if (!isGeneric("segregate")) {setGeneric("segregate", function(x, ...) standardGeneric("segregate"))}
@@ -108,7 +115,6 @@ if (!isGeneric("writeVector")) {setGeneric("writeVector", function(x, filename, 
 if (!isGeneric("%in%")) { setGeneric("%in%", function(x, table)	standardGeneric("%in%")) }
 if (!isGeneric("adjacent")) {setGeneric("adjacent", function(x, ...) standardGeneric("adjacent"))}
 if (!isGeneric("animate")) { setGeneric("animate", function(x, ...) standardGeneric("animate")) }
-if (!isGeneric("area")) {setGeneric("area", function(x, ...) standardGeneric("area"))}
 if (!isGeneric("as.data.frame")) { setGeneric("as.data.frame", function(x, ...) standardGeneric("as.data.frame"))}
 if (!isGeneric("as.list")) { setGeneric("as.list", function(x, ...) standardGeneric("as.list"))}
 if (!isGeneric("atan2")) { setGeneric("atan2", function(y, x) standardGeneric("atan2"))}

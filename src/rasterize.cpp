@@ -59,7 +59,8 @@ bool SpatRaster::getDSh(GDALDatasetH &rstDS, std::string &filename, std::string 
 				SpatRaster out = writeRaster(opt);
 			} else {
 				// writeRaster should do the below? copyRaster?
-				GDALDatasetH hSrcDS = GDALOpen(source[0].filename.c_str(), GA_ReadOnly );
+				//rstDS = openGDAL(tmp.source[0].filename, GDAL_OF_RASTER | GDAL_OF_READONLY);
+				GDALDatasetH hSrcDS = GDALOpenEx(source[0].filename.c_str(), GDAL_OF_RASTER | GDAL_OF_READONLY, NULL, NULL, NULL);
 				if(hSrcDS == NULL) {
 					msg = "cannot open source dataset";
 					return false;
@@ -73,9 +74,8 @@ bool SpatRaster::getDSh(GDALDatasetH &rstDS, std::string &filename, std::string 
 				}
 				GDALClose(hDstDS);
 			}
-			rstDS = GDALOpen( filename.c_str(), GA_Update);	
+			rstDS = GDALOpenEx(filename.c_str(), GDAL_OF_RASTER | GDAL_OF_UPDATE, NULL, NULL, NULL);
 		}
-	
 	} else {
 		SpatRaster tmp = geometry();
 		if (!tmp.create_gdalDS(rstDS, filename, driver, true, background, opt)) {
@@ -124,7 +124,7 @@ SpatRaster SpatRaster::rasterizeLyr(SpatVector x, double value, double backgroun
 	std::string errmsg, driver, filename;
 	GDALDatasetH rstDS;
 	double naval;
-	if (!getDSh(rstDS, filename, driver, naval, errmsg, update, background, opt)) {
+	if (!out.getDSh(rstDS, filename, driver, naval, errmsg, update, background, opt)) {
 		out.setError(errmsg);
 		return out;
 	}
@@ -278,7 +278,7 @@ SpatRaster SpatRaster::rasterize(SpatVector x, std::string field, std::vector<do
 	double naval;
 	if (add) {	background = 0;	}
 
-	if (!getDSh(rstDS, filename, driver, naval, errmsg, update, background, opt)) {
+	if (!out.getDSh(rstDS, filename, driver, naval, errmsg, update, background, opt)) {
 		out.setError(errmsg);
 		return out;
 	}
@@ -378,7 +378,6 @@ std::vector<double> SpatRaster::rasterizeCells(SpatVector &v, bool touches) {
 	std::vector<double> feats(1, 1) ;		
     SpatRaster rcr = rc.rasterize(v, "", feats, NAN, touches, false, false, false, false, opt); 
 	SpatVector pts = rcr.as_points(false, true, opt);
-	//Rcpp::Rcout << pts.size() << std::endl;
 	if (pts.size() == 0) {
 		std::vector<double> out(1, NAN);
 		return out;
@@ -433,7 +432,6 @@ void SpatRaster::rasterizeCellsExact(std::vector<double> &cells, std::vector<dou
 	r = r.crop(v.extent, "out", opt);
 
 	if (r.ncell() < 1000) {
-		//Rcpp::Rcout << "small" << std::endl;
 		std::vector<double> feats(1, 1) ;	
 		r = r.rasterize(v, "", feats, NAN, true, false, false, false, false, opt); 
 
@@ -459,7 +457,6 @@ void SpatRaster::rasterizeCellsExact(std::vector<double> &cells, std::vector<dou
 			}
 		}
 	} else {
-		//Rcpp::Rcout << "large" << std::endl;
 		std::vector<double> feats(1, 1) ;	
 		SpatVector vv = v.as_lines();
 		SpatRaster b = r.rasterize(vv, "", feats, NAN, true, false, false, false, false, opt); 

@@ -8,7 +8,7 @@ setMethod("weighted.mean", signature(x="SpatRaster", w="numeric"),
 	function(x, w, na.rm=FALSE, filename="", ...) {
 		opt <- spatOptions(filename, ...)
 		x@ptr <- x@ptr$wmean_vect(w, na.rm, opt)
-		messages(x)
+		messages(x, "weighted.mean")
 	}
 )
 
@@ -17,7 +17,7 @@ setMethod("weighted.mean", signature(x="SpatRaster", w="SpatRaster"),
 	function(x, w, na.rm=FALSE, filename="", ...) {
 		opt <- spatOptions(filename, ...)
 		x@ptr <-x@ptr$wmean_rast(w@ptr, na.rm, opt)
-		messages(x)
+		messages(x, "weighted.mean")
 	}
 )
 
@@ -316,11 +316,14 @@ setMethod("cover", signature(x="SpatRaster", y="SpatRaster"),
 
 
 setMethod("diff", signature(x="SpatRaster"), 
-	function(x, filename="", ...) { 
-		n = nlyr(x)
-		if (n<2) return(rast(x))
-		y = x[[-1]]
-		x = x[[-n]]
+	function(x, lag=1, filename="", ...) { 
+		n <- nlyr(x)
+		lag <- round(lag)
+		if ((lag < 1) | (lag >= n)) {
+			error("diff", "lag must be > 0 and < nlyr(x)") 
+		}
+		y <- x[[-((n-lag+1):n)]]
+		x <- x[[-(1:lag)]]
 		opt <- spatOptions(filename, ...)
 		x@ptr <- x@ptr$arith_rast(y@ptr, "-", opt)
 		messages(x, "diff")
@@ -382,6 +385,24 @@ setMethod("freq", signature(x="SpatRaster"),
 				colnames(v) <- c("layer", "value", "count")
 			} else {
 				v <- matrix(v[[1]], ncol=2, dimnames=list(NULL, c("value", "count")))
+			}
+			ff <- is.factor(x)
+			if (any(ff)) {
+				if (bylayer) {
+					v <- data.frame(v)
+					v$label <- ""
+					f <- which(ff)
+					levs <- levels(x)
+					for (i in f) {
+						g <- levs[[i]]
+						k <- v$layer==i
+						v$label[k] <- g[v$value[k] + 1]
+					}
+				} else if (nlyr(x) == 1) {				
+					v <- data.frame(v)
+					g <- levels(x)[[1]]
+					v$label <- g[v$value + 1]
+				}
 			}
 		}
 		v
@@ -447,6 +468,17 @@ setMethod("quantile", signature(x="SpatRaster"),
 	}
 )
 
+
+setMethod("quantile", signature(x="SpatVector"), 
+	function(x, probs=seq(0, 1, 0.25), ...) { 
+		x <- values(x)
+		cls <- sapply(x, class)
+		i <- cls != "character"
+		if (!any(i)) error("quantile", "no numeric variables")
+		x <- x[, i, drop=FALSE]
+		apply(x, 2, function(i) quantile(i, probs=probs, ...))
+	}
+)
 
 
 setMethod("rectify", signature(x="SpatRaster"), 
@@ -535,9 +567,9 @@ setMethod("shift", signature(x="SpatVector"),
 )
 
 setMethod("rescale", signature(x="SpatRaster"), 
-	function(x, f=0.5, x0, y0) { 
-		stopifnot(f > 0)
-		f <- sqrt(f)
+	function(x, fx=0.5, fy=fx, x0, y0) { 
+		stopifnot(fx > 0)
+		stopifnot(fy > 0)
 		e <- as.vector(ext(x))
 		if (missing(x0)) {
 			x0 <- mean(e[1:2])
@@ -545,8 +577,8 @@ setMethod("rescale", signature(x="SpatRaster"),
 		if (missing(y0)) {
 			y0 <- mean(e[3:4])
 		}
-		ex = x0 + f * (e[1:2] - x0);
-		ey = y0 + f * (e[3:4] - y0);
+		ex = x0 + fx * (e[1:2] - x0);
+		ey = y0 + fy * (e[3:4] - y0);
 		x@ptr <- x@ptr$deepcopy()
 		ext(x) <- ext(c(ex, ey))
 		messages(x, "rescale")
@@ -554,9 +586,9 @@ setMethod("rescale", signature(x="SpatRaster"),
 )
 
 setMethod("rescale", signature(x="SpatVector"), 
-	function(x, f=0.5, x0, y0) { 
-		stopifnot(f > 0)
-		f <- sqrt(f)
+	function(x, fx=0.5, fy=fx, x0, y0) { 
+		stopifnot(fx > 0)
+		stopifnot(fy > 0)
 		e <- as.vector(ext(x))
 		if (missing(x0)) {
 			x0 <- mean(e[1:2])
@@ -564,7 +596,7 @@ setMethod("rescale", signature(x="SpatVector"),
 		if (missing(y0)) {
 			y0 <- mean(e[3:4])
 		}
-		x@ptr <- x@ptr$rescale(f, x0[1], y0[1])
+		x@ptr <- x@ptr$rescale(fx, fy, x0[1], y0[1])
 		messages(x, "rescale")
 	}
 )

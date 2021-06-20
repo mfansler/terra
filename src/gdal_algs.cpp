@@ -83,117 +83,33 @@ SpatVector SpatRaster::dense_extent() {
 #if GDAL_VERSION_MAJOR <= 2 && GDAL_VERSION_MINOR < 2
 
 SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method, bool mask, SpatOptions &opt) {
-
-	unsigned nl = nlyr();
-	SpatRaster out = x.geometry(nl);
-	out.setNames(getNames());
-
-	if (crs != "") {
-		out.setError("You cannot project by specifying a crs with your version of GDAL");
-		return out;
-	}
-
-	out.setNames(getNames());
-	std::vector<std::string> f {"bilinear", "near"};
-	if (std::find(f.begin(), f.end(), method) == f.end()) {
-		out.setError("unknown warp method");
-		return out;
-	}
-	if (!hasValues()) {
-		return out;
-	}
-
-	std::string crsin = source[0].srs.wkt;
-	std::string crsout = out.source[0].srs.wkt;
-	bool do_prj = true;
-	if ((crsin == crsout) || (crsin == "") || (crsout == "")) {
-		do_prj = false;
-	}
-
-	if (!do_prj) {
-		SpatExtent e = out.getExtent();
-		e.intersect(getExtent());
-		if (!e.valid()) {
-			out.addWarning("No spatial overlap");
-			return out;
-		}
-	}
-
-	SpatRaster xx;
-	if (do_prj) {
-		xx = *this;
-	} else {
-		unsigned xq = x.xres() / xres();
-		unsigned yq = x.yres() / yres();
-		if (std::max(xq, yq) > 1) {
-			xq = xq == 0 ? 1 : xq;
-			yq = yq == 0 ? 1 : yq;
-			std::vector<unsigned> agf = {yq, xq, 1};
-			SpatOptions agopt;
-			if (method == "bilinear") {
-				xx = aggregate(agf, "mean", true, agopt);
-			} else {
-				xx = aggregate(agf, "modal", true, agopt);
-			}
-		} else {
-			xx = *this;
-		}
-	}
-	unsigned nc = out.ncol();
-
-  	if (!out.writeStart(opt)) { return out; }
-	for (size_t i = 0; i < out.bs.n; i++) {
-        unsigned firstcell = out.cellFromRowCol(out.bs.row[i], 0);
-		unsigned lastcell  = out.cellFromRowCol(out.bs.row[i]+out.bs.nrows[i]-1, nc-1);
-		std::vector<double> cells(1+lastcell-firstcell);
-		std::iota (std::begin(cells), std::end(cells), firstcell);
-        std::vector<std::vector<double>> xy = out.xyFromCell(cells);
-		if (do_prj) {
-			#ifdef useGDAL
-			out.msg = transform_coordinates(xy[0], xy[1], crsout, crsin);
-			#else
-			out.setError("GDAL is needed for crs transformation, but not available");
-			return out;
-			#endif
-		}
-		std::vector<std::vector<double>> v = xx.extractXY(xy[0], xy[1], method, false);
-		if (!out.writeValues2(v, out.bs.row[i], out.bs.nrows[i], 0, out.ncol())) return out;
-	}
-	out.writeStop();
+	out.setError("Not supported for this old version of GDAL");
 	return(out);
 }
-
-
-
 
 #else
 
 
-bool find_output_bounds(const GDALDatasetH &hSrcDS, GDALDatasetH &hDstDS, std::string srccrs, const std::string dstcrs, std::string filename, std::string driver, int nlyrs, std::string datatype, std::string &msg) {
 
-	msg = "";
+bool get_output_bounds(const GDALDatasetH &hSrcDS, std::string srccrs, const std::string dstcrs, SpatRaster &r) {
+
 	if ( hSrcDS == NULL ) {
-		msg = "data source is NULL";
+		r.setError("data source is NULL");
 		return false;
 	}
-
-	// Create output with same datatype as first input band.
-	//GDALDataType eDT = GDALGetRasterDataType(GDALGetRasterBand(hSrcDS,1));
-	GDALDataType eDT;
-	getGDALDataType(datatype, eDT);
-
-	// Get output driver (GeoTIFF format)
 
 	// Get Source coordinate system.
 	// const char *pszSrcWKT = GDALGetProjectionRef( hSrcDS );
 	const char *pszSrcWKT = srccrs.c_str();
 	if ( pszSrcWKT == NULL || strlen(pszSrcWKT) == 0 ) {
-		msg = "data source has no WKT";
+		r.setError("data source has no WKT");
 		return false;
 	}
 
 	OGRSpatialReference* oSRS = new OGRSpatialReference;
+	std::string msg = "";
 	if (is_ogr_error(oSRS->SetFromUserInput( dstcrs.c_str() ), msg)) {
+		r.setError(msg);
 		return false;
 	};
 
@@ -208,11 +124,12 @@ bool find_output_bounds(const GDALDatasetH &hSrcDS, GDALDatasetH &hDstDS, std::s
 	hTransformArg =
 		GDALCreateGenImgProjTransformer( hSrcDS, pszSrcWKT, NULL, pszDstWKT, FALSE, 0, 1 );
 	if (hTransformArg == NULL ) {
-		msg = "cannot create TranformArg";
+		r.setError("cannot create TranformArg");
 		return false;
 	}
+	CPLFree(pszDstWKT);
+ 	delete oSRS;
 
-	// Get approximate output georeferenced bounds and resolution for file.
 	double adfDstGeoTransform[6];
 	int nPixels=0, nLines=0;
 	CPLErr eErr = GDALSuggestedWarpOutput( hSrcDS, GDALGenImgProjTransform, 
@@ -220,9 +137,30 @@ bool find_output_bounds(const GDALDatasetH &hSrcDS, GDALDatasetH &hDstDS, std::s
 
 	GDALDestroyGenImgProjTransformer( hTransformArg );
 	if ( eErr != CE_None ) {
-		msg = "cannot create warp output";
+		r.setError("cannot create warp output");
 		return false;	
 	}
+
+
+	r.source[0].nrow = nPixels;
+	r.source[0].ncol = nLines;
+	
+	r.source[0].extent.xmin = adfDstGeoTransform[0]; /* left x */
+	/* w-e pixel resolution */
+	r.source[0].extent.xmax = r.source[0].extent.xmin + adfDstGeoTransform[1] * nPixels;
+	r.source[0].extent.ymax = adfDstGeoTransform[3]; // top y 
+	r.source[0].extent.ymin = r.source[0].extent.ymax + nLines * adfDstGeoTransform[5]; 
+
+	r.setSRS({dstcrs});
+
+	return true;
+}
+
+/*
+	// Create output with same datatype as first input band.
+	GDALDataType eDT = GDALGetRasterDataType(GDALGetRasterBand(hSrcDS,1));
+	GDALDataType eDT;
+	getGDALDataType(datatype, eDT);
 
 	// Create the output DS.
 
@@ -256,7 +194,7 @@ bool find_output_bounds(const GDALDatasetH &hSrcDS, GDALDatasetH &hDstDS, std::s
 
 	return true;
 }
-
+*/
 
 GDALResampleAlg getAlgo(std::string m) {
 	GDALResampleAlg alg;
@@ -377,13 +315,34 @@ bool is_valid_warp_method(const std::string &method) {
 
 SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method, bool mask, SpatOptions &opt) {
 
-	SpatRaster out = x.geometry(nlyr());
+	SpatRaster out = x.geometry(nlyr(), false, false);
 	out.setNames(getNames());
 	if (method == "near") {
 		out.source[0].hasColors = hasColors();
 		out.source[0].cols = getColors();
 		out.source[0].hasCategories = hasCategories();
 		out.source[0].cats = getCategories();
+		out.rgb = rgb;
+		out.rgblyrs = rgblyrs;		
+	}
+	if (hasTime()) {
+		out.source[0].hasTime = true;
+		out.source[0].timestep = getTimeStep();
+		out.source[0].time = getTime();
+	}
+	
+	
+	bool use_crs = crs != "";  
+	std::string filename = opt.get_filename();
+	if ((!use_crs) & (!hasValues())) {
+		if (filename != "") {
+			addWarning("raster has no values, not writing to file");
+		}
+		return out;
+	}
+
+	//out.setNames(getNames());
+	if (method == "near") {
 		out.rgb = rgb;
 		out.rgblyrs = rgblyrs;		
 	}
@@ -399,27 +358,14 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 		mopt = opt;
 		opt = SpatOptions(opt);
 	}
-	std::string filename = opt.get_filename();
+	filename = opt.get_filename();
 
 	std::string srccrs = getSRS("wkt");
-	//if (opt.verbose) {
-	//	Rcpp::Rcout << "wkt" << std::endl;
-	//	Rcpp::Rcout << srccrs << std::endl;
-	//}
 	if (srccrs == "") {
 		out.setError("input raster CRS not set");
 		return out;	
 	}
 
-	bool use_crs = crs != "";  
-	// should not be needed (need to fix)
-
-	if ((!use_crs) & (!hasValues())) {
-		if (filename != "") {
-			addWarning("raster has no values, not writing to file");
-		}
-		return out;
-	}
 
 	if (filename == "") {
 		if (!canProcessInMemory(opt) || !out.canProcessInMemory(opt)) {
@@ -452,28 +398,20 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 
 		// create dest source, only once 
 		if (i==0) {
-			 // use the crs, ignore argument "x"
 			if (use_crs) {
-				if (! find_output_bounds(hSrcDS, hDstDS, srccrs, crs, filename, driver, nlyr(), opt.get_datatype(), errmsg)) {
-					out.setError(errmsg);
+				if (!get_output_bounds(hSrcDS, srccrs, crs, out)) {
 					GDALClose( hSrcDS );
 					return out;
 				}
-				if (!hasValues()) {
-					if (!out.from_gdalMEM(hDstDS, use_crs, false)) {
-						out.setError("cannot get geometry from mem");
-					} 
-					GDALClose( hSrcDS );
-					GDALClose( hDstDS );
-					out.setSRS({crs});	 // fix the need for this
-					return out;
-				}
-			} else {
-				if (!out.create_gdalDS(hDstDS, filename, driver, false, NAN, opt)) {
-					GDALClose( hSrcDS );
-					//GDALClose( hDstDS );
-					return out;
-				}
+			}
+			if (!hasValues()) {
+				GDALClose( hSrcDS );
+				return out;
+			}
+			if (!out.create_gdalDS(hDstDS, filename, driver, false, NAN, opt)) {
+				GDALClose( hSrcDS );
+				//GDALClose( hDstDS );
+				return out;
 			}
 		}
 		std::vector<unsigned> srcbands = source[i].layers;
@@ -495,7 +433,7 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 		bool test = out.from_gdalMEM(hDstDS, use_crs, true); 
 		GDALClose( hDstDS );
 		if (!test) {
-			out.setError("cannot do this transformation");
+			out.setError("cannot do this transformation (warp)");
 			return out;
 		}
 	} else {
@@ -528,69 +466,6 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 
 
 
-/*
-
-void SpatRaster::resample2(SpatRaster &out, const std::string &method, SpatOptions &opt) {
-
-	unsigned nc = out.ncol();
-  	if (!out.writeStart(opt)) { return; }
-	for (size_t i = 0; i < out.bs.n; i++) {
-        unsigned firstcell = out.cellFromRowCol(out.bs.row[i], 0);
-		unsigned lastcell  = out.cellFromRowCol(out.bs.row[i]+out.bs.nrows[i]-1, nc-1);
-		std::vector<double> cells(1+lastcell-firstcell);
-		std::iota (std::begin(cells), std::end(cells), firstcell);
-        std::vector<std::vector<double>> xy = out.xyFromCell(cells);
-		std::vector<std::vector<double>> v = extractXY(xy[0], xy[1], method);
-		if (!out.writeValues2(v, out.bs.row[i], out.bs.nrows[i], 0, out.ncol())) return;
-	}
-	out.writeStop();
-
-}
-
-
-SpatRaster SpatRaster::resample1(SpatRaster &x, const std::string &method, SpatOptions &opt) {
-
-	unsigned nl = nlyr();
-	SpatRaster out = x.geometry(nl);
-	out.setNames(getNames());
-	std::vector<std::string> f {"bilinear", "ngb"};
-	if (std::find(f.begin(), f.end(), method) == f.end()) {
-		out.setError("unknown resample method");
-		return out;
-	}
-	if (!hasValues()) {
-		return out;
-	}
-
-	if ((!source[0].srs.is_empty()) && (!out.source[0].srs.is_empty())) {
-		if (!source[0].srs.is_equal(out.source[0].srs)) {
-			out.addWarning("Rasters have different crs");
-		}
-	}
-
-	unsigned xq = x.xres() / xres();
-	unsigned yq = x.yres() / yres();
-	if (std::max(xq, yq) > 1) {
-		SpatRaster xx;
-		xq = xq == 0 ? 1 : xq;
-		yq = yq == 0 ? 1 : yq;
-		std::vector<unsigned> agf = {yq, xq, 1};
-		SpatOptions agopt;
-		if (method == "bilinear") {
-			xx = aggregate(agf, "mean", true, agopt);
-		} else {
-			xx = aggregate(agf, "modal", true, agopt);
-		}
-		xx.resample2(out, method, opt);
-	} else {
-		resample2(out, method, opt);
-	}
-	return out;
-}
-
-*/
-
-
 
 
 
@@ -605,11 +480,10 @@ SpatRaster SpatRaster::rectify(std::string method, SpatRaster aoi, unsigned usea
 		out.setError("this source is not rotated");
 		return(out);
 	} 
-	GDALDataset *poDataset;
-	std::string fname = source[0].filename;
-	poDataset = (GDALDataset *) GDALOpen(fname.c_str(), GA_ReadOnly );
+	GDALDataset *poDataset = openGDAL(source[0].filename, GDAL_OF_RASTER | GDAL_OF_READONLY);
+	
 	if( poDataset == NULL )  {
-		setError("cannot read from " + fname );
+		setError("cannot read from " + source[0].filename);
 		return out;
 	}
 	double gt[6];
@@ -693,8 +567,10 @@ SpatVector SpatRaster::polygonize(bool trunc, bool values, bool narm, bool aggre
 			return out;
 		}
 	} else {
-		std::string filename = tmp.source[0].filename;
-		rstDS = GDALOpen( filename.c_str(), GA_ReadOnly);
+		//std::string filename = tmp.source[0].filename;
+		//rstDS = GDALOpen( filename.c_str(), GA_ReadOnly);
+		rstDS = openGDAL(tmp.source[0].filename, GDAL_OF_RASTER | GDAL_OF_READONLY);
+		
 		if (rstDS == NULL) {
 			out.setError("cannot open dataset from file");
 			return out;
@@ -717,8 +593,10 @@ SpatVector SpatRaster::polygonize(bool trunc, bool values, bool narm, bool aggre
 				return out;
 			}
 		} else {
-			std::string filename = mask.source[0].filename;
-			rstMask = GDALOpen( filename.c_str(), GA_ReadOnly);
+			rstMask = openGDAL(mask.source[0].filename, GDAL_OF_RASTER | GDAL_OF_READONLY);
+
+			//std::string filename = mask.source[0].filename;
+			//rstMask = GDALOpen( filename.c_str(), GA_ReadOnly);
 			if (rstMask == NULL) {
 				out.setError("cannot open dataset from file");
 				return out;		

@@ -5,6 +5,23 @@
 #include "string_utils.h"
 
 
+	
+SpatVector SpatVector::allerretour() {
+	GEOSContextHandle_t hGEOSCtxt = geos_init();
+	std::vector<GeomPtr> g = geos_geoms(this, hGEOSCtxt);
+	SpatVector out = vect_from_geos(g, hGEOSCtxt, type());
+	geos_finish(hGEOSCtxt);
+	return out;
+}
+
+SpatVectorCollection SpatVector::bienvenue() {
+	GEOSContextHandle_t hGEOSCtxt = geos_init();
+	std::vector<GeomPtr> g = geos_geoms(this, hGEOSCtxt);
+	SpatVectorCollection out = coll_from_geos(g, hGEOSCtxt);
+	geos_finish(hGEOSCtxt);
+	return out;
+}
+
 
 std::vector<std::string> SpatVector::wkt() {
 	GEOSContextHandle_t hGEOSCtxt = geos_init();
@@ -76,22 +93,6 @@ SpatVector SpatVector::from_hex(std::vector<std::string> x, std::string srs) {
 }
 
 
-	
-SpatVector SpatVector::allerretour() {
-	GEOSContextHandle_t hGEOSCtxt = geos_init();
-	std::vector<GeomPtr> g = geos_geoms(this, hGEOSCtxt);
-	SpatVector out = vect_from_geos(g, hGEOSCtxt, type());
-	geos_finish(hGEOSCtxt);
-	return out;
-}
-
-SpatVectorCollection SpatVector::bienvenue() {
-	GEOSContextHandle_t hGEOSCtxt = geos_init();
-	std::vector<GeomPtr> g = geos_geoms(this, hGEOSCtxt);
-	SpatVectorCollection out = coll_from_geos(g, hGEOSCtxt);
-	geos_finish(hGEOSCtxt);
-	return out;
-}
 
 std::vector<bool> SpatVector::geos_isvalid() {
 	GEOSContextHandle_t hGEOSCtxt = geos_init2();
@@ -324,17 +325,6 @@ SpatVector SpatVector::simplify(double tolerance, bool preserveTopology) {
 
 
 
-//GEOSGeometry * GEOSSnap_r(GEOSContextHandle_t extHandle, const GEOSGeometry* g1, const GEOSGeometry* g2, double tolerance)
-
-/*
-int geom_type(GEOSContextHandle_t hGEOSCtxt, const GEOSGeometry* g) {
-	char* x = GEOSGeomType_r(hGEOSCtxt, g);
-	int y = atoi(x);
-	free(x);
-	return y;
-}
-*/
-
 SpatVector SpatVector::shared_paths() {
 	
 	if (type() == "polygons") {
@@ -414,6 +404,54 @@ SpatVector SpatVector::polygonize() {
 
 
 
+SpatVector SpatVector::snap(double tolerance) {
+	
+	tolerance = std::max(0.0, tolerance);
+	GEOSContextHandle_t hGEOSCtxt = geos_init();
+	std::vector<GeomPtr> x = geos_geoms(this, hGEOSCtxt);
+
+	size_t s = size();
+	std::vector<long> id;
+	std::vector<GeomPtr> p;
+	for (size_t i=0; i<(s-1); i++) {
+		GEOSGeometry* r = x[i].get();
+		for (size_t j=(i+1); j<s; j++) {
+			r = GEOSSnap_r(hGEOSCtxt, r, x[j].get(), tolerance);
+		}
+		if (r != NULL) {
+			if (!GEOSisEmpty_r(hGEOSCtxt, r)) {
+				x[i] = geos_ptr(r, hGEOSCtxt);
+				id.push_back(i+1);
+			} else {
+				GEOSGeom_destroy_r(hGEOSCtxt, r);
+			}
+		}
+	}
+	SpatVector out;
+	if (p.size() > 0) {
+		SpatVectorCollection coll = coll_from_geos(p, hGEOSCtxt, false, false);
+		out = coll.get(0);
+	}
+	geos_finish(hGEOSCtxt);
+	out.geoms.push_back(geoms[s-1]);
+	id.push_back(s);
+	out.srs = srs;
+	if (out.size() == size()) {
+		out.df = df;
+	} else {
+		out.df.add_column(id, "id");
+	}
+	return out;
+}
+
+
+
+//GEOSPolygonizer_getCutEdges_r(GEOSContextHandle_t extHandle, const Geometry * const * g, unsigned int ngeoms)
+
+//Geometry * GEOSPolygonize_full_r(GEOSContextHandle_t extHandle, const Geometry* g, Geometry** cuts, Geometry** dangles, Geometry** invalid)
+ 
+
+
 
 SpatVector SpatVector::crop(SpatVector v) {
 
@@ -425,7 +463,7 @@ SpatVector SpatVector::crop(SpatVector v) {
 	std::vector<GeomPtr> x = geos_geoms(this, hGEOSCtxt);
 //	if ((type() != "polygons") & (type() != "mutlipolygons")) {
 	if ((type() != "polygons")) {
-		v = v.convexhull();
+		v = v.hull("convex");
 	} else {
 		v = v.aggregate(false);
 	}
@@ -464,7 +502,7 @@ SpatVector SpatVector::crop(SpatVector v) {
 
 
 
-SpatVector SpatVector::convexhull(std::string by) {
+SpatVector SpatVector::hull(std::string htype, std::string by) {
 
 	SpatVector out;
 	if (by != "") {
@@ -474,7 +512,7 @@ SpatVector SpatVector::convexhull(std::string by) {
 		}
 		for (size_t i=0; i<tmp.size(); i++) {
 			SpatVector x = tmp.subset_rows(i);
-			x = x.convexhull("");
+			x = x.hull(htype, "");
 			if (x.hasError()) {
 				return x;
 			}
@@ -496,7 +534,12 @@ SpatVector SpatVector::convexhull(std::string by) {
 	SpatVector a = aggregate(false);
 	std::vector<GeomPtr> g = geos_geoms(&a, hGEOSCtxt);
 	//std::string vt = type();
-	GEOSGeometry* h = GEOSConvexHull_r(hGEOSCtxt, g[0].get());
+	GEOSGeometry* h;
+	if (htype == "convex") {
+		h = GEOSConvexHull_r(hGEOSCtxt, g[0].get());
+	} else {
+		h = GEOSMinimumRotatedRectangle_r(hGEOSCtxt, g[0].get());
+	}
 	std::vector<GeomPtr> b(1);
 	b[0] = geos_ptr(h, hGEOSCtxt);
 	SpatVectorCollection coll = coll_from_geos(b, hGEOSCtxt);
@@ -623,7 +666,7 @@ SpatVector lonlat_buf(SpatVector x, double dist, unsigned quadsegs, bool ispol, 
 		for (size_t j =0; j<(b.size()-1); j++) {
 			std::vector<unsigned> range = {(unsigned)j, (unsigned)j+1};
 			SpatVector g = b.subset_rows(range);
-			g = g.convexhull();
+			g = g.hull("convex");
 			part.addGeom(g.geoms[0]);
 		}
 		part = part.aggregate(true);
@@ -1477,4 +1520,51 @@ bool geos_buffer(GEOSContextHandle_t hGEOSCtxt, std::vector<GeomPtr> &g, double 
 	return true;
 }
 */
+
+
+
+std::vector<double> SpatVector::width() {
+	GEOSContextHandle_t hGEOSCtxt = geos_init();
+	std::vector<GeomPtr> g = geos_geoms(this, hGEOSCtxt);
+	std::vector<GeomPtr> gout(g.size());
+	SpatVector tmp;
+	for (size_t i = 0; i < g.size(); i++) {	
+		GEOSGeometry* w = GEOSMinimumWidth_r(hGEOSCtxt, g[i].get());
+		if (w == NULL) {
+			setError("NULL geom");
+			geos_finish(hGEOSCtxt);
+			std::vector<double> out;
+			return out;
+		}
+		gout[i] = geos_ptr(w, hGEOSCtxt);
+	}
+	SpatVectorCollection coll = coll_from_geos(gout, hGEOSCtxt);
+	geos_finish(hGEOSCtxt);
+	tmp = coll.get(0);
+	tmp.srs = srs;
+	return tmp.length();
+}
+
+
+std::vector<double> SpatVector::clearance() {
+	GEOSContextHandle_t hGEOSCtxt = geos_init();
+	std::vector<GeomPtr> g = geos_geoms(this, hGEOSCtxt);
+	std::vector<GeomPtr> gout(g.size());
+	SpatVector tmp;
+	for (size_t i = 0; i < g.size(); i++) {	
+		GEOSGeometry* w = GEOSMinimumClearanceLine_r(hGEOSCtxt, g[i].get());
+		if (w == NULL) {
+			setError("NULL geom");
+			geos_finish(hGEOSCtxt);
+			std::vector<double> out;
+			return out;
+		}
+		gout[i] = geos_ptr(w, hGEOSCtxt);
+	}
+	SpatVectorCollection coll = coll_from_geos(gout, hGEOSCtxt);
+	geos_finish(hGEOSCtxt);
+	tmp = coll.get(0);
+	tmp.srs = srs;
+	return tmp.length();
+}
 

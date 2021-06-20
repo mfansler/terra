@@ -316,12 +316,15 @@ class SpatRaster {
 		//SpatRaster(const SpatRaster& x);
 
         SpatRaster deepCopy();
-        SpatRaster geometry(long nlyrs=-1, bool properties=false);
+        SpatRaster geometry(long nlyrs=-1, bool properties=false, bool time=true);
 
 		bool constructFromFile(std::string fname, std::vector<int> subds, std::vector<std::string> subdsname);
 		bool constructFromFileMulti(std::string fname, std::string subdsname, std::vector<size_t> xyz);
 		bool constructFromFiles(std::vector<std::string> fnames);
 		bool constructFromSDS(std::string filename, std::vector<std::string> meta, std::vector<int> subds, std::vector<std::string> subdsname, bool ncdf);
+		
+		SpatRaster fromFiles(std::vector<std::string> fname, std::vector<int> subds, std::vector<std::string> subdsname);
+		
 //		bool constructFromNCDFsds(std::string filename, std::vector<std::string> meta, std::vector<int> subds, std::vector<std::string> subdsname);
 
 
@@ -494,7 +497,8 @@ class SpatRaster {
 		
 		SpatRaster rectify(std::string method, SpatRaster aoi, unsigned useaoi, bool snap, SpatOptions &opt);
 		
-        std::vector<std::vector<double>> adjacent(std::vector<double> cells, std::string directions, bool include);
+        std::vector<double> adjacent(std::vector<double> cells, std::string directions, bool include);
+        std::vector<double> adjacentMat(std::vector<double> cells, std::vector<bool> mat, std::vector<unsigned> dim, bool include);
  		SpatRaster aggregate(std::vector<unsigned> fact, std::string fun, bool narm, SpatOptions &opt);
 		SpatExtent align(SpatExtent e, std::string snap);
 		SpatRaster rst_area(bool mask, std::string unit, bool transform, SpatOptions &opt);
@@ -668,6 +672,7 @@ class SpatRaster {
 
 		SpatRaster warper(SpatRaster x, std::string crs, std::string method, bool mask, SpatOptions &opt);
 		//SpatRaster tester(bool geom);
+		SpatRaster applyGCP(std::vector<double> fx, std::vector<double> fy, std::vector<double> tx, std::vector<double> ty);
 
 		//SpatRaster warp_gdal(SpatRaster x, const std::string &method, SpatOptions &opt);
 		//SpatRaster warp_gdal_crs(std::string x, const std::string &method, SpatOptions &opt);

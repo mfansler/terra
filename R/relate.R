@@ -55,12 +55,23 @@ setMethod("relate", signature(x="SpatVector", y="missing"),
 
 
 setMethod("adjacent", signature(x="SpatRaster"), 
-	function(x, cells, directions="rook", include=FALSE) {
-		v <- x@ptr$adjacent(cells-1, directions, include)
+	function(x, cells, directions="rook", pairs=FALSE, include=FALSE) {
+		cells <- cells - 1
+		if (inherits(directions, "matrix")) {
+			v <- x@ptr$adjacentMat(cells, as.logical(directions), dim(directions), include)
+		} else {
+			if (pairs) include <- FALSE
+			v <- x@ptr$adjacent(cells,  as.character(directions)[1], include)
+		}
 		messages(x, "adjacent")
-		v <- do.call(rbind, v)
-		rownames(v) <- cells
-		return(v+1)
+		if (pairs) {
+			v <- cbind(from=rep(cells, each=length(v)/length(cells)), to=v)
+			v <- v[!is.na(v[,2]), ]
+		} else {
+			v <- matrix(v, nrow=length(cells), byrow=TRUE)
+			if (!include) rownames(v) <- cells
+		}
+		v + 1
 	}
 )
 
@@ -152,7 +163,7 @@ setMethod("nearest", signature(x="SpatVector"),
 			}
 		} else {
 			if (lines) return(z)
-			dis <- perimeter(z)
+			dis <- perim(z)
 			z <- as.points(z)
 			from <- z[seq(1, nrow(z), 2), ]
 			to <- z[seq(2, nrow(z), 2), ]
@@ -161,8 +172,12 @@ setMethod("nearest", signature(x="SpatVector"),
 			to_int <- as.data.frame(intersect(to, y))
 			if (nrow(to_int) > nrow(to)) {
 				to_int <- aggregate(to_int[, "to_id",drop=FALSE], to_int[,"id",drop=FALSE], function(x)x[1]) 
+			} 
+			if (nrow(to_int) < nrow(to)) {
+				to_int <- rep(NA, nrow(to))
+			} else {
+				to_int <- to_int[,2] 
 			}
-			to_int <- to_int[,2] 
 			from <- geom(from)[, c("x", "y"),drop=FALSE]
 			to <- geom(to)[, c("x", "y"),drop=FALSE]
 			d <- data.frame(1:nrow(from), from, to_int, to, dis)

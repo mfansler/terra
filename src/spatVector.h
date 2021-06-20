@@ -225,7 +225,7 @@ class SpatVector {
 		SpatVector append(SpatVector x, bool ignorecrs);
 		SpatVector disaggregate();
 		SpatVector shift(double x, double y);
-		SpatVector rescale(double f, double x0, double y0);
+		SpatVector rescale(double fx, double fy, double x0, double y0);
 		SpatVector transpose();
 		SpatVector flip(bool vertical);	
 		SpatVector rotate(double angle, double x0, double y0);
@@ -247,6 +247,7 @@ class SpatVector {
 		SpatVector line_merge();
 		SpatVector simplify(double tolerance, bool preserveTopology);
 		SpatVector shared_paths();
+		SpatVector snap(double tolerance);
 
 		SpatVector allerretour();
 		SpatVectorCollection bienvenue();
@@ -261,7 +262,7 @@ class SpatVector {
 		SpatVector crop(SpatVector e);
 		SpatVector voronoi(SpatVector e, double tolerance, int onlyEdges);		
 		SpatVector delauny(double tolerance, int onlyEdges);		
-		SpatVector convexhull(std::string by="");
+		SpatVector hull(std::string htype, std::string by="");
 		SpatVector intersect(SpatVector v);
 		SpatVector unite(SpatVector v);
 		SpatVector unite();
@@ -280,6 +281,9 @@ class SpatVector {
 		SpatVector nearest_point();
 		SpatVector sample(unsigned n, std::string method, unsigned seed);
 		SpatVector sample_geom(std::vector<unsigned> n, std::string method, unsigned seed);
+
+		std::vector<double> clearance();
+		std::vector<double> width();
 
 		SpatVector unaryunion();
 

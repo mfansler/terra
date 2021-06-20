@@ -33,7 +33,7 @@
 
 	if (any(!s)) {
 		bad <- paste(nms[!s], collapse=",")
-		error("write", "unknown option(s):", bad)
+		error("write", "unknown option(s): ", bad)
 	}
 
 	if (any(s)) {
@@ -118,6 +118,7 @@ spatOptions <- function(filename="", overwrite=FALSE, ..., wopt=NULL) {
  
 terraOptions <- function(...) {
 	dots <- list(...)
+	if (is.null(.terra_environment$options)) .create_options()
 	opt <- .terra_environment$options@ptr
 	if (length(dots) == 0) {
 		.showOptions(opt)

@@ -1,4 +1,4 @@
-\name{interpolate}
+\name{Spatial interpolation}
 
 \docType{methods}
 
@@ -8,22 +8,22 @@
 \title{Interpolate}
 
 \description{
-Make a SpatRaster with interpolated values using a fitted model object of classes such as "gstat" (gstat package) or "Krige" (fields package). That is, these are models that have location ("x" and "y", or "longitude" and "latitude") as independent variables. If x and y are the only independent variables provide an empty (no associated data in memory or on file) SpatRaster for which you want predictions. If there are more spatial predictor variables provide these as a SpatRaster in the first argument of the function. If you do not have x and y locations as implicit predictors in your model you should use \code{\link[terra]{predict}} instead.
+Make a SpatRaster with interpolated values using a fitted model object of classes such as "gstat" (gstat package) or "Krige" (fields package), or any other model that has location (e.g., "x" and "y", or "longitude" and "latitude") as predictors (independent variables). If x and y are the only predictors, it is most efficient if you provide an empty (no associated data in memory or on file) SpatRaster for which you want predictions. If there are more spatial predictor variables provide these as a SpatRaster in the first argument of the function. If you do not have x and y locations as implicit predictors in your model you should use \code{\link[terra]{predict}} instead.
 }
 
 \usage{
-\S4method{interpolate}{SpatRaster}(object, model, fun=predict, ..., 
-       xyNames=c("x", "y"), factors=NULL, const=NULL, index = NULL, 
-	   na.rm=FALSE, filename="", overwrite=FALSE, wopt=list())
+\S4method{interpolate}{SpatRaster}(object, model, fun=predict, ..., xyNames=c("x", "y"), 
+       factors=NULL, const=NULL, index = NULL, na.rm=FALSE, 
+       filename="", overwrite=FALSE, wopt=list())
 }
 
 \arguments{
 \item{object}{SpatRaster}
 \item{model}{model object}
-\item{fun}{function. Default value is "predict", but can be replaced with e.g. "predict.se" (depending on the class of \code{model})}
+\item{fun}{function. Default value is "predict", but can be replaced with e.g. "predict.se" (depending on the class of \code{model}), or a custom function (see examples)}
 \item{...}{additional arguments passed to \code{fun}}
 \item{xyNames}{character. variable names that the model uses for the spatial coordinates. E.g., \code{c("longitude", "latitude")}}
- \item{factors}{list with levels for factor variables. The list elements should be named with names that correspond to names in \code{object} such that they can be matched. This argument may be omitted for many models as the predict function will extract the levels from the \code{model} object}
+ \item{factors}{list with levels for factor variables. The list elements should be named with names that correspond to names in \code{object} such that they can be matched. This argument may be omitted for some models from which the levels can be extracted from the \code{model} object}
 \item{const}{data.frame. Can be used to add a constant for which there is no SpatRaster for model predictions. This is particularly useful if the constant is a character-like factor value}
   \item{index}{positive integer or NULL. Allows for selecting of the variable returned if the model returns multiple variables}
  \item{na.rm}{logical. If \code{TRUE}, cells with \code{NA} values in the predictors are removed from the computation. This option prevents errors with models that cannot handle \code{NA} values. In most other cases this will not affect the output. An exception is when predicting with a model that returns predicted values even if some (or all!) variables are \code{NA} }
@@ -98,8 +98,23 @@ data(meuse)
 r <- rast(system.file("ex/meuse.tif", package="terra"))
 mg <- gstat(id = "zinc", formula = zinc~1, locations = ~x+y, data=meuse, 
             nmax=7, set=list(idp = .5))
-z <- interpolate(r, mg, debug.level=0)
+z <- interpolate(r, mg, debug.level=0, index=1)
 z <- mask(z, r)
+
+## with a model built with an `sf` object you need to provide custom function
+
+library(sf)
+sfmeuse <- st_as_sf(meuse, coords = c("x", "y"), crs=crs(r))
+mgsf <- gstat(id = "zinc", formula = zinc~1, data=sfmeuse,  nmax=7, set=list(idp = .5))
+
+interpolate_gstat <- function(model, x, crs, ...) {
+	v <- st_as_sf(x, coords=c("x", "y"), crs=crs)
+	p <- predict(model, v, ...)
+	as.data.frame(p)[,1:2]
+}
+
+zsf <- interpolate(r, mgsf, debug.level=0, fun=interpolate_gstat, crs=crs(r), index=1)
+zsf <- mask(zsf, r)
 
 ### kriging
 
