@@ -251,6 +251,8 @@ setMethod("clamp", signature(x="SpatRaster"),
 setMethod("classify", signature(x="SpatRaster"), 
 function(x, rcl, include.lowest=FALSE, right=TRUE, othersNA=FALSE, filename="", ...) {
 
+	bylayer = FALSE
+	
 	if (is.data.frame(rcl)) {
 		rcl <- as.matrix(rcl)
 	}
@@ -259,7 +261,7 @@ function(x, rcl, include.lowest=FALSE, right=TRUE, othersNA=FALSE, filename="", 
 	include.lowest <- as.logical(include.lowest[1])
 
 	opt <- spatOptions(filename, ...)
-    x@ptr <- x@ptr$classify(as.vector(rcl), NCOL(rcl), right, include.lowest, othersNA, opt)
+    x@ptr <- x@ptr$classify(as.vector(rcl), NCOL(rcl), right[1], include.lowest[1], othersNA[1], bylayer[1], opt)
 	messages(x, "classify")
 }
 )
@@ -267,8 +269,16 @@ function(x, rcl, include.lowest=FALSE, right=TRUE, othersNA=FALSE, filename="", 
 setMethod("subst", signature(x="SpatRaster"), 
 function(x, from, to, filename="", ...) {
 	opt <- spatOptions(filename, ...)
-    x@ptr <- x@ptr$replaceValues(from, to, opt)
-	messages(x, "replace")
+	if (inherits(to, "data.frame")) {
+		to <- as.matrix(to)
+	}
+	if (inherits(to, "matrix")) {
+		opt$names = colnames(to)
+		x@ptr <- x@ptr$replaceValues(from, to, ncol(to), opt)	
+	} else {
+		x@ptr <- x@ptr$replaceValues(from, to, -1, opt)
+	}
+	messages(x, "subst")
 }
 )
 
@@ -671,10 +681,10 @@ setMethod("t", signature(x="SpatVector"),
 
 setMethod("terrain", signature(x="SpatRaster"), 
 	function(x, v="slope", neighbors=8, unit="degrees", filename="", ...) { 
-		v <- match.arg(unique(v), c("aspect", "flowdir", "roughness", "slope", "TPI", "TRI"))
+		#v <- match.arg(unique(v), c("aspect", "flowdir", "roughness", "slope", "TPI", "TRI"), several.ok=TRUE)
 		unit <- match.arg(unit, c("degrees", "radians"))
 		opt <- spatOptions(filename, ...)
-		seed <- ifelse("flowdirection" %in% v, .seed(), 0)
+		seed <- ifelse("flowdir" %in% v, .seed(), 0)
 		x@ptr <- x@ptr$terrain(v, neighbors[1], unit=="degrees", seed, opt)
 		messages(x, "terrain")
 	}
@@ -697,14 +707,26 @@ setMethod("trans", signature(x="SpatRaster"),
 	}
 )
 
+
 setMethod("unique", signature(x="SpatRaster", incomparables="ANY"), 
 	function(x, incomparables=FALSE) {
 		opt <- spatOptions()
 		u <- x@ptr$unique(incomparables, opt)
+
+		isfact <- is.factor(x)
+		if (any(isfact)) {
+			ff <- which(isfact)
+			levs <- levels(x)
+			for (f in ff) {
+				lvs <- levs[[f]]
+				u[[f]] = factor(u[[f]], levels=(1:length(lvs))-1)
+				levels(u[[f]]) = levs[[f]]
+			}
+		}
 		if (!incomparables) {
 			if (!length(u)) return(u)
-			u <- do.call(cbind, u)
-			colnames(u) = names(x)
+			u <- do.call(data.frame, u)
+			colnames(u) <- names(x)
 		}
 		u
 	}

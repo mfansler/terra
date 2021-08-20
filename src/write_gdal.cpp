@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2021  Robert J. Hijmans
+// Copyright (c) 2018-2021  Robert J. Hijmansf
 //
 // This file is part of the "spat" library.
 //
@@ -74,7 +74,6 @@ bool setRat(GDALRasterBand *poBand, SpatDataFrame &d) {
 
 	pRat->SetRowCount(nr);
 	for (size_t i=0; i<d.ncol(); i++) {
-		Rcpp::Rcout << i << std::endl;
 		if (d.itype[i] == 0) {
 			std::vector<double> v = d.dv[d.iplace[i]];
 			if( pRat->ValuesIO(GF_Write, i, 0, nr, &v[0]) != CE_None ) {
@@ -209,10 +208,18 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 		setError(errmsg);
 		return false;
 	}
-	if (file_exists(filename) & (!opt.get_overwrite())) {
+	
+	bool append = std::find(opt.gdal_options.begin(), opt.gdal_options.end(), "APPEND_SUBDATASET=YES") != opt.gdal_options.end();
+	if (append) {
+		if (!file_exists(filename)) {
+			setError("cannot append to a file that does not exist");
+			return(false);
+		} 
+	} else if (file_exists(filename) & (!opt.get_overwrite())) {
 		setError("file exists. You can use 'overwrite=TRUE' to overwrite it");
 		return(false);
 	}
+	
 //	if (!can_write(filename, opt.get_overwrite(), errmsg)) {
 //		setError(errmsg);
 //		return(false);
@@ -259,8 +266,7 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 		return (false);
 	}
 
-	char **papszOptions = NULL;
-	set_GDAL_options(&papszOptions, driver, diskNeeded, writeRGB, opt);
+	char **papszOptions = set_GDAL_options(driver, diskNeeded, writeRGB, opt.gdal_options);
 
 /*	if (driver == "GTiff") {
 		GDAL_tiff_options(diskNeeded > 4194304000, writeRGB, opt);
@@ -286,10 +292,11 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 	//bool isncdf = ((driver == "netCDF" && opt.get_ncdfcopy()));
 
 	GDALDataset *poDS;
-    if (CSLFetchBoolean( papszMetadata, GDAL_DCAP_CREATE, FALSE)) {
+	if (CSLFetchBoolean( papszMetadata, GDAL_DCAP_CREATE, FALSE)) {
 		poDS = poDriver->Create(filename.c_str(), ncol(), nrow(), nlyr(), gdt, papszOptions);
 	} else if (CSLFetchBoolean( papszMetadata, GDAL_DCAP_CREATECOPY, FALSE)) {
 		copy_driver = driver;
+		gdal_options = opt.gdal_options;
 		if (canProcessInMemory(opt)) {
 			poDriver = GetGDALDriverManager()->GetDriverByName("MEM");
 			poDS = poDriver->Create("", ncol(), nrow(), nlyr(), gdt, papszOptions);
@@ -402,11 +409,11 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 			} else if (datatype == "INT2S") {
 				poBand->SetNoDataValue(INT16_MIN); 
 			} else if (datatype == "INT4U") {
-				double na = (double)INT32_MAX * 2 - 1;
-				poBand->SetNoDataValue(na); 
+				//double na = (double)UINT32_MAX;
+				poBand->SetNoDataValue(UINT32_MAX); 
 			} else if (datatype == "INT2U") {
-				double na = (double)INT16_MAX * 2 - 1;
-				poBand->SetNoDataValue(na); 
+				//double na = (double)INT16_MAX * 2 - 1;
+				poBand->SetNoDataValue(UINT16_MAX); 
 			} else if (datatype == "INT1U") {
 				poBand->SetNoDataValue(255); 
 			} else {
@@ -443,7 +450,7 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 	poDS->SetProjection(pszSRS_WKT);
 	CPLFree(pszSRS_WKT);
 	// destroySRS(oSRS) ?
-
+	
 	source[0].gdalconnection = poDS;
 
 	source[0].resize(nlyr());
@@ -496,9 +503,9 @@ bool SpatRaster::writeValuesGDAL(std::vector<double> &vals, size_t startrow, siz
 			} else if (datatype == "INT2S") {
 				minmaxlim(vals.begin()+start, vals.begin()+start+nc, vmin, vmax, (double)INT16_MIN, (double)INT16_MAX);
 			} else if (datatype == "INT4U") {
-				minmaxlim(vals.begin()+start, vals.begin()+start+nc, vmin, vmax, 0.0, (double)INT32_MAX*2-1);
+				minmaxlim(vals.begin()+start, vals.begin()+start+nc, vmin, vmax, 0.0, (double)UINT32_MAX);
 			} else if (datatype == "INT2U") {
-				minmaxlim(vals.begin()+start, vals.begin()+start+nc, vmin, vmax, 0.0, (double)INT16_MAX*2-1);
+				minmaxlim(vals.begin()+start, vals.begin()+start+nc, vmin, vmax, 0.0, (double)UINT16_MAX);
 			} else if (datatype == "INT1U") {
 				minmaxlim(vals.begin()+start, vals.begin()+start+nc, vmin, vmax, 0.0, 255.0);
 			} else {
@@ -540,13 +547,13 @@ bool SpatRaster::writeValuesGDAL(std::vector<double> &vals, size_t startrow, siz
 			//min_max_na(vals, na, 0, (double)INT32_MAX * 2 - 1);
 			//std::vector<uint32_t> vv(vals.begin(), vals.end());
 			std::vector<uint32_t> vv;
-			tmp_min_max_na(vv, vals, na, 0, (double)INT32_MAX * 2 - 1);
+			tmp_min_max_na(vv, vals, na, 0, (double)UINT32_MAX);
 			err = source[0].gdalconnection->RasterIO(GF_Write, startcol, startrow, ncols, nrows, &vv[0], ncols, nrows, GDT_UInt32, nl, NULL, 0, 0, 0, NULL );
 		} else if (datatype == "INT2U") {
 			//min_max_na(vals, na, 0, (double)INT16_MAX * 2 - 1); 
 			//std::vector<uint16_t> vv(vals.begin(), vals.end());
 			std::vector<uint16_t> vv;
-			tmp_min_max_na(vv, vals, na, 0, (double)INT16_MAX * 2 - 1); 
+			tmp_min_max_na(vv, vals, na, 0, (double)UINT16_MAX); 
 			err = source[0].gdalconnection->RasterIO(GF_Write, startcol, startrow, ncols, nrows, &vv[0], ncols, nrows, GDT_UInt16, nl, NULL, 0, 0, 0, NULL );
 		} else if (datatype == "INT1U") {
 			//min_max_na(vals, na, 0, 255);
@@ -605,14 +612,15 @@ bool SpatRaster::writeStopGDAL() {
 			source[0].hasRange[i] = false;
 		}
 	}
-
+	
 	if (copy_driver != "") {
 		GDALDataset *newDS;
 		GDALDriver *poDriver;
+		char **papszOptions = set_GDAL_options(copy_driver, 0.0, false, gdal_options);
 		poDriver = GetGDALDriverManager()->GetDriverByName(copy_driver.c_str());
 		if (copy_filename == "") {
 			newDS = poDriver->CreateCopy(source[0].filename.c_str(),
-				source[0].gdalconnection, FALSE, NULL, NULL, NULL);
+				source[0].gdalconnection, FALSE, papszOptions, NULL, NULL);
 			if( newDS == NULL )  {
 				setError("mem copy create failed for "+ copy_driver);
 				copy_driver = "";
@@ -634,8 +642,9 @@ bool SpatRaster::writeStopGDAL() {
 				GDALClose( (GDALDatasetH) oldDS );
 				return false;
 			}
+
 			newDS = poDriver->CreateCopy(source[0].filename.c_str(),
-				oldDS, FALSE, NULL, NULL, NULL);
+				oldDS, FALSE, papszOptions, NULL, NULL);
 			if( newDS == NULL )  {
 				setError("copy create failed for "+ copy_driver);
 				copy_driver = "";

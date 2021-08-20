@@ -11,9 +11,13 @@
 		r <- crop(rast(r), ext)
 	}
 	if (method == "random") {
-		n <- size
+		nsize <- size
 		if (na.rm) {
-			size <- min(ncell(r)*2, size*5)
+			if (replace) {
+				size <- size*5			
+			} else {
+				size <- min(ncell(r)*2, size*5)
+			}
 		}
 		if (lonlat) {
 			m <- ifelse(replace, 1.5, 1.25)
@@ -71,8 +75,8 @@
 		cells <- cells[v]
 	}
 	if (method == "random") {
-		if (length(cells) > n) {
-			cells <- cells[1:n]
+		if (length(cells) > nsize) {
+			cells <- cells[1:nsize]
 		}
 	}
 	return(cells)
@@ -119,7 +123,8 @@ setMethod("spatSample", signature(x="SpatRaster"),
 					out <- vect(out, geom=c("x", "y"), crs=crs(x))
 				} else {
 					xy <- xyFromCell(x, cnrs)
-					v <- vect(xy, geom=c("x", "y"), crs=crs(x))
+					# xy is a matrix, no geom argument
+					v <- vect(xy, crs=crs(x))
 					values(v) <- out
 					return(v)
 				}
@@ -132,7 +137,7 @@ setMethod("spatSample", signature(x="SpatRaster"),
 
 		method <- tolower(method)
 		stopifnot(method %in% c("random", "regular"))
-		size <- min(ncell(x), size)
+		if (!replace) size <- min(ncell(x), size)
 
 		if (!is.null(ext)) x <- crop(x, ext)
 
@@ -162,14 +167,15 @@ setMethod("spatSample", signature(x="SpatRaster"),
 						out <- stats::na.omit(values(x))
 						attr(x, "na.action") <- NULL
 						if (nrow(out) < size) {
-							warn("spatSample", "more non NA cells requested than available")
+							warn("spatSample", "more non-NA cells requested than available")
 						} else {
-							out <- out[sample(nrow(out), size), ]
+							out <- out[sample(nrow(out), size), ,drop=FALSE]
 						}
 					} else {
-						out <- out[sample(nrow(out), size, replace=replace), ]
+						out <- values(x)
+						out <- out[sample(nrow(out), size, replace=replace), ,drop=FALSE]
 					}
-					return	(out)
+					return(out)
 				}
 
 				if (na.rm) {
@@ -209,9 +215,12 @@ setMethod("spatSample", signature(x="SpatRaster"),
 
 
 setMethod("spatSample", signature(x="SpatExtent"), 
-	function(x, size, method="random", lonlat) {
+	function(x, size, method="random", lonlat, as.points=FALSE) {
 		if (missing(lonlat)) {
 			error("spatSample", "provide a lonlat argument")
+		}
+		if (lonlat) {
+			stopifnot(x$ymax <= 90 || x$ymin >= -90)
 		}
 		method <- match.arg(method, c("regular", "random"))
 		size <- round(size)
@@ -223,6 +232,9 @@ setMethod("spatSample", signature(x="SpatExtent"),
 		}
 		s <- do.call(cbind, s)
 		colnames(s) <- c("x", "y")
+		if (as.points) {
+			s <- vect(s)
+		}
 		s
 	}
 )

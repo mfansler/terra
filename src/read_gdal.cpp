@@ -119,8 +119,10 @@ bool GetVAT(std::string filename, SpatCategories &vat) {
 		return false;
 	}
 
-	SpatVector v;
-	v.read(filename);
+	SpatVector v, fvct;
+	std::vector<double> fext;
+	
+	v.read(filename, "", "", fext, fvct);
 	if (v.df.nrow() == 0) return false;
 	
 	std::vector<std::string> ss = {"histogram", "red", "green", "blue", "opacity"};
@@ -627,7 +629,7 @@ bool SpatRaster::constructFromFile(std::string fname, std::vector<int> subds, st
 	setSource(s);
 
 	if (getCols) {
-		setRGB(rgb_lyrs[0], rgb_lyrs[1], rgb_lyrs[2]);
+		setRGB(rgb_lyrs[0], rgb_lyrs[1], rgb_lyrs[2], -99);
 	}
 
 	return true;

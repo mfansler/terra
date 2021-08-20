@@ -71,7 +71,15 @@ setMethod("rast", signature(x="list"),
 		for (i in 1:length(x)) {
 			out@ptr$addSource(x[[i]]@ptr)
 		}
-		messages(out, "rast")
+		out <- messages(out, "rast")
+		lnms <- names(x)
+		i <- lnms != ""
+		if (any(i)) {
+			rnms <- names(out)
+			rnms[lnms != ""] <- lnms[lnms != ""]
+			names(out) <- rnms
+		}
+		out
 	}
 )
 
@@ -197,7 +205,7 @@ multi <- function(x, subds=0, xyz=c(1,2,3)) {
 
 
 setMethod("rast", signature(x="SpatRaster"),
-	function(x, nlyrs=nlyr(x), props=FALSE, time=FALSE) {
+	function(x, nlyrs=nlyr(x), time=FALSE, props=FALSE) {
 		x@ptr <- x@ptr$geometry(nlyrs, props, time)
 		messages(x, "rast")
 	}
@@ -305,9 +313,16 @@ setMethod("rast", signature(x="matrix"),
 			r <- .rastFromXYZ(x, crs=crs, digits=digits)
 		} else {
 			r <- rast(nrows=nrow(x), ncols=ncol(x), crs=crs, extent=ext(c(0, 1, 0, 1)))
-			values(r) <- t(x)
+			values(r) <- as.vector(t(x))
 		}
 		messages(r, "rast")
+	}
+)
+
+
+setMethod("rast", signature(x="data.frame"),
+	function(x, type="", crs="", digits=6) {
+		rast(as.matrix(x), type=type, crs=crs, digits=digits)
 	}
 )
 

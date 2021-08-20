@@ -19,7 +19,7 @@ function(x, fun, ..., filename="", overwrite=FALSE, wopt=list())  {
 setMethod("app", signature(x="SpatRaster"), 
 function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 
-	txtfun <- .makeTextFun(match.fun(fun))
+	txtfun <- .makeTextFun(fun)
 	if (inherits(txtfun, "character")) { 
 		if (txtfun %in% .cpp_funs) {
 			opt <- spatOptions(filename, overwrite, wopt=wopt)
@@ -28,14 +28,21 @@ function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 			return(messages(x, "app"))
 		}
 	}
-
+	fun <- match.fun(fun)
 	out <- rast(x)
 	nlyr(out) <- 1
 	nc <- ncol(x)
 	readStart(x)
 	on.exit(readStop(x))
 	nl <- nlyr(x)
-	
+
+	dots <- list(...)
+	if (length(dots) > 0) {
+		test <- any(sapply(dots, function(i) inherits(i, "SpatRaster")))
+		if (test) {
+			error("app", "additional arguments cannot be a SpatRaster")
+		}
+	}	
 # figure out the shape of the output by testing with one row
 	v <- readValues(x, round(0.51*nrow(x)), 1, 1, nc, mat=TRUE)
 	usefun <- FALSE
@@ -72,7 +79,7 @@ function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 			nlyr(out) <- ncol(r)
 			nms <- colnames(r)
 		} else {
-			error("app", "the number of values returned by 'fun' is not appropriate")
+			error("app", "the number of values returned by 'fun' is not appropriate\n(it should be the product of the number of cells and and a positive integer)")
 		}
 		if (is.null(wopt$names)) {
 			wopt$names <- nms
@@ -85,7 +92,7 @@ function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 		}
 	}
 	
-	b <- writeStart(out, filename, overwrite, wopt=wopt, n=max(nlyr(x), nlyr(out))*2)
+	b <- writeStart(out, filename, overwrite, wopt=wopt, n=max(nlyr(x), nlyr(out)) * 2)
 
 	if (cores > 1) {
 		cls <- parallel::makeCluster(cores)
@@ -93,6 +100,7 @@ function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 		for (i in 1:b$n) {
 			v <- readValues(x, b$row[i], b$nrows[i], 1, nc, TRUE)
 			icsz <- max(min(100, ceiling(b$nrows[i] / cores)), b$nrows[i])
+			
 			r <- parallel::parRapply(cls, v, fun, ..., chunk.size=icsz)
 			if (nlyr(out) > 1) {
 				r <- matrix(r, ncol=nlyr(out), byrow=TRUE)
@@ -121,6 +129,7 @@ function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 			}
 		}
 	}
+	readStop(x)	
 	writeStop(out)
 }
 )
@@ -260,9 +269,8 @@ function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 			writeValues(out, r, b$row[i], b$nrows[i])
 		}
 	}
-#	readStop(x)
-	out <- writeStop(out)
-	return(out)
+	#readStop(x)
+	writeStop(out)
 }
 )
 

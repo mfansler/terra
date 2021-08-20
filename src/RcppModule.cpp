@@ -171,6 +171,7 @@ RCPP_MODULE(spat){
 		//.property("ncdfcopy", &SpatOptions::get_ncdfcopy, &SpatOptions::set_ncdfcopy )
 		.property("statistics", &SpatOptions::get_statistics, &SpatOptions::set_statistics )
 		.property("overwrite", &SpatOptions::get_overwrite, &SpatOptions::set_overwrite )
+		//.property("append", &SpatOptions::get_append, &SpatOptions::set_append )
 		.field("datatype_set", &SpatOptions::datatype_set)
 		.property("progress", &SpatOptions::get_progress, &SpatOptions::set_progress)
 		.property("ncopies", &SpatOptions::get_ncopies, &SpatOptions::set_ncopies, "ncopies")
@@ -418,6 +419,7 @@ RCPP_MODULE(spat){
 
 		//.field("name", &SpatRaster::name)
 
+		
 		.method("sources_to_disk", &SpatRaster::sources_to_disk, "sources_to_disk")
 		.method("mem_needs", &SpatRaster::mem_needs, "mem_needs")
 		.method("spatinit", &SpatRaster::gdalogrproj_init, "init")
@@ -427,6 +429,7 @@ RCPP_MODULE(spat){
 		.method("compare_geom", &SpatRaster::compare_geom, "compare_geom")
 		.method("couldBeLonLat", &SpatRaster::could_be_lonlat, "couldBeLonLat") 
 		.method("deepcopy", &SpatRaster::deepCopy, "deepCopy")
+		.method("hardcopy", &SpatRaster::hardCopy)
 		.method("get_crs", &SpatRaster::getSRS)
 		.method("set_crs", (bool (SpatRaster::*)(std::string crs))( &SpatRaster::setSRS))
 		//.field_readonly("prj", &SpatRaster::prj)
@@ -582,12 +585,13 @@ RCPP_MODULE(spat){
 		.method("buffer", &SpatRaster::buffer, "buffer")
 		.method("gridDistance", &SpatRaster::gridDistance, "gridDistance")
 		.method("rastDistance", ( SpatRaster (SpatRaster::*)(SpatOptions&) )( &SpatRaster::distance), "rastDistance")
-		.method("vectDistance", ( SpatRaster (SpatRaster::*)(SpatVector, SpatOptions&) )( &SpatRaster::distance), "vectDistance")
+//		.method("vectDistance", ( SpatRaster (SpatRaster::*)(SpatVector, SpatOptions&) )( &SpatRaster::distance), "vectDistance")
+		.method("vectDistanceRasterize", &SpatRaster::distance_vector_rasterize) 
+		.method("vectDistanceDirect", &SpatRaster::distance_vector) 
 		.method("clamp", &SpatRaster::clamp, "clamp")
 		.method("replaceValues", &SpatRaster::replaceValues, "replace")
-		.method("classify", ( SpatRaster (SpatRaster::*)(std::vector<double>, unsigned, unsigned, bool, bool, SpatOptions&) )( &SpatRaster::reclassify), "reclassify")
+		.method("classify", ( SpatRaster (SpatRaster::*)(std::vector<double>, unsigned, unsigned, bool, bool, bool, SpatOptions&) )( &SpatRaster::reclassify), "reclassify")
 		//.method("source_collapse", &SpatRaster::collapse, "collapse")
-		.method("classify", ( SpatRaster (SpatRaster::*)(std::vector<double>, unsigned, unsigned, bool, bool, SpatOptions&) )( &SpatRaster::reclassify), "reclassify")
 		.method("selRange", &SpatRaster::selRange, "selRange")
 		.method("separate", &SpatRaster::separate, "separate")
 

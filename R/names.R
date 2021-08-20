@@ -6,14 +6,16 @@
 
 setMethod("names", signature(x="SpatRaster"), 
 	function(x) { 
-		x@ptr$names
+		nms <- x@ptr$names
+		Encoding(nms) <- "UTF-8"
+		nms
 	}
 )
 
 
 setMethod("names<-", signature(x="SpatRaster"), 
 	function(x, value)  {
-		value <- as.character(value)
+		value <- enc2utf8(as.character(value))
 		if (length(value) != nlyr(x)) {
 			error("names<-", "incorrect number of names")
 		}
@@ -31,29 +33,32 @@ setMethod("names<-", signature(x="SpatRaster"),
 
 setMethod("names", signature(x="SpatRasterDataset"), 
 	function(x) { 
-		x@ptr$names
+		nms <- x@ptr$names
+		Encoding(nms) <- "UTF-8"
+		nms
 	}
 )
 
 
 setMethod("names<-", signature(x="SpatRasterDataset"), 
 	function(x, value) {
-		value <- as.character(value)
-		x@ptr$names <- value
+		x@ptr$names <- enc2utf8(as.character(value))
 		x
 	}
 )
 
 setMethod("varnames", signature(x="SpatRasterDataset"), 
-	function(x) { 
-		x@ptr$names
+	function(x) {
+		nms <- x@ptr$names
+		Encoding(nms) <- "UTF-8"
+		nms
 	}
 )
 
 
 setMethod("varnames<-", signature(x="SpatRasterDataset"), 
 	function(x, value) {
-		value <- as.character(value)
+		value <- enc2utf8(as.character(value))
 		x@ptr$names <- value
 		x
 	}
@@ -62,7 +67,9 @@ setMethod("varnames<-", signature(x="SpatRasterDataset"),
 
 setMethod("names", signature(x="SpatVector"), 
 	function(x) { 
-		x@ptr$names
+		nms <- x@ptr$names
+		Encoding(nms) <- "UTF-8"
+		nms
 	}
 )
 
@@ -71,6 +78,7 @@ setMethod("names<-", signature(x="SpatVector"),
 		if (length(value) != ncol(x)) {
 			error("names<-,SpatVector", "incorrect number of names")
 		}
+		value <- enc2utf8(as.character(value))
 		x@ptr$names <- value
 		if (any(names(x) != value)) {
 			warn("names<-", "some names were changed to make them valid and/or unique")
@@ -82,13 +90,16 @@ setMethod("names<-", signature(x="SpatVector"),
 
 setMethod("varnames", signature(x="SpatRaster"), 
 	function(x) { 
-		x@ptr$get_sourcenames()
+		nms <- x@ptr$get_sourcenames()
+		Encoding(nms) <- "UTF-8"
+		nms		
 	}
 )
 
 setMethod("varnames<-", signature(x="SpatRaster"), 
 	function(x, value)  {
-		if (!x@ptr$set_sourcenames(as.character(value))) {
+		value <- enc2utf8(as.character(value))
+		if (!x@ptr$set_sourcenames(value)) {
 			error("varnames<-,SpatRaster", "cannot set these names")
 		}
 		return(x)
@@ -97,20 +108,24 @@ setMethod("varnames<-", signature(x="SpatRaster"),
 
 setMethod("longnames", signature(x="SpatRasterDataset"), 
 	function(x) { 
-		x@ptr$long_names
+		nms <- x@ptr$long_names
+		Encoding(nms) <- "UTF-8"
+		nms		
 	}
 )
 
 
 setMethod("longnames", signature(x="SpatRaster"), 
 	function(x) { 
-		x@ptr$get_sourcenames_long()
+		nms <- x@ptr$get_sourcenames_long()
+		Encoding(nms) <- "UTF-8"
+		nms		
 	}
 )
 
 setMethod("longnames<-", signature(x="SpatRasterDataset"), 
 	function(x, value)  {
-		x@ptr$long_names <- as.character(value)
+		x@ptr$long_names <- enc2utf8(as.character(value))
 		return(x)
 	}
 )
@@ -118,7 +133,8 @@ setMethod("longnames<-", signature(x="SpatRasterDataset"),
 
 setMethod("longnames<-", signature(x="SpatRaster"), 
 	function(x, value)  {
-		if (!x@ptr$set_sourcenames_long(as.character(value))) {
+		value <- enc2utf8(as.character(value))
+		if (!x@ptr$set_sourcenames_long(value)) {
 			error("longnames<-,SpatRaster", "cannot set these names")
 		}
 		return(x)

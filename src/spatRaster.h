@@ -114,6 +114,8 @@ class SpatRasterSource {
         //std::vector<int64_t> ivalues;
         //std::vector<bool> bvalues;
 
+//		unsigned char datatype;
+
 		std::vector<bool> hasRange;
 		std::vector<double> range_min;
 		std::vector<double> range_max;
@@ -171,6 +173,7 @@ class SpatRaster {
     private:
 		std::string copy_driver = "";
 		std::string copy_filename = "";
+		std::vector<std::string> gdal_options;
 		bool compute_stats = true;
 		bool gdal_stats = false;
 		bool gdal_approx = true;
@@ -225,7 +228,7 @@ class SpatRaster {
 
 		bool rgb=false;
 		std::vector<int> rgblyrs;
-		bool setRGB(int r, int g, int b);
+		bool setRGB(int r, int g, int b, int alpha);
 		std::vector<int> getRGB();
 		void removeRGB();
 		
@@ -316,6 +319,7 @@ class SpatRaster {
 		//SpatRaster(const SpatRaster& x);
 
         SpatRaster deepCopy();
+		SpatRaster hardCopy(SpatOptions &opt);
         SpatRaster geometry(long nlyrs=-1, bool properties=false, bool time=true);
 
 		bool constructFromFile(std::string fname, std::vector<int> subds, std::vector<std::string> subdsname);
@@ -485,7 +489,7 @@ class SpatRaster {
 		SpatRaster sources_to_disk(std::vector<std::string> &tmpfs, bool unique, SpatOptions &opt);
 		bool sources_from_file();
 
-		bool differentFilenames(std::vector<std::string> outf);
+		bool differentFilenames(std::vector<std::string> outf, bool &duplicates, bool &empty);
 
 
 ////////////////////////////////////////////////////
@@ -531,7 +535,10 @@ class SpatRaster {
 		SpatRaster cum(std::string fun, bool narm, SpatOptions &opt);
         SpatRaster disaggregate(std::vector<unsigned> fact, SpatOptions &opt);
 		SpatRaster distance(SpatOptions &opt);
-		SpatRaster distance(SpatVector p, SpatOptions &opt);
+		
+		SpatRaster distance_vector_rasterize(SpatVector p, bool align_points, SpatOptions &opt);
+		SpatRaster distance_vector(SpatVector p, SpatOptions &opt);
+		
 		SpatRaster clumps(int directions, bool zeroAsNA, SpatOptions &opt);
 
 		SpatRaster edges(bool classes, std::string type, unsigned directions, double falseval, SpatOptions &opt);
@@ -616,9 +623,9 @@ class SpatRaster {
 		void rasterizeCellsWeights(std::vector<double> &cells, std::vector<double> &weights, SpatVector &v); 
 		void rasterizeCellsExact(std::vector<double> &cells, std::vector<double> &weights, SpatVector &v); 
 
-		SpatRaster replaceValues(std::vector<double> from, std::vector<double> to, SpatOptions &opt);
-		SpatRaster reclassify(std::vector<std::vector<double>> rcl, unsigned right, bool lowest, bool othersNA, SpatOptions &opt);
-		SpatRaster reclassify(std::vector<double> rcl, unsigned nc, unsigned right, bool lowest, bool othersNA, SpatOptions &opt);
+		SpatRaster replaceValues(std::vector<double> from, std::vector<double> to, long nl, SpatOptions &opt);
+		SpatRaster reclassify(std::vector<std::vector<double>> rcl, unsigned right, bool lowest, bool othersNA, bool bylayer, SpatOptions &opt);
+		SpatRaster reclassify(std::vector<double> rcl, unsigned nc, unsigned right, bool lowest, bool othersNA, bool bylayer, SpatOptions &opt);
 		//SpatRaster classify_layers(std::vector<std::vector<double>> groups, std::vector<double> id, SpatOptions &opt);
 		//SpatRaster classify_layers(std::vector<double> groups, unsigned nc, std::vector<double> id, SpatOptions &opt);
 
@@ -652,10 +659,11 @@ class SpatRaster {
 //		void resample2(SpatRaster &out, const std::string &method, SpatOptions &opt);
 
 #ifdef useGDAL
-		bool getDSh(GDALDatasetH &rstDS, std::string &filename, std::string &driver, double &naval, std::string &msg, bool update, double background, SpatOptions opt);
-		bool open_gdal(GDALDatasetH &hDS, int src, SpatOptions &opt);
-		bool create_gdalDS(GDALDatasetH &hDS, std::string filename, std::string driver, bool fill, double fillvalue, SpatOptions& opt);
+		bool getDSh(GDALDatasetH &rstDS, SpatRaster &out, std::string &filename, std::string &driver, double &naval, bool update, double background, SpatOptions opt);
+		bool open_gdal(GDALDatasetH &hDS, int src, bool update, SpatOptions &opt);
+		bool create_gdalDS(GDALDatasetH &hDS, std::string filename, std::string driver, bool fill, double fillvalue, std::vector<bool> has_so, std::vector<double> scale, std::vector<double> offset, SpatOptions& opt);
 		bool from_gdalMEM(GDALDatasetH hDS, bool set_geometry, bool get_values);
+
 		bool as_gdalvrt(GDALDatasetH &hVRT, SpatOptions &opt);
 		//bool as_gdalmem(GDALDatasetH &hVRT);
 		
@@ -671,6 +679,7 @@ class SpatRaster {
 		SpatRaster warpcrs(std::string x, const std::string &method, SpatOptions &opt);
 
 		SpatRaster warper(SpatRaster x, std::string crs, std::string method, bool mask, SpatOptions &opt);
+		SpatRaster old_warper(SpatRaster x, std::string crs, std::string method, bool mask, SpatOptions &opt);
 		//SpatRaster tester(bool geom);
 		SpatRaster applyGCP(std::vector<double> fx, std::vector<double> fy, std::vector<double> tx, std::vector<double> ty);
 

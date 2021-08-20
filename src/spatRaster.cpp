@@ -20,6 +20,8 @@
 #include "file_utils.h"
 #include "spatTime.h"
 #include "recycle.h"
+#include "vecmath.h"
+
 
 #include <set>
 
@@ -638,7 +640,7 @@ bool SpatRaster::setTime(std::vector<int_64> time, std::string step) {
 	if (time.size() != nlyr()) {
 		return false;
 	} 
-	if (!(step == "seconds") || (step == "raw")) {  // "days", "months", "years"
+	if (!((step == "seconds") || (step == "raw")  || (step == "days"))) {  // "months", "years"
 		return false;
 	} 
 	size_t begin=0;
@@ -924,7 +926,7 @@ SpatRaster SpatRaster::makeCategorical(unsigned layer, SpatOptions opt) {
 	std::vector<std::vector<double>> rcl(2);
 	rcl[0] = u[0];
 	rcl[1] = id;
-	r = r.reclassify(rcl, true, true, true, fopt);
+	r = r.reclassify(rcl, true, true, true, false, fopt);
 
 	std::vector<std::string> s(id.size());
 	for (size_t i=0; i<s.size(); i++) {
@@ -1719,13 +1721,13 @@ SpatVector SpatRaster::as_points(bool values, bool narm, SpatOptions &opt) {
 	unsigned nl = nlyr();
 	for (size_t i = 0; i < bs.n; i++) {
 		v = readValues(bs.row[i], bs.nrows[i], 0, nc);
-        size_t off1 = (bs.row[i] * nc);
+         size_t off1 = (bs.row[i] * nc);
  		size_t vnc = bs.nrows[i] * nc;
 		if (narm) {
 			for (size_t j=0; j<vnc; j++) {
 				bool foundna = false;
 				for (size_t lyr=0; lyr<nl; lyr++) {
-                    size_t off2 = lyr*nc;
+                    size_t off2 = lyr*vnc;
                     if (std::isnan(v[off2+j])) {
                         foundna = true;
                         continue;
@@ -1739,7 +1741,7 @@ SpatVector SpatRaster::as_points(bool values, bool narm, SpatOptions &opt) {
                 g.parts.resize(0);
                 if (values) {
                     for (size_t lyr=0; lyr<nl; lyr++) {
-                        unsigned off2 = lyr*nc;
+                        unsigned off2 = lyr*vnc;
                         pv.df.dv[lyr].push_back(v[off2+j]);
                     }
                 }
@@ -1751,10 +1753,10 @@ SpatVector SpatRaster::as_points(bool values, bool narm, SpatOptions &opt) {
                 g.addPart(p);
                 pv.addGeom(g);
                 g.parts.resize(0);
-                for (size_t lyr=0; lyr<nl; lyr++) {
-                    unsigned off2 = lyr*nc;
-                    pv.df.dv[lyr].push_back(v[off2+j]);
-                }
+			}
+            for (size_t lyr=0; lyr<nl; lyr++) {
+				size_t off2 = lyr*vnc;
+				pv.df.dv[lyr] = std::vector<double>(v.begin()+off2, v.begin()+off2+vnc);
 			}
 		}
 	}
@@ -1979,15 +1981,21 @@ SpatVector SpatRaster::as_lines() {
 
 
 
-bool SpatRaster::setRGB(int r, int g, int b) {
-	size_t mxlyr = std::max(std::max(r, g), b);
+bool SpatRaster::setRGB(int r, int g, int b, int alpha) {
+	std::vector<int> channels;
+	if (alpha >= 0) {
+		channels = {r, g, b, alpha};
+	} else {
+		channels = {r, g, b};
+	}
+	size_t mxlyr = vmax( channels, false );
 	if (nlyr() <= mxlyr) {
 		//addWarning("layer number for R, G, B, cannot exceed the number of layers");		
 		return false;
 	} else {
-		size_t mnlyr = std::min(std::min(r, g), b);
+		size_t mnlyr =  vmin( channels, false );;
 		if (mnlyr >= 0) {
-			rgblyrs = {r, g, b};
+			rgblyrs = channels;
 			rgb = true;
 		} else {
 			rgb = false;

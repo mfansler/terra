@@ -36,6 +36,7 @@ void getGDALdriver(std::string &filename, std::string &driver) {
 	drivers = {
 		{".tif","GTiff"}, {".tiff","GTiff"},
 		{".nc","netCDF"}, {".cdf","netCDF"}, 
+		{".gpkg","GPKG"}, 
 		{".img","HFA"}, {".ige","HFA"},
 		{".bmp","BMP"},
 		{".flt","EHdr"},
@@ -371,9 +372,9 @@ bool getNAvalue(GDALDataType gdt, double & naval) {
 	} else if (gdt == GDT_Int16) {
 		naval = INT16_MIN;
 	} else if (gdt == GDT_UInt32) {
-		naval = (double)INT32_MAX * 2 - 1;
+		naval = UINT32_MAX;
 	} else if (gdt == GDT_UInt16) {
-		naval = (double)INT16_MAX * 2 - 1;
+		naval = UINT16_MAX;
 	} else if (gdt == GDT_Byte) {
 		naval = 255;
 	} else {
@@ -447,7 +448,7 @@ bool SpatRaster::as_gdalvrt(GDALDatasetH &hVRT, SpatOptions &opt) {
 	for (size_t i=0; i<nlyr(); i++) {
 		RS = SpatRaster(source[i]);
 		std::string filename = source[i].filename;
-		if (!SpatRaster::open_gdal(DS, i, opt)) {
+		if (!SpatRaster::open_gdal(DS, i, false, opt)) {
 			setError("cannot open datasource");
 			return false;
 		}
@@ -465,11 +466,10 @@ bool SpatRaster::as_gdalvrt(GDALDatasetH &hVRT, SpatOptions &opt) {
 
 
 
-bool SpatRaster::open_gdal(GDALDatasetH &hDS, int src, SpatOptions &opt) {
+bool SpatRaster::open_gdal(GDALDatasetH &hDS, int src, bool update, SpatOptions &opt) {
 
 	size_t isrc = src < 0 ? 0 : src;
 	
-	bool hasval = source[isrc].hasValues;
 	bool fromfile = !source[isrc].memory;
 
 	if (fromfile & (nsrc() > 1) & (src < 0)) {
@@ -493,20 +493,22 @@ bool SpatRaster::open_gdal(GDALDatasetH &hDS, int src, SpatOptions &opt) {
 		//	topt.set_filenames({f});
 		//	tmp.writeRaster(topt);
 		//} else {
-			f = source[src].filename;
+		f = source[src].filename;
 		//}
-		
-
-		
 		//hDS = GDALOpenShared(f.c_str(), GA_ReadOnly);
 
-		hDS = openGDAL(f, GDAL_OF_RASTER | GDAL_OF_READONLY | GDAL_OF_SHARED);
-		return(hDS != NULL);
-
+		if (update) {
+			hDS = openGDAL(f, GDAL_OF_RASTER | GDAL_OF_UPDATE | GDAL_OF_SHARED);			
+		} else {
+			hDS = openGDAL(f, GDAL_OF_RASTER | GDAL_OF_READONLY | GDAL_OF_SHARED);
+		}
 		return(hDS != NULL);
 	
 	} else { // in memory
-			
+
+
+		bool hasval = source[isrc].hasValues;
+
 		size_t nl;
 		if (src < 0) {
 			nl = nlyr();
@@ -654,7 +656,8 @@ bool SpatRaster::from_gdalMEM(GDALDatasetH hDS, bool set_geometry, bool get_valu
 		source[0].values.reserve(ncell() * nlyr());
 		CPLErr err = CE_None;
 		int hasNA;
-		for (size_t i=0; i < nlyr(); i++) {
+		size_t nl = nlyr();
+		for (size_t i=0; i < nl; i++) {
 			GDALRasterBandH hBand = GDALGetRasterBand(hDS, i+1);
 			std::vector<double> lyrout( ncell() );
 			err = GDALRasterIO(hBand, GF_Read, 0, 0, ncol(), nrow(), &lyrout[0], ncol(), nrow(), GDT_Float64, 0, 0);
@@ -662,7 +665,6 @@ bool SpatRaster::from_gdalMEM(GDALDatasetH hDS, bool set_geometry, bool get_valu
 				setError("CE_None");
 				return false;
 			}
-		
 			//double naflag = -3.4e+38;
 			double naflag = GDALGetRasterNoDataValue(hBand, &hasNA);
 			if (hasNA && (!std::isnan(naflag))) {			
@@ -677,8 +679,33 @@ bool SpatRaster::from_gdalMEM(GDALDatasetH hDS, bool set_geometry, bool get_valu
 					std::replace(lyrout.begin(), lyrout.end(), naflag, (double) NAN);
 				}
 			} 
+
+
+			bool has_so = false;;
+			int success;
+			double moffset = GDALGetRasterOffset(hBand, &success);
+			if (success) {
+				if (moffset != 0) {
+					has_so = true;
+				}
+			} else {
+				moffset = 0;
+			}
+			
+			double mscale = GDALGetRasterScale(hBand, &success);
+			if (success) {
+				if (mscale != 1) {
+					has_so = true;
+				}
+			} else {
+				mscale = 1;
+			}
+			if (has_so) {
+				for (double &d : lyrout) { d = d * mscale + moffset;}
+			}
 			source[0].values.insert(source[0].values.end(), lyrout.begin(), lyrout.end());
 		}
+
 		source[0].hasValues = true;
 		source[0].memory = true;
 		source[0].driver = "memory";
@@ -690,62 +717,64 @@ bool SpatRaster::from_gdalMEM(GDALDatasetH hDS, bool set_geometry, bool get_valu
 
 
 
-void set_GDAL_options(char ***gdalops, std::string driver, double diskNeeded, bool writeRGB, SpatOptions &opt) {
+char ** set_GDAL_options(std::string driver, double diskNeeded, bool writeRGB, std::vector<std::string> gdal_options) {
 
+	char ** gdalops = NULL;
 	if (driver == "GTiff") {
 		bool lzw = true;
 		bool compressed = true;
-		for (size_t i=0; i<opt.gdal_options.size(); i++) {
-			if (opt.gdal_options[i].substr(0, 8) == "COMPRESS") {
+		for (size_t i=0; i<gdal_options.size(); i++) {
+			if (gdal_options[i].substr(0, 8) == "COMPRESS") {
 				lzw = false;
-				if (opt.gdal_options[i].substr(9, 4) == "NONE") {
+				if (gdal_options[i].substr(9, 4) == "NONE") {
 					compressed = false;
 				}
 				break;
 			}
 		}
 		if (lzw) {
-			*gdalops = CSLSetNameValue( *gdalops, "COMPRESS", "LZW");			
+			gdalops = CSLSetNameValue( gdalops, "COMPRESS", "LZW");			
 		}
 		if (compressed & (diskNeeded > 4194304000)) { 
 			bool big = true;
-			for (size_t i=0; i<opt.gdal_options.size(); i++) {
-				if (opt.gdal_options[i].substr(0, 7) == "BIGTIFF") {
+			for (size_t i=0; i<gdal_options.size(); i++) {
+				if (gdal_options[i].substr(0, 7) == "BIGTIFF") {
 					big = false;
 					break;
 				}
 			}
 			if (big) {
-				*gdalops = CSLSetNameValue( *gdalops, "BIGTIFF", "YES");
+				gdalops = CSLSetNameValue( gdalops, "BIGTIFF", "YES");
 			} 
 		}
 		if (writeRGB) {
-			*gdalops = CSLSetNameValue( *gdalops, "PROFILE", "GeoTIFF");
+			gdalops = CSLSetNameValue( gdalops, "PROFILE", "GeoTIFF");
 		}
 	} else if (writeRGB) {
-		*gdalops = CSLSetNameValue( *gdalops, "PHOTOMETRIC", "RGB");
+		gdalops = CSLSetNameValue( gdalops, "PHOTOMETRIC", "RGB");
 	}
 	
-	for (size_t i=0; i<opt.gdal_options.size(); i++) {
-		std::vector<std::string> gopt = strsplit(opt.gdal_options[i], "=");
+	for (size_t i=0; i<gdal_options.size(); i++) {
+		std::vector<std::string> gopt = strsplit(gdal_options[i], "=");
 		if (gopt.size() == 2) {
-			*gdalops = CSLSetNameValue( *gdalops, gopt[0].c_str(), gopt[1].c_str() );
+			gdalops = CSLSetNameValue(gdalops, gopt[0].c_str(), gopt[1].c_str() );
 		}
 	}
+	return gdalops;
 }
 
 
 
-bool SpatRaster::create_gdalDS(GDALDatasetH &hDS, std::string filename, std::string driver, bool fill, double fillvalue, SpatOptions& opt) {
+bool SpatRaster::create_gdalDS(GDALDatasetH &hDS, std::string filename, std::string driver, bool fill, double fillvalue, std::vector<bool> has_so, std::vector<double> scale, std::vector<double> offset, SpatOptions& opt) {
 
+	has_so.resize(nlyr(), false);
+	
 	const char *pszFormat = driver.c_str();
 	GDALDriverH hDrv = GDALGetDriverByName(pszFormat);
 
 	double naflag = opt.NAflag; //NAN;
 	GDALDataType gdt;
-
 	char **papszOptions = NULL;
-
 	if (driver != "MEM") {
 		std::string datatype = opt.get_datatype();
 		if (!getGDALDataType(datatype, gdt)) {
@@ -761,16 +790,16 @@ bool SpatRaster::create_gdalDS(GDALDatasetH &hDS, std::string filename, std::str
 			return(false);		
 		}
 
-		set_GDAL_options(&papszOptions, driver, diskNeeded, false, opt);
+		papszOptions = set_GDAL_options(driver, diskNeeded, false, opt.gdal_options);
 
 		if (datatype == "INT4S") {
 			naflag = INT32_MIN; //-2147483648; 
 		} else if (datatype == "INT2S") {
 			naflag = INT16_MIN; 
 		} else if (datatype == "INT4U") {
-			naflag = (double)INT32_MAX * 2 - 1;
+			naflag = UINT32_MAX;
 		} else if (datatype == "INT2U") {
-			naflag = (double)INT16_MAX * 2 - 1;
+			naflag = UINT16_MAX;
 		} else if (datatype == "INT1U") {
 			naflag = 255; // ?; 
 		} 
@@ -790,6 +819,12 @@ bool SpatRaster::create_gdalDS(GDALDatasetH &hDS, std::string filename, std::str
 		GDALSetRasterNoDataValue(hBand, naflag);
 		//GDALSetRasterNoDataValue(hBand, -3.4e+38);
 		if (fill) GDALFillRaster(hBand, fillvalue, 0);
+		
+		if (has_so[i]) {
+			GDALSetRasterOffset(hBand, offset[i]);
+			GDALSetRasterScale(hBand, scale[i]);
+		}
+		
 		if (hasCats[i]) {
 			std::vector<std::string> cats = getLabels(i);
 			char **names = NULL;

@@ -101,6 +101,7 @@ bool SpatGeom::addPart(SpatPart p) {
 	return true;
 }
 
+
 bool SpatGeom::addHole(SpatHole h) {
 	long i = parts.size()-1;
 	if (i > -1) {
@@ -122,12 +123,25 @@ bool SpatGeom::setPart(SpatPart p, unsigned i) {
 	return true;
 }
 
+bool SpatGeom::reSetPart(SpatPart p) {
+	parts.resize(1);
+	parts[0] = p;
+	extent = p.extent;
+	return true;
+}
+
+
+
 SpatPart SpatGeom::getPart(unsigned i) {
 	return parts[i];
 }
 
 SpatVector::SpatVector() {
-	
+	extent.xmin = 0;
+	extent.xmax = 0;
+	extent.ymin = 0;
+	extent.ymax = 0;
+		
 	srs.proj4 = "+proj=longlat +datum=WGS84";
 	srs.wkt = "GEOGCRS[\"WGS 84\", DATUM[\"World Geodetic System 1984\", ELLIPSOID[\"WGS 84\",6378137,298.257223563, LENGTHUNIT[\"metre\",1]]], PRIMEM[\"Greenwich\",0, ANGLEUNIT[\"degree\",0.0174532925199433]], CS[ellipsoidal,2], AXIS[\"geodetic latitude (Lat)\",north, ORDER[1], ANGLEUNIT[\"degree\",0.0174532925199433]], AXIS[\"geodetic longitude (Lon)\",east, ORDER[2], ANGLEUNIT[\"degree\",0.0174532925199433]], USAGE[ SCOPE[\"Horizontal component of 3D system.\"], AREA[\"World.\"], BBOX[-90,-180,90,180]], ID[\"EPSG\",4326]]";	
 }
@@ -781,23 +795,31 @@ SpatVector SpatVector::cbind(SpatDataFrame d) {
 
 
 
-SpatVector SpatVector::as_points(bool multi) {
+SpatVector SpatVector::as_points(bool multi, bool skiplast) {
 	SpatVector v = *this;
 	if (geoms[0].gtype == points) {
 		v.addWarning("returning a copy");
 		return v;
 	}
+	size_t skip = 0;
 	if (geoms[0].gtype == polygons) {
 		v = v.as_lines();
+		if (skiplast) {
+			skip = 1;
+		}
 	}
+
 
 	for (size_t i=0; i < v.geoms.size(); i++) {
 		SpatGeom g;
 		g.gtype = points;
 		for (size_t j=0; j<geoms[i].parts.size(); j++) {
 			SpatPart p = geoms[i].parts[j];
-			for (size_t k=0; k<p.size(); k++) {
-				g.addPart(SpatPart(p.x[k], p.y[k]));
+			if (p.size() > 0) {
+				size_t n = p.size() - skip;
+				for (size_t k=0; k<n; k++) {
+					g.addPart(SpatPart(p.x[k], p.y[k]));
+				}
 			}
 		}
 		v.geoms[i] = g;

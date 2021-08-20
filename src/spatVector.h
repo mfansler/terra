@@ -74,6 +74,7 @@ class SpatGeom {
 		bool addPart(SpatPart p);
 		bool addHole(SpatHole h);
 		bool setPart(SpatPart p, unsigned i);
+		bool reSetPart(SpatPart p);
 		SpatPart getPart(unsigned i);
 		//double area_plane();
 		//double area_lonlat(double a, double f);
@@ -167,19 +168,19 @@ class SpatVector {
 
 		size_t size();
 		SpatVector as_lines();
-		SpatVector as_points(bool multi);
+		SpatVector as_points(bool multi, bool skiplast=false);
 		SpatVector remove_holes();
 		SpatVector get_holes();
 		SpatVector set_holes(SpatVector x, size_t i);
 
-		bool read(std::string fname);
+		bool read(std::string fname, std::string layer, std::string query, std::vector<double> extent, SpatVector filter);
 		
 		bool write(std::string filename, std::string lyrname, std::string driver, bool overwrite);
 		
 #ifdef useGDAL
 		GDALDataset* write_ogr(std::string filename, std::string lyrname, std::string driver, bool overwrite);
 		GDALDataset* GDAL_ds();
-		bool read_ogr(GDALDataset *poDS);
+		bool read_ogr(GDALDataset *poDS, std::string layer, std::string query, std::vector<double> extent, SpatVector filter);
 		SpatVector fromDS(GDALDataset *poDS);
 		bool ogr_geoms(std::vector<OGRGeometryH> &ogrgeoms, std::string &message);		
 #endif
@@ -255,7 +256,7 @@ class SpatVector {
 		SpatVector aggregate(std::string field, bool dissolve);
 
         SpatVector buffer(std::vector<double> d, unsigned quadsegs);
-		SpatVector point_buffer(std::vector<double>	 d, unsigned quadsegs);
+		SpatVector point_buffer(std::vector<double>	 d, unsigned quadsegs, bool no_multipolygons);
 
 		SpatVector centroid();
 		SpatVector crop(SpatExtent e);

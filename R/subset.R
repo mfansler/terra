@@ -5,7 +5,7 @@
 
 positive_indices <- function(i, n, caller=" [ ") {
 	if (!(all(i <= 0) || all(i >= 0))) {
-		error(caller, "you cannot mix postive and negative indices")
+		error(caller, "you cannot mix positive and negative indices")
 	}
 	i <- stats::na.omit(i)
 	(1:n)[i]
@@ -15,40 +15,41 @@ positive_indices <- function(i, n, caller=" [ ") {
 setMethod("subset", signature(x="SpatRaster"), 
 function(x, subset, filename="", overwrite=FALSE, ...) {
 	if (is.character(subset)) {
-		i <- stats::na.omit(match(subset, names(x)))
-		if (length(i)==0) {
-			return (NULL)
-		} else if (length(i) < length(subset)) {
-			warn("subset", "invalid layer names omitted")
-		}
-		subset <- i
+		i <- match(subset, names(x))
+	} else {
+		i <- as.integer(subset)
+		i[(i<1) | (i>nlyr(x))] <- NA
 	}
-
-	subset <- as.integer(stats::na.omit(subset) - 1)
-
+	if (any(is.na(i))) {
+		error("subset", paste("undefined layer(s) selected:", paste(subset[is.na(i)], collapse=", ")))
+	}
 	opt <- spatOptions(filename, overwrite, ...)
-	x@ptr <- x@ptr$subset(subset, opt)
+	x@ptr <- x@ptr$subset(i-1, opt)
 	messages(x, "subset")
 	return(x)
 } )
 
 
+## expression matching
 setMethod("[", c("SpatRaster", "character", "missing"),
 	function(x, i, j, ... ,drop=TRUE) {
+		i <- grep(i, names(x))
 		subset(x, i, ...)
 	}
 )
+
+## exact matching
+
+setMethod("[[", c("SpatRaster", "character", "missing"),
+function(x, i, j, ... ,drop=TRUE) {
+	subset(x, i, ...)
+})
 
 setMethod("$", "SpatRaster",  
 	function(x, name) { 
 		subset(x, name) 
 	} 
 )
-
-setMethod("[[", c("SpatRaster", "character", "missing"),
-function(x, i, j, ... ,drop=TRUE) {
-	subset(x, i, ...)
-})
 
 setMethod("[[", c("SpatRaster", "logical", "missing"),
 function(x, i, j, ... ,drop=TRUE) {
@@ -86,8 +87,7 @@ setMethod("subset", signature(x="SpatVector"),
 	x@ptr <- x@ptr$subset_cols(i-1)
 	x <- messages(x, "subset")
 	if (drop) {	# drop geometry
-		d <- x@ptr$getDF()
-		as.data.frame(d, stringsAsFactors=FALSE)
+		.getSpatDF(x@ptr$df)
 	} else {
 		x
 	}
@@ -100,7 +100,7 @@ function(x, i, j, ... , drop=FALSE) {
 	x@ptr <- x@ptr$subset_rows(i-1)
 	x <- messages(x, "[")
 	if (drop) {
-		as.data.frame(x, stringsAsFactors=FALSE)
+		as.data.frame(x)
 	} else {
 		x
 	}
@@ -112,7 +112,7 @@ function(x, i, j, ... , drop=FALSE) {
 	x@ptr <- x@ptr$subset_rows(i-1)
 	x <- messages(x, "[")
 	if (drop) {
-		as.data.frame(x, stringsAsFactors=FALSE)
+		as.data.frame(x)
 	} else {
 		x
 	}
@@ -126,7 +126,7 @@ function(x, i, j, ... , drop=FALSE) {
 	x@ptr <- p$subset_cols(j-1)
 	x <- messages(x, "'['")
 	if (drop) {
-		as.data.frame(x, stringsAsFactors=FALSE)
+		as.data.frame(x)
 	} else {
 		x
 	}
