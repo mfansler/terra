@@ -39,6 +39,37 @@ setMethod("origin", signature(x="SpatRaster"),
 )
 
 
+setMethod("origin<-", signature("SpatRaster"), 
+	function(x, value) {
+		value <- rep(value, length.out=2)
+		dif <- value - origin(x)
+		res <- res(x)
+		dif[1] <- dif[1] %% res[1]
+		dif[2] <- dif[2] %% res[2]
+		for (i in 1:2) {
+			if (dif[i] < 0) {
+				if ((dif[i] + res[i]) < abs(dif[i])) {
+					dif[i] <- dif[i] + res[i]
+				}
+			} else {
+				if (abs(dif[i] - res[i]) < dif[i]) {
+					dif[i] <- dif[i] - res[i]
+				}
+			}
+		}
+		e <- as.vector(ext(x))
+		e["xmin"] <- e["xmin"] + dif[1]
+		e["xmax"] <- e["xmax"] + dif[1]		
+		e["ymin"] <- e["ymin"] + dif[2]
+		e["ymax"] <- e["ymax"] + dif[2]		
+		ext(x) <- e
+		return(x)
+	}
+)
+
+
+
+
 setMethod("align", signature(x="SpatExtent", y="SpatRaster"), 
 	function(x, y, snap="near") {
 		x@ptr <- y@ptr$align(x@ptr, tolower(snap))
@@ -211,7 +242,7 @@ rbind.SpatVector <- function(x, y, ...) {
 
 setMethod("c", signature(x="SpatRaster"), 
 	function(x, ...) {
-		skipped <- FALSE
+		skips <- 0
 		dots <- list(...)
 		for (i in dots) {
 			if (inherits(i, "SpatRaster")) {
@@ -221,10 +252,10 @@ setMethod("c", signature(x="SpatRaster"),
 					return()
 				}
 			} else {
-				skipped = TRUE
+				skips = skips + 1
 			}
 		}
-		if (skipped) warn("c,SpatRaster", "skipped object that are not SpatRaster")
+		if (skips > 0) warn("c,SpatRaster", paste("skipped", skips, "object(s) that are not SpatRaster"))
 		messages(x, "c")
 	}
 )
@@ -247,6 +278,20 @@ setMethod("clamp", signature(x="SpatRaster"),
 	}
 )
 
+
+setMethod("clamp", signature(x="numeric"), 
+function(x, lower=-Inf, upper=Inf, values=TRUE, ...) {
+	stopifnot(lower <= upper)
+	if (values) {
+		x[x < lower] <- lower
+		x[x > upper] <- upper
+	} else {
+		x[x < lower] <- NA
+		x[x > upper] <- NA	
+	}
+	x
+}
+)
 
 setMethod("classify", signature(x="SpatRaster"), 
 function(x, rcl, include.lowest=FALSE, right=TRUE, othersNA=FALSE, filename="", ...) {
@@ -367,11 +412,33 @@ setMethod("flip", signature(x="SpatRaster"),
 
 
 setMethod("freq", signature(x="SpatRaster"), 
-	function(x, digits=0, value=NULL, bylayer=TRUE) {
+	function(x, digits=0, value=NULL, bylayer=TRUE, usenames=FALSE) {
 
 		opt <- spatOptions()
-
+		if (!bylayer) usenames <- FALSE
+		
 		if (!is.null(value)) {
+			value <- unique(value)
+			if (length(value) > 1) {
+				error("freq", "value must have a length of one")
+			}
+			if (is.character(value)) {
+				value <- value[value != ""]
+				if (length(value) == 0) {
+					error("freq", "no valid value")
+				}
+				ff <- is.factor(x)
+				if (!any(ff)) {
+					error("freq", "a character value is only meaningful for categorical rasters")				
+				}
+				f <- freq(x[[ff]])
+				if (usenames) {
+					f$layer <- names(x)[f$layer]
+				}
+				f <- f[f$label == value,]
+				return(f)
+			}
+		
 			if (is.na(digits)) {
 				v <- x@ptr$count(value, bylayer[1], FALSE, 0, opt)
 			} else {
@@ -414,6 +481,10 @@ setMethod("freq", signature(x="SpatRaster"),
 					v$label <- g[v$value + 1]
 				}
 			}
+		}
+		if (usenames) {
+			v <- data.frame(v)
+			v$layer <- names(x)[v$layer]
 		}
 		v
 	}
@@ -648,10 +719,15 @@ setMethod("stretch", signature(x="SpatRaster"),
 
 setMethod("summary", signature(object="SpatRaster"), 
 	function(object, size=100000, warn=TRUE, ...)  {
+		if (!hasValues(object)) {
+			warn("summary", "SpatRaster has no values")
+			return(invisible())
+		}
 		if (warn && (ncell(object) > size)) {
 			warn("summary", "used a sample")
 		}
-		summary(spatSample(object, size, method="regular"), ...)
+		s <- spatSample(object, size, method="regular")
+		summary(s, ...)
 	}
 )
 

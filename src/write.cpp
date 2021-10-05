@@ -165,7 +165,7 @@ SpatRaster SpatRaster::writeRaster(SpatOptions &opt) {
 	size_t nl = nlyr();
 	if (fnames.size() > 1) {
 		if (fnames.size() != nl) {
-			out.setError("the number of filenames should be 1 or equal to the number of layers");
+			out.setError("the number of filenames should either be one, or equal to the number of layers");
 			return out;
 		} else {
 			bool overwrite = opt.get_overwrite();
@@ -184,7 +184,7 @@ SpatRaster SpatRaster::writeRaster(SpatOptions &opt) {
 				}
 				fnames[i] = out.source[0].filename;
 			}
-			SpatRaster out(fnames, {-1}, {""}, false, {});
+			SpatRaster out(fnames, {-1}, {""}, false, {}, {});
 			return out;
 		}	
 	} 
@@ -405,6 +405,11 @@ bool SpatRaster::setValues(std::vector<double> &v, SpatOptions &opt) {
 		// this should be chunked to avoid the copy
 		// but this may still help in some cases
 			source[0].values = v;
+			std::string f = opt.get_filename();
+			if (f == "") {
+				std::string filename = tempFile(opt.get_tempdir(), ".tif");
+				opt.set_filenames({filename});
+			}	
 			*this = writeRaster(opt);
 			return true;
 		} else {

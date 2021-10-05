@@ -223,8 +223,9 @@ std::string basename_sds(std::string f) {
 	if (std::string::npos != j) {
 		f.erase(0, j + 1);
 	}
-	f = std::regex_replace(f, std::regex(".hdf$"), "");
-	f = std::regex_replace(f, std::regex(".nc$"), "");
+	f = std::regex_replace(f, std::regex("\\.h5$"), "");
+	f = std::regex_replace(f, std::regex("\\.hdf$"), "");
+	f = std::regex_replace(f, std::regex("\\.nc$"), "");
 	f = std::regex_replace(f, std::regex("\""), "");
 
 	return f;
@@ -291,7 +292,8 @@ std::string getDsPRJ(GDALDataset *poDataset) {
 
 SpatRasterStack::SpatRasterStack(std::string fname, std::vector<int> ids, bool useids) {
 
-    GDALDataset *poDataset = openGDAL(fname, GDAL_OF_RASTER | GDAL_OF_READONLY | GDAL_OF_VERBOSE_ERROR);
+	std::vector<std::string> ops;
+    GDALDataset *poDataset = openGDAL(fname, GDAL_OF_RASTER | GDAL_OF_READONLY | GDAL_OF_VERBOSE_ERROR, ops);
     if( poDataset == NULL )  {
 		if (!file_exists(fname)) {
 			setError("file does not exist");
@@ -334,7 +336,7 @@ SpatRasterStack::SpatRasterStack(std::string fname, std::vector<int> ids, bool u
 			size_t pos = s.find(delim);
 			if (pos != std::string::npos) {
 				s.erase(0, pos + delim.length());
-				if (sub.constructFromFile(s, {-1}, {""})) {
+				if (sub.constructFromFile(s, {-1}, {""}, {})) {
 					if (!push_back(sub, basename_sds(s), "", "", true)) {
 						addWarning("skipped (different geometry): " + s);
 					}
@@ -349,13 +351,13 @@ SpatRasterStack::SpatRasterStack(std::string fname, std::vector<int> ids, bool u
 
 
 
-SpatRaster SpatRaster::fromFiles(std::vector<std::string> fname, std::vector<int> subds, std::vector<std::string> subdsname) {
+SpatRaster SpatRaster::fromFiles(std::vector<std::string> fname, std::vector<int> subds, std::vector<std::string> subdsname, std::vector<std::string> options) {
 	SpatRaster out;
-	out.constructFromFile(fname[0], subds, subdsname);
+	out.constructFromFile(fname[0], subds, subdsname, options);
 	if (out.hasError()) return out;
 	for (size_t i=1; i<fname.size(); i++) {
 		SpatRaster r;
-		bool ok = r.constructFromFile(fname[i], subds, subdsname);
+		bool ok = r.constructFromFile(fname[i], subds, subdsname, options);
 		if (r.msg.has_warning) {
 			out.addWarning(r.msg.warnings[0]);	
 		}
@@ -377,9 +379,9 @@ SpatRaster SpatRaster::fromFiles(std::vector<std::string> fname, std::vector<int
 
 
 
-bool SpatRaster::constructFromFile(std::string fname, std::vector<int> subds, std::vector<std::string> subdsname) {
+bool SpatRaster::constructFromFile(std::string fname, std::vector<int> subds, std::vector<std::string> subdsname, std::vector<std::string> options) {
 
-    GDALDataset *poDataset = openGDAL(fname, GDAL_OF_RASTER | GDAL_OF_READONLY | GDAL_OF_VERBOSE_ERROR);
+    GDALDataset *poDataset = openGDAL(fname, GDAL_OF_RASTER | GDAL_OF_READONLY | GDAL_OF_VERBOSE_ERROR, options);
 
     if( poDataset == NULL )  {
 		if (!file_exists(fname)) {
@@ -393,7 +395,6 @@ bool SpatRaster::constructFromFile(std::string fname, std::vector<int> subds, st
 	int nl = poDataset->GetRasterCount();
 	std::string gdrv = poDataset->GetDriver()->GetDescription();
 
-
 	if (nl == 0) {
 		std::vector<std::string> meta;
 		char **metadata = poDataset->GetMetadata("SUBDATASETS");
@@ -401,7 +402,8 @@ bool SpatRaster::constructFromFile(std::string fname, std::vector<int> subds, st
 			for (size_t i=0; metadata[i] != NULL; i++) {
 				meta.push_back(metadata[i]);
 			}
-			return constructFromSDS(fname, meta, subds, subdsname, gdrv=="netCDF"); 
+			GDALClose( (GDALDatasetH) poDataset );
+			return constructFromSDS(fname, meta, subds, subdsname, options, gdrv=="netCDF"); 
 		} else {
 			setError("no data detected in " + fname);
 			return false;
@@ -443,7 +445,7 @@ bool SpatRaster::constructFromFile(std::string fname, std::vector<int> subds, st
 	} else {
 		SpatExtent e(0, 1, 0, 1);
 		s.extent = e;
-		if (gdrv=="netCDF") {
+		if ((gdrv=="netCDF") || (gdrv == "HDF5")) {
 			#ifndef standalone
 			setMessage("ncdf extent");
 			#else 
@@ -456,6 +458,7 @@ bool SpatRaster::constructFromFile(std::string fname, std::vector<int> subds, st
 
 	s.memory = false;
 	s.filename = fname;
+	s.open_ops = options;
 	//s.driver = "gdal";
 
 /*
@@ -498,7 +501,7 @@ bool SpatRaster::constructFromFile(std::string fname, std::vector<int> subds, st
 	for (size_t i = 0; i < s.nlyr; i++) {
 		poBand = poDataset->GetRasterBand(i+1);
 
-		if (gdrv == "netCDF") {
+		if ((gdrv=="netCDF") || (gdrv == "HDF5")) {
 			char **m = poBand->GetMetadata();
 			while (*m != nullptr) {
 				bandmeta[i].push_back(*m++);
@@ -611,7 +614,7 @@ bool SpatRaster::constructFromFile(std::string fname, std::vector<int> subds, st
 	}
 
 
-	if (gdrv == "netCDF") {
+	if ((gdrv=="netCDF") || (gdrv == "HDF5")) {
 		std::vector<std::string> metadata;
 		char **m = poDataset->GetMetadata();
 		while (*m != nullptr) {
@@ -637,7 +640,7 @@ bool SpatRaster::constructFromFile(std::string fname, std::vector<int> subds, st
 
 
 bool SpatRaster::readStartGDAL(unsigned src) {
-    GDALDataset *poDataset = openGDAL(source[src].filename, GDAL_OF_RASTER | GDAL_OF_READONLY);	
+    GDALDataset *poDataset = openGDAL(source[src].filename, GDAL_OF_RASTER | GDAL_OF_READONLY, source[src].open_ops);	
 	if( poDataset == NULL )  {
 		setError("cannot read from " + source[src].filename );
 		return false;
@@ -799,7 +802,7 @@ std::vector<double> SpatRaster::readValuesGDAL(unsigned src, size_t row, size_t 
 		col = col + source[src].window.off_col;
 	}
 
-    GDALDataset *poDataset = openGDAL(source[src].filename, GDAL_OF_RASTER | GDAL_OF_READONLY);
+    GDALDataset *poDataset = openGDAL(source[src].filename, GDAL_OF_RASTER | GDAL_OF_READONLY, source[src].open_ops);
 	GDALRasterBand *poBand;
 	
     if( poDataset == NULL )  {
@@ -871,7 +874,7 @@ std::vector<double> SpatRaster::readGDALsample(unsigned src, size_t srows, size_
 		scols = std::min(scols, ncols);
 	} 
 
-    GDALDataset *poDataset = openGDAL(source[src].filename, GDAL_OF_RASTER | GDAL_OF_READONLY);
+    GDALDataset *poDataset = openGDAL(source[src].filename, GDAL_OF_RASTER | GDAL_OF_READONLY, source[src].open_ops);
     if( poDataset == NULL )  {
 		setError("no data");
 		return errout;
@@ -951,7 +954,7 @@ std::vector<std::vector<double>> SpatRaster::readRowColGDAL(unsigned src, std::v
 		return errout;
 	}
 
-    GDALDataset *poDataset = openGDAL(source[src].filename, GDAL_OF_RASTER | GDAL_OF_READONLY);
+    GDALDataset *poDataset = openGDAL(source[src].filename, GDAL_OF_RASTER | GDAL_OF_READONLY, source[src].open_ops);
 
 	GDALRasterBand *poBand;
 	
@@ -1032,7 +1035,7 @@ std::vector<double> SpatRaster::readRowColGDALFlat(unsigned src, std::vector<int
 		return errout;
 	}
 
-    GDALDataset *poDataset = openGDAL(source[src].filename, GDAL_OF_RASTER | GDAL_OF_READONLY);
+    GDALDataset *poDataset = openGDAL(source[src].filename, GDAL_OF_RASTER | GDAL_OF_READONLY, source[src].open_ops);
 
 	GDALRasterBand *poBand;
 	
@@ -1140,7 +1143,9 @@ void ncdf_pick_most(std::vector<std::string> &sd, std::vector<std::string> &varn
 }
 
 
-bool SpatRaster::constructFromSDS(std::string filename, std::vector<std::string> meta, std::vector<int> subds, std::vector<std::string> subdsname, bool ncdf) {
+
+//todo: add open optionso
+bool SpatRaster::constructFromSDS(std::string filename, std::vector<std::string> meta, std::vector<int> subds, std::vector<std::string> subdsname, std::vector<std::string> options, bool ncdf) {
 
 	std::vector<std::vector<std::string>> info = parse_metadata_sds(meta);
 	int n = info[0].size();
@@ -1216,7 +1221,7 @@ bool SpatRaster::constructFromSDS(std::string filename, std::vector<std::string>
 	std::vector<size_t> srcnl;
 	size_t cnt;
     for (cnt=0; cnt < sd.size(); cnt++) {
-		if (constructFromFile(sd[cnt], {-1}, {""})) break;
+		if (constructFromFile(sd[cnt], {-1}, {""}, options)) break;
 	}
 //	source[0].source_name = srcname[cnt];
 	
@@ -1226,9 +1231,9 @@ bool SpatRaster::constructFromSDS(std::string filename, std::vector<std::string>
 	SpatRaster out;
     for (size_t i=(cnt+1); i < sd.size(); i++) {
 //		printf( "%s\n", sd[i].c_str() );
-		bool success = out.constructFromFile(sd[i], {-1}, {""});
+		bool success = out.constructFromFile(sd[i], {-1}, {""}, {});
 		if (success) {
-			if (out.compare_geom(*this, false, false)) {
+			if (out.compare_geom(*this, false, false, 0.1)) {
 //				out.source	[0].source_name = srcname[i];
 				addSource(out);
 				srcnl.push_back(out.nlyr());
@@ -1253,7 +1258,7 @@ bool SpatRaster::constructFromSDS(std::string filename, std::vector<std::string>
 	if (!ncdf) {
 		std::vector<std::string> lyrnames;
 		for (size_t i=0; i<used.size(); i++) {
-			std::vector<std::string> nms = {basename(used[i])};
+			std::vector<std::string> nms = { basename(used[i]) };
 			recycle(nms, srcnl[i]);
 			make_unique_names(nms);
 			lyrnames.insert(lyrnames.end(), nms.begin(), nms.end());

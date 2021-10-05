@@ -180,6 +180,29 @@ setMethod("cats" , "SpatRaster",
 
 
 
+active_cats <- function(x, layer) {
+	ff <- is.factor(x)
+	if (!any(ff)) {
+		return (lapply(ff, function(i)NULL))
+	}
+	cats <- x@ptr$getCategories()
+	x <- lapply(1:length(cats), function(i) {
+		if (cats[[1]]$df$nrow == 0) return(NULL)
+		r <- .getSpatDF(cats[[i]]$df)
+		a <- activeCat(x, i)
+		r[, c(1, a+1)]
+	})
+	
+	if (!missing(layer)) {
+		x[[layer]]
+	} else {
+		x
+	}
+}
+
+
+
+
 
 setMethod ("as.numeric", "SpatRaster", 
 	function(x, index=NULL, filename="", ...) {
@@ -204,6 +227,42 @@ setMethod ("as.numeric", "SpatRaster",
 	}
 )
 
+	
+
+catLayer <- function(x, index, ...) {
+		stopifnot(nlyr(x) == 1)
+		if (!is.factor(x)) return(x)
+		g <- cats(x)[[1]]
+		if (!is.null(index)) {
+			if (!((index > 1) & (index <= ncol(g)))) {
+				error("as.numeric", "invalid index")
+			}
+		} else {
+			index <- setCats(x, 1)
+		}
+		from <- g[,1]
+		toc <- g[,index]
+		
+		addFact <- FALSE
+		if (!is.numeric(toc)) {
+			addFact <- TRUE
+			ton <- as.integer(as.factor(toc))
+		} else {
+			ton <- toc
+		}
+		m <- cbind(from, ton)
+		m <- m[!is.na(m[,1]), ,drop=FALSE]
+		x <- classify(x, m, names=names(g)[index], ...)
+		if (addFact) {
+			fact <- unique(data.frame(ton, toc))
+			names(fact) <- c("ID", names(g)[index])
+			fact <- fact[order(fact[,1]), ]
+			setCats(x, 1, fact, 2)
+		}
+		x
+}
+
+	
 	
 setMethod("catalyze", "SpatRaster", 
 	function(x, filename="", ...) {

@@ -37,38 +37,6 @@ std::vector<double> rcValue(std::vector<double> &d, const int& nrow, const int& 
 
 // todo: three dimensional focal
 
-std::vector<double> get_focal(std::vector<double> &d, int nrow, int ncol, int wrows, int wcols, int offset, double fill) {
-	int wr = wrows / 2;
-	int wc = wcols / 2;
-	wr = std::min(wr, nrow-1);
-	wc = std::min(wc, ncol-1);
-
-	size_t n = nrow * ncol * wrows * wcols;
-	std::vector<double> out(n, fill);
-	int f = 0;
-
-	int nrmax = nrow+offset-1;
-	for (int r=0; r < nrow; r++) {
-		for (int c=0; c < ncol; c++) {
-			for (int i = -wr; i <= wr; i++) {
-				int row = r+offset+i;		
-				if ((row < 0) || (row > nrmax)) {
-					f = f + wcols;
-				} else {
-					unsigned bcell = row * ncol;
-					for (int j = -wc; j <= wc; j++) {
-						int col = c + j;
-						if ((col >= 0) && (col < ncol)) {
-							out[f] = d[bcell+col];
-						}
-						f++;
-					}
-				}
-			}
-		}
-	}
-	return(out);
-}
 
 
 
@@ -93,336 +61,52 @@ std::vector<double> SpatRaster::focal_values(std::vector<unsigned> w, double fil
 
 	int startrow = row-wr;
 	startrow = startrow < 0 ? 0 : startrow;
-	int offset = row-startrow;
+	int startoff = row-startrow;
 
-	int readnrows = nrows+offset+wr;
-	readnrows = (startrow+readnrows) > nr ? (nr-startrow) : readnrows;
-
+	int readnrows = nrows+startoff+wr;
+	int endoff = wr;
+	if ((startrow+readnrows) > nr ) {
+		readnrows = nr-startrow;
+		endoff = readnrows - (nrows+startoff);
+	}	
 	std::vector<double> d = readValues(startrow, readnrows, 0, nc);
 
-	std::vector<double> f = get_focal(d, nrows, nc, w[0], w[1], offset, fillvalue);
-	return(f);
-}
+//	get_focal(f, d, nrows, nc, w[0], w[1], offset, endoff, fillvalue);
+//  get_focal(std::vector<double> &out, const std::vector<double> &d, int nrow, int ncol, int wrows, int wcols, int startoff, int endoff,  double fill) {
 
+	int wc = w[1] / 2;
+	wr = std::min(wr, nrows-1);
+	wc = std::min(wc, nc-1);
 
-
-SpatRaster SpatRaster::focal1(std::vector<unsigned> w, std::vector<double> m, double fillvalue, bool narm, bool naonly, std::string fun, SpatOptions &opt) {
-
-	SpatRaster out = geometry(1);
-	if (nlyr() > 1) {
-		SpatOptions ops(opt);
-		out.addWarning("focal computations are only done for the first input layer");
-		std::vector<unsigned> lyr = {0};
-		*this = subset(lyr, ops);
-	}
-
-	if (!source[0].hasValues) { return(out); }
-
-	bool wmat = false;
-	if (m.size() > 1) {
-		wmat = true;
-	} else if (w.size() == 1) {
-		w.push_back(w[0]);
-	}
-	if (w.size() != 2) {
-		out.setError("size of w is not 1 or 2");
-		return out;
-	}
-	if ((w[0] % 2) == 0 || (w[1] % 2) == 0) {
-		out.setError("w must be odd sized");
-		return out;
-	}
-	if (w[0] < 3 && w[1] < 3) {
-		out.setError("w must be > 1");
-		return out;
-	}
-	
-	unsigned ww = w[0] * w[1];
-	if (ww < 9) {
-		out.setError("not a meaningful window");
-		return out;
-	}
-	if (wmat && (ww != m.size())) {
-		out.setError("weight matrix error");
-		return out;
-	}
-	if (!readStart()) {
-		out.setError(getError());
-		return(out);
-	}
-	opt.ncopies += 2 * ww;
- 	if (!out.writeStart(opt)) {
-		readStop();
-		return out;
-	}
-
-	std::function<double(std::vector<double>&, bool)> fFun = getFun(fun);
-	std::vector<double> v;
-	if (naonly) {
-		int mid = ww / 2;
-		for (size_t i = 0; i < out.bs.n; i++) {
-			std::vector<double> fv = focal_values(w, fillvalue, out.bs.row[i], out.bs.nrows[i]);
-			v.resize(out.bs.nrows[i] * ncol(), NAN);
-			if (wmat) {
-				for (size_t j=0; j<v.size(); j++) {
-					double midv = fv[j*ww+mid];
-					if (std::isnan(midv)) {
-						v[j] = 0;
-						for (size_t k=0; k<ww; k++) {
-							v[j] += fv[j*ww+k] * m[k];
-						}
-					} else {
-						v[j] = midv;
-					}
-				}
-			} else {
-				for (size_t j=0; j<v.size(); j++) {
-					unsigned off = j*ww;
-					std::vector<double> x(fv.begin()+off, fv.begin()+off+ww);
-					double midv = x[mid];
-					if (std::isnan(midv)) {
-						v[j] = fFun(x, narm);
-					} else {
-						v[j] = midv;
-					}
-				}
-			}
-			if (!out.writeValues(v, out.bs.row[i], out.bs.nrows[i], 0, ncol())) return out;
-		}
-	} else {
-		for (size_t i = 0; i < out.bs.n; i++) {
-	
-	
-			std::vector<double> fv = focal_values(w, fillvalue, out.bs.row[i], out.bs.nrows[i]);
-			v.resize(out.bs.nrows[i] * ncol());
-			if (wmat) {
-				if (narm) {
-					for (size_t j=0; j<v.size(); j++) {
-						v[j] = 0;
-						size_t cnt = 0;
-						for (size_t k=0; k<ww; k++) {
-							double vv = fv[j*ww+k] * m[k];
-							if (!std::isnan(vv)) {
-								v[j] += vv;
-								cnt++;
-							}
-						}
-						if (cnt == 0) v[j] = NAN;
-					}
+	size_t n = nrows * nc * w[0] * w[1];
+	std::vector<double> out(n, fillvalue);
+	int nrmax = nrows + startoff + endoff - 1;
+	//int nrmax = d.size() / ncol - 1;
+	int f = 0;
+	for (int r=0; r < nrows; r++) {
+		for (int c=0; c < nc; c++) {
+			for (int i = -wr; i <= wr; i++) {
+				int row = r+startoff+i;		
+				if ((row < 0) || (row > nrmax)) {
+					f = f + w[1];
 				} else {
-					for (size_t j=0; j<v.size(); j++) {
-						v[j] = 0;
-						for (size_t k=0; k<ww; k++) {
-							v[j] += fv[j*ww+k] * m[k];
+					unsigned bcell = row * nc;
+					for (int j = -wc; j <= wc; j++) {
+						int col = c + j;
+						if ((col >= 0) && (col < nc)) {
+							out[f] = d[bcell+col];
 						}
+						f++;
 					}
 				}
-			} else {
-				for (size_t j=0; j<v.size(); j++) {
-					unsigned off = j*ww;
-					std::vector<double> x(fv.begin()+off, fv.begin()+off+ww);
-					v[j] = fFun(x, narm);
-				}
 			}
-			if (!out.writeValues(v, out.bs.row[i], out.bs.nrows[i], 0, ncol())) return out;
 		}
 	}
-	out.writeStop();
-	readStop();
-	return(out);
-}
-
-
-void focalrow(std::vector<double> &x, std::vector<double> n, 
-            const size_t &w1, const size_t &ww, const size_t &nc, 
-            const std::vector<double> &fill) {
-	x.erase(x.begin(), x.begin() + w1);
-	x.resize(x.size() + w1);
-	n.insert(n.begin(), fill.begin(), fill.end());
-	n.insert(n.end(), fill.begin(), fill.end());
-	for (size_t i=0; i<nc; i++) {
-		size_t off = (i+1)*ww - w1;
-		for (size_t j=0; j<w1; j++) {
-			x[off + j] = n[i + j];
-		}
-	}
-}
-
-
-
-SpatRaster SpatRaster::focal2(std::vector<unsigned> w, std::vector<double> m, double fillvalue, bool narm, bool naonly, std::string fun, SpatOptions &opt) {
-
-	SpatRaster out = geometry(1);
-	if (nlyr() > 1) {
-		SpatOptions ops(opt);
-		out.addWarning("focal computations are only done for the first input layer");
-		std::vector<unsigned> lyr = {0};
-		*this = subset(lyr, ops);
-	}
-
-	if (!source[0].hasValues) { return(out); }
-
-	bool wmat = false;
-	if (m.size() > 1) {
-		wmat = true;
-	} else if (w.size() == 1) {
-		w.push_back(w[0]);
-	}
-	if (w.size() != 2) {
-		out.setError("size of w is not 1 or 2");
-		return out;
-	}
-	if ((w[0] % 2) == 0 || (w[1] % 2) == 0) {
-		out.setError("w must be odd sized");
-		return out;
-	}
-	if (w[0] < 3 && w[1] < 3) {
-		out.setError("w must be > 1");
-		return out;
-	}
-	size_t nc = ncol();
-	size_t nr = nrow();
-	if (w[0] > (nr*2)) {
-		out.setError("nrow(w) > 2 * nrow(x)");
-		return out;
-//		w[0] = nr*2;
-//		w[0] = std::fmod(w[0], 2) == 0 ? w[0]+1 : w[0];
-	}
-	if (w[1] > (nc*2)) { 
-		out.setError("ncol(w) > 2 * ncol(x)");
-		return out;
-//		w[1] = nc*2;
-//		w[1] = std::fmod(w[1], 2) == 0 ? w[1]+1 : w[1];
-	}
-	unsigned ww = w[0] * w[1];
-	if (ww < 9) {
-		out.setError("not a meaningful window");
-		return out;
-	}
-	if (wmat && (ww != m.size())) {
-		out.setError("weight matrix error");
-		return out;
-	}
-	if (!readStart()) {
-		out.setError(getError());
-		return(out);
-	}
-	opt.ncopies += std::max(1, (int)(nc * ww / ncell()));
-	opt.minrows = w[0] > nr ? nr : w[0];
 	
- 	if (!out.writeStart(opt)) {
-		readStop();
-		return out;
-	}
-
-	std::function<double(std::vector<double>&, bool)> fFun = getFun(fun);
-
-	size_t hw0 = w[0]/2;
-	std::vector<double> fill(hw0, fillvalue);
-
-	std::vector<double> fvals(nc * ww, fillvalue);
-	
-	std::vector<double> vout;
-	for (size_t i = 0; i < out.bs.n; i++) {
-		if (i==0) {
-			if (i == (out.bs.n-1)) {
-				vout.resize(out.bs.nrows[i]* nc);				
-			} else {
-				vout.resize((out.bs.nrows[i]-hw0) * nc);
-			}
-		} else if (i == (out.bs.n-1)) {
-			vout.resize((out.bs.nrows[i] + 2 * hw0)* nc);
-		} else if (i == 1) {
-			vout.resize(out.bs.nrows[i]* nc);							
-		}
-		
-		std::vector<double> vin = readValues(out.bs.row[i], out.bs.nrows[i], 0, nc);
-		size_t start= 0;
-		if (i == 0) {
-			for (size_t r=0; r<hw0; r++) {
-				unsigned off = r*nc;
-				std::vector<double> row(vin.begin()+off, vin.begin()+off+nc);
-				focalrow(fvals, row, w[1], ww, nc, fill);
-				start++;
-			}
-		}
-
-		for (size_t r=start; r< out.bs.nrows[i]; r++) {
-			unsigned off1 = r*nc;
-			std::vector<double> row(vin.begin()+off1, vin.begin()+off1+nc);
-			focalrow(fvals, row, w[1], ww, nc, fill);
-			unsigned off2 = (r-start)*nc;
-			for (size_t j=0; j<nc; j++) {
-				unsigned offset = j*ww;
-				std::vector<double> x(fvals.begin()+offset, fvals.begin()+offset+ww);
-				if (wmat) {
-					vout[off2+j] = 0;
-					for (size_t k=0; k<ww; k++) {
-						vout[off2+j] += w[k] * x[k];
-					}
-				} else {
-					vout[off2+j] = fFun(x, narm);
-				}
-			}
-		}
-		
-		if (i == (out.bs.n - 1)) {
-			size_t m = i == 0 ? 1 : 2;
-			std::vector<double> row(nc, fillvalue);
-			start = out.bs.nrows[i] - hw0;
-			for (size_t r=0; r<(m*hw0); r++) {
-				unsigned off = (start+r)*nc;
-				focalrow(fvals, row, w[1], ww, nc, fill);
-				for (size_t j=0; j<nc; j++) {
-					unsigned offset = j*ww;
-					std::vector<double> x(fvals.begin()+offset, fvals.begin()+offset+ww);
-					if (wmat) {
-						vout[off+j] = 0;
-						for (size_t k=0; k<ww; k++) {
-							vout[off+j] += w[k] * x[k];
-						}
-					} else {
-						vout[off+j] = fFun(x, narm);
-					}
-				}
-			}	
-		}
-
-		int startrow = out.bs.row[i]; 
-		int nrows = out.bs.nrows[i];
-		if (i==0) {
-			if (out.bs.n != 1) {
-				nrows -= hw0;
-			}
-		} else if (i == (out.bs.n-1)) {
-			startrow -= hw0;
-			nrows += hw0;
-		} else {
-			startrow -= hw0;			
-		}
-		if (!out.writeValues(vout, startrow, nrows, 0, nc)) return out;		
-	}
-	out.writeStop();
-	readStop();
-	return(out);
+	return out;
 }
 
 
-/*
-				} else {
-					if (fv.size() == 0) {
-						v[j] = NAN;
-					} else if (fun == "mean") { //mean
-						v[j] = std::accumulate(fv.begin(), fv.end(), 0.0) / fv.size();
-					} else if (fun == "min") { //min
-						v[j] = *std::min_element(fv.begin(), fv.end());
-					} else if (fun == "max") { //max
-						v[j] = *std::max_element(fv.begin(), fv.end());
-					} else { // sum
-						v[j] = std::accumulate(fv.begin(), fv.end(), 0.0);
-					}
-
-*/
 
 	
 
@@ -638,7 +322,7 @@ SpatRaster SpatRaster::focal3(std::vector<unsigned> w, std::vector<double> m, do
 	SpatRaster out = geometry(1);
 	if (nlyr() > 1) {
 		SpatOptions ops(opt);
-		out.addWarning("focal computations are only done for the first input layer");
+		out.addWarning("focal computations are only done for the first layer");
 		std::vector<unsigned> lyr = {0};
 		*this = subset(lyr, ops);
 	}
@@ -709,8 +393,8 @@ SpatRaster SpatRaster::focal3(std::vector<unsigned> w, std::vector<double> m, do
 	}
 	
 	std::vector<double> fill;
-	std::vector<double> vout;
 	for (size_t i = 0; i < out.bs.n; i++) {
+		std::vector<double> vout;
 		unsigned rstart, roff;
 		unsigned rnrows = out.bs.nrows[i];
 		if (i == 0) {
@@ -782,3 +466,312 @@ SpatRaster SpatRaster::focal3(std::vector<unsigned> w, std::vector<double> m, do
 	return(out);
 }
 
+
+
+
+/*
+
+
+
+SpatRaster SpatRaster::focal1(std::vector<unsigned> w, std::vector<double> m, double fillvalue, bool narm, bool naonly, std::string fun, SpatOptions &opt) {
+
+	SpatRaster out = geometry(1);
+	if (nlyr() > 1) {
+		SpatOptions ops(opt);
+		out.addWarning("focal computations are only done for the first input layer");
+		std::vector<unsigned> lyr = {0};
+		*this = subset(lyr, ops);
+	}
+
+	if (!source[0].hasValues) { return(out); }
+
+	bool wmat = false;
+	if (m.size() > 1) {
+		wmat = true;
+	} else if (w.size() == 1) {
+		w.push_back(w[0]);
+	}
+	if (w.size() != 2) {
+		out.setError("size of w is not 1 or 2");
+		return out;
+	}
+	if ((w[0] % 2) == 0 || (w[1] % 2) == 0) {
+		out.setError("w must be odd sized");
+		return out;
+	}
+	if (w[0] < 3 && w[1] < 3) {
+		out.setError("w must be > 1");
+		return out;
+	}
+	
+	unsigned ww = w[0] * w[1];
+	if (ww < 9) {
+		out.setError("not a meaningful window");
+		return out;
+	}
+	if (wmat && (ww != m.size())) {
+		out.setError("weight matrix error");
+		return out;
+	}
+	if (!readStart()) {
+		out.setError(getError());
+		return(out);
+	}
+	opt.ncopies += 2 * ww;
+ 	if (!out.writeStart(opt)) {
+		readStop();
+		return out;
+	}
+
+	std::function<double(std::vector<double>&, bool)> fFun = getFun(fun);
+	std::vector<double> v;
+	if (naonly) {
+		int mid = ww / 2;
+		for (size_t i = 0; i < out.bs.n; i++) {
+			std::vector<double> fv = focal_values(w, fillvalue, out.bs.row[i], out.bs.nrows[i]);
+			v.resize(out.bs.nrows[i] * ncol(), NAN);
+			if (wmat) {
+				for (size_t j=0; j<v.size(); j++) {
+					double midv = fv[j*ww+mid];
+					if (std::isnan(midv)) {
+						v[j] = 0;
+						for (size_t k=0; k<ww; k++) {
+							v[j] += fv[j*ww+k] * m[k];
+						}
+					} else {
+						v[j] = midv;
+					}
+				}
+			} else {
+				for (size_t j=0; j<v.size(); j++) {
+					unsigned off = j*ww;
+					std::vector<double> x(fv.begin()+off, fv.begin()+off+ww);
+					double midv = x[mid];
+					if (std::isnan(midv)) {
+						v[j] = fFun(x, narm);
+					} else {
+						v[j] = midv;
+					}
+				}
+			}
+			if (!out.writeValues(v, out.bs.row[i], out.bs.nrows[i], 0, ncol())) return out;
+		}
+	} else {
+		for (size_t i = 0; i < out.bs.n; i++) {
+	
+	
+			std::vector<double> fv = focal_values(w, fillvalue, out.bs.row[i], out.bs.nrows[i]);
+			v.resize(out.bs.nrows[i] * ncol());
+			if (wmat) {
+				if (narm) {
+					for (size_t j=0; j<v.size(); j++) {
+						v[j] = 0;
+						size_t cnt = 0;
+						for (size_t k=0; k<ww; k++) {
+							double vv = fv[j*ww+k] * m[k];
+							if (!std::isnan(vv)) {
+								v[j] += vv;
+								cnt++;
+							}
+						}
+						if (cnt == 0) v[j] = NAN;
+					}
+				} else {
+					for (size_t j=0; j<v.size(); j++) {
+						v[j] = 0;
+						for (size_t k=0; k<ww; k++) {
+							v[j] += fv[j*ww+k] * m[k];
+						}
+					}
+				}
+			} else {
+				for (size_t j=0; j<v.size(); j++) {
+					unsigned off = j*ww;
+					std::vector<double> x(fv.begin()+off, fv.begin()+off+ww);
+					v[j] = fFun(x, narm);
+				}
+			}
+			if (!out.writeValues(v, out.bs.row[i], out.bs.nrows[i], 0, ncol())) return out;
+		}
+	}
+	out.writeStop();
+	readStop();
+	return(out);
+}
+
+
+void focalrow(std::vector<double> &x, std::vector<double> n, 
+            const size_t &w1, const size_t &ww, const size_t &nc, 
+            const std::vector<double> &fill) {
+	x.erase(x.begin(), x.begin() + w1);
+	x.resize(x.size() + w1);
+	n.insert(n.begin(), fill.begin(), fill.end());
+	n.insert(n.end(), fill.begin(), fill.end());
+	for (size_t i=0; i<nc; i++) {
+		size_t off = (i+1)*ww - w1;
+		for (size_t j=0; j<w1; j++) {
+			x[off + j] = n[i + j];
+		}
+	}
+}
+
+
+
+
+SpatRaster SpatRaster::focal2(std::vector<unsigned> w, std::vector<double> m, double fillvalue, bool narm, bool naonly, std::string fun, SpatOptions &opt) {
+
+	SpatRaster out = geometry(1);
+	if (nlyr() > 1) {
+		SpatOptions ops(opt);
+		out.addWarning("focal computations are only done for the first input layer");
+		std::vector<unsigned> lyr = {0};
+		*this = subset(lyr, ops);
+	}
+
+	if (!source[0].hasValues) { return(out); }
+
+	bool wmat = false;
+	if (m.size() > 1) {
+		wmat = true;
+	} else if (w.size() == 1) {
+		w.push_back(w[0]);
+	}
+	if (w.size() != 2) {
+		out.setError("size of w is not 1 or 2");
+		return out;
+	}
+	if ((w[0] % 2) == 0 || (w[1] % 2) == 0) {
+		out.setError("w must be odd sized");
+		return out;
+	}
+	if (w[0] < 3 && w[1] < 3) {
+		out.setError("w must be > 1");
+		return out;
+	}
+	size_t nc = ncol();
+	size_t nr = nrow();
+	if (w[0] > (nr*2)) {
+		out.setError("nrow(w) > 2 * nrow(x)");
+		return out;
+//		w[0] = nr*2;
+//		w[0] = std::fmod(w[0], 2) == 0 ? w[0]+1 : w[0];
+	}
+	if (w[1] > (nc*2)) { 
+		out.setError("ncol(w) > 2 * ncol(x)");
+		return out;
+//		w[1] = nc*2;
+//		w[1] = std::fmod(w[1], 2) == 0 ? w[1]+1 : w[1];
+	}
+	unsigned ww = w[0] * w[1];
+	if (ww < 9) {
+		out.setError("not a meaningful window");
+		return out;
+	}
+	if (wmat && (ww != m.size())) {
+		out.setError("weight matrix error");
+		return out;
+	}
+	if (!readStart()) {
+		out.setError(getError());
+		return(out);
+	}
+	opt.ncopies += std::max(1, (int)(nc * ww / ncell()));
+	opt.minrows = w[0] > nr ? nr : w[0];
+	
+ 	if (!out.writeStart(opt)) {
+		readStop();
+		return out;
+	}
+
+	std::function<double(std::vector<double>&, bool)> fFun = getFun(fun);
+
+	size_t hw0 = w[0]/2;
+	std::vector<double> fill(hw0, fillvalue);
+
+	std::vector<double> fvals(nc * ww, fillvalue);
+	
+	std::vector<double> vout;
+	for (size_t i = 0; i < out.bs.n; i++) {
+		if (i==0) {
+			if (i == (out.bs.n-1)) {
+				vout.resize(out.bs.nrows[i]* nc);				
+			} else {
+				vout.resize((out.bs.nrows[i]-hw0) * nc);
+			}
+		} else if (i == (out.bs.n-1)) {
+			vout.resize((out.bs.nrows[i] + 2 * hw0)* nc);
+		} else if (i == 1) {
+			vout.resize(out.bs.nrows[i]* nc);							
+		}
+		
+		std::vector<double> vin = readValues(out.bs.row[i], out.bs.nrows[i], 0, nc);
+		size_t start= 0;
+		if (i == 0) {
+			for (size_t r=0; r<hw0; r++) {
+				unsigned off = r*nc;
+				std::vector<double> row(vin.begin()+off, vin.begin()+off+nc);
+				focalrow(fvals, row, w[1], ww, nc, fill);
+				start++;
+			}
+		}
+
+		for (size_t r=start; r< out.bs.nrows[i]; r++) {
+			unsigned off1 = r*nc;
+			std::vector<double> row(vin.begin()+off1, vin.begin()+off1+nc);
+			focalrow(fvals, row, w[1], ww, nc, fill);
+			unsigned off2 = (r-start)*nc;
+			for (size_t j=0; j<nc; j++) {
+				unsigned offset = j*ww;
+				std::vector<double> x(fvals.begin()+offset, fvals.begin()+offset+ww);
+				if (wmat) {
+					vout[off2+j] = 0;
+					for (size_t k=0; k<ww; k++) {
+						vout[off2+j] += w[k] * x[k];
+					}
+				} else {
+					vout[off2+j] = fFun(x, narm);
+				}
+			}
+		}
+		
+		if (i == (out.bs.n - 1)) {
+			size_t m = i == 0 ? 1 : 2;
+			std::vector<double> row(nc, fillvalue);
+			start = out.bs.nrows[i] - hw0;
+			for (size_t r=0; r<(m*hw0); r++) {
+				unsigned off = (start+r)*nc;
+				focalrow(fvals, row, w[1], ww, nc, fill);
+				for (size_t j=0; j<nc; j++) {
+					unsigned offset = j*ww;
+					std::vector<double> x(fvals.begin()+offset, fvals.begin()+offset+ww);
+					if (wmat) {
+						vout[off+j] = 0;
+						for (size_t k=0; k<ww; k++) {
+							vout[off+j] += w[k] * x[k];
+						}
+					} else {
+						vout[off+j] = fFun(x, narm);
+					}
+				}
+			}	
+		}
+
+		int startrow = out.bs.row[i]; 
+		int nrows = out.bs.nrows[i];
+		if (i==0) {
+			if (out.bs.n != 1) {
+				nrows -= hw0;
+			}
+		} else if (i == (out.bs.n-1)) {
+			startrow -= hw0;
+			nrows += hw0;
+		} else {
+			startrow -= hw0;			
+		}
+		if (!out.writeValues(vout, startrow, nrows, 0, nc)) return out;		
+	}
+	out.writeStop();
+	readStop();
+	return(out);
+}
+*/

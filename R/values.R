@@ -71,7 +71,7 @@ setMethod("focalValues", signature("SpatRaster"),
 )
 
 
-setMethod("setValues", signature("SpatRaster", "ANY"), 
+setMethod("setValues", signature("SpatRaster"), 
 	function(x, values, time=TRUE, props=FALSE) {
 
 		if (is.matrix(values)) { 
@@ -138,7 +138,19 @@ setMethod("setValues", signature("SpatRaster", "ANY"),
 #	x@ptr$hasValues
 #}
 
-.inMemory <- function(x) {
+setMethod("inMemory", signature(x="SpatRaster"), 
+	function(x, bylayer=FALSE) {
+		r <- x@ptr$inMemory
+		if (bylayer) {
+			nl <- .nlyrBySource(x)
+			r <- rep(r, nl)
+		}
+		r
+	}
+)
+
+
+..inMemory <- function(x) {
 	x@ptr$inMemory
 }
 
@@ -188,17 +200,19 @@ setMethod("setMinMax", signature(x="SpatRaster"),
 
 
 setMethod("compareGeom", signature(x="SpatRaster", y="SpatRaster"), 
-	function(x, y, ..., lyrs=FALSE, crs=TRUE, warncrs=FALSE, ext=TRUE, rowcol=TRUE, res=FALSE) {
+	function(x, y, ..., lyrs=FALSE, crs=TRUE, warncrs=FALSE, ext=TRUE, rowcol=TRUE, res=FALSE, stopOnError=TRUE) {
 		dots <- list(...)
-		bool <- x@ptr$compare_geom(y@ptr, lyrs, crs, warncrs, ext, rowcol, res)
-		messages(x, "compareGeom")
+		opt <- spatOptions("")
+		res <- x@ptr$compare_geom(y@ptr, lyrs, crs, opt$tolerance, warncrs, ext, rowcol, res)
+		if (stopOnError) messages(x, "compareGeom")
 		if (length(dots)>1) {
 			for (i in 1:length(dots)) {
 				bool <- x@ptr$compare_geom(dots[[i]]@ptr, lyrs, crs, warncrs, ext, rowcol, res)
-				messages(x, "compareGeom")
+				if (stopOnError) messages(x, "compareGeom")
+				res <- bool & res
 			}
 		}
-		bool
+		res
 	}
 )
 
@@ -260,7 +274,7 @@ setMethod("values<-", signature("SpatVector", "NULL"),
 	}
 )
 
-setMethod("setValues", signature("SpatVector", "ANY"), 
+setMethod("setValues", signature("SpatVector"), 
 	function(x, values) {
 		x@ptr <- x@ptr$deepcopy()
 		`values<-`(x, values)

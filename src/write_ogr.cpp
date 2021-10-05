@@ -187,8 +187,11 @@ GDALDataset* SpatVector::write_ogr(std::string filename, std::string lyrname, st
 			setError("file exists. Use 'overwrite=TRUE' to overwrite it");
 			return(poDS);
 		}
+		if (nrow() == 0) {
+			setError("no geometries to write");
+			return(poDS);		
+		}
 	}
-
     GDALDriver *poDriver = GetGDALDriverManager()->GetDriverByName( driver.c_str() );
     if( poDriver == NULL )  {
         setError( driver + " driver not available");

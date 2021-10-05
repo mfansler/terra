@@ -181,7 +181,7 @@ SpatRaster SpatRaster::rasterizeLyr(SpatVector x, double value, double backgroun
 
 	GDALClose(rstDS);
 	if (driver != "MEM") {
-		out = SpatRaster(filename, {-1}, {""});
+		out = SpatRaster(filename, {-1}, {""}, {});
 	}
 	return out;
 }
@@ -368,7 +368,7 @@ SpatRaster SpatRaster::rasterize(SpatVector x, std::string field, std::vector<do
 	
 	GDALClose(rstDS);
 	if (driver != "MEM") {
-		out = SpatRaster(filename, {-1}, {""});
+		out = SpatRaster(filename, {-1}, {""}, {});
 	} else {
 		std::string fname = opt.get_filename();
 		if ((fname != "") && (!update)) {
@@ -455,7 +455,7 @@ void SpatRaster::rasterizeCellsExact(std::vector<double> &cells, std::vector<dou
 	SpatRaster r = geometry(1);
 	r = r.crop(v.extent, "out", opt);
 
-	if (r.ncell() < 1000) {
+//	if (r.ncell() < 1000) {
 		std::vector<double> feats(1, 1) ;	
 		r = r.rasterize(v, "", feats, NAN, true, false, false, false, false, opt); 
 
@@ -482,7 +482,13 @@ void SpatRaster::rasterizeCellsExact(std::vector<double> &cells, std::vector<dou
 			}
 			cells = rv.df.dv[1];
 		}
-	} else {
+//	}
+
+/*
+// the below would need to remove all cells already included in the above
+// because touches=false includes partly overlapped cells [#346]
+
+	else {
 		std::vector<double> feats(1, 1) ;	
 		SpatVector vv = v.as_lines();
 		SpatRaster b = r.rasterize(vv, "", feats, NAN, true, false, false, false, false, opt); 
@@ -523,6 +529,8 @@ void SpatRaster::rasterizeCellsExact(std::vector<double> &cells, std::vector<dou
 			cells[0] = NAN;
 		}
 	}
+*/	
+	
 }
 
 

@@ -70,7 +70,6 @@ class SpatRasterSource {
 //		bool fswrite(std::vector<double> &v);
 //		void fsclose();
 
-
 		size_t ncol, nrow;
 		unsigned nlyr;
 		unsigned nlyrfile = 0;
@@ -80,7 +79,6 @@ class SpatRasterSource {
 		bool hasWindow=false;
 		SpatWindow window;
 	
-
 		bool multidim = false;
 		size_t m_ndims;
 		std::vector<size_t> m_dims;
@@ -133,6 +131,7 @@ class SpatRasterSource {
 		std::string filename;
 		std::string driver;
 		std::string datatype; 
+		std::vector<std::string> open_ops;
 		
 		// user set for reading:
 		bool hasNAflag = false;
@@ -311,8 +310,8 @@ class SpatRaster {
 		SpatRaster();
 		SpatRaster(unsigned nr, unsigned nc, unsigned nl, SpatExtent ext, std::string crs);
 		SpatRaster(std::vector<unsigned> rcl, std::vector<double> ext, std::string crs);
-		SpatRaster(std::vector<std::string> fname, std::vector<int> subds, std::vector<std::string> subdsname, bool multi, std::vector<size_t> x);
-		SpatRaster(std::string fname, std::vector<int> subds, std::vector<std::string> subdsname);
+		SpatRaster(std::vector<std::string> fname, std::vector<int> subds, std::vector<std::string> subdsname, bool multi, std::vector<std::string> options, std::vector<size_t> x);
+		SpatRaster(std::string fname, std::vector<int> subds, std::vector<std::string> subdsname, std::vector<std::string> options);
 		SpatRaster(SpatRasterSource s);
 		void setSource(SpatRasterSource s);
 		void setSources(std::vector<SpatRasterSource> s);
@@ -322,12 +321,11 @@ class SpatRaster {
 		SpatRaster hardCopy(SpatOptions &opt);
         SpatRaster geometry(long nlyrs=-1, bool properties=false, bool time=true);
 
-		bool constructFromFile(std::string fname, std::vector<int> subds, std::vector<std::string> subdsname);
+		bool constructFromFile(std::string fname, std::vector<int> subds, std::vector<std::string> subdsname, std::vector<std::string> options);
 		bool constructFromFileMulti(std::string fname, std::string subdsname, std::vector<size_t> xyz);
-		bool constructFromFiles(std::vector<std::string> fnames);
-		bool constructFromSDS(std::string filename, std::vector<std::string> meta, std::vector<int> subds, std::vector<std::string> subdsname, bool ncdf);
+		bool constructFromSDS(std::string filename, std::vector<std::string> meta, std::vector<int> subds, std::vector<std::string> subdsname, std::vector<std::string> options, bool ncdf);
 		
-		SpatRaster fromFiles(std::vector<std::string> fname, std::vector<int> subds, std::vector<std::string> subdsname);
+		SpatRaster fromFiles(std::vector<std::string> fname, std::vector<int> subds, std::vector<std::string> subdsname, std::vector<std::string> options);
 		
 //		bool constructFromNCDFsds(std::string filename, std::vector<std::string> meta, std::vector<int> subds, std::vector<std::string> subdsname);
 
@@ -347,7 +345,7 @@ class SpatRaster {
 
 		void gdalogrproj_init(std::string path);
 
-		bool compare_geom(SpatRaster x, bool lyrs, bool crs, bool warncrs=false, bool ext=true, bool rowcol=true, bool res=false);
+		bool compare_geom(SpatRaster x, bool lyrs, bool crs, double tol, bool warncrs=false, bool ext=true, bool rowcol=true, bool res=false);
 		bool compare_origin(std::vector<double> x, double tol);
 		bool shared_basegeom(SpatRaster &x, double tol, bool test_overlap);
 
@@ -561,8 +559,8 @@ class SpatRaster {
 		SpatRaster flip(bool vertical, SpatOptions &opt);
 		SpatRaster filler(SpatRaster x, SpatOptions &opt);
 		
-		SpatRaster focal1(std::vector<unsigned> w, std::vector<double> m, double fillvalue, bool narm, bool naonly, std::string fun, SpatOptions &opt);
-		SpatRaster focal2(std::vector<unsigned> w, std::vector<double> m, double fillvalue, bool narm, bool naonly, std::string fun, SpatOptions &opt);
+//		SpatRaster focal1(std::vector<unsigned> w, std::vector<double> m, double fillvalue, bool narm, bool naonly, std::string fun, SpatOptions &opt);
+//		SpatRaster focal2(std::vector<unsigned> w, std::vector<double> m, double fillvalue, bool narm, bool naonly, std::string fun, SpatOptions &opt);
 		SpatRaster focal3(std::vector<unsigned> w, std::vector<double> m, double fillvalue, bool narm, bool naonly, std::string fun, bool expand, SpatOptions &opt);
 
 		std::vector<double> focal_values(std::vector<unsigned> w, double fillvalue, int row, int nrows);
@@ -634,8 +632,11 @@ class SpatRaster {
 
 		std::vector<size_t> sampleCells(unsigned size, std::string method, bool replace, unsigned seed);
 		SpatRaster sampleRegularRaster(unsigned size);
+		SpatRaster sampleRowColRaster(size_t nr, size_t nc);
 		SpatRaster sampleRandomRaster(unsigned size, bool replace, unsigned seed);
 		std::vector<std::vector<double>> sampleRegularValues(unsigned size);
+		std::vector<std::vector<double>> sampleRowColValues(size_t nr, size_t nc);
+		
 		std::vector<std::vector<double>> sampleRandomValues(unsigned size, bool replace, unsigned seed);
 
 		SpatRaster scale(std::vector<double> center, bool docenter, std::vector<double> scale, bool doscale, SpatOptions &opt);

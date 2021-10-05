@@ -117,7 +117,7 @@ setMethod ("show" , "SpatVector",
 		d <- dim(object)
 		cat(" dimensions  : ", d[1], ", ", d[2], "  (geometries, attributes)\n", sep="" ) 
 		cat(" extent      : ", e[1], ", ", e[2], ", ", e[3], ", ", e[4], "  (xmin, xmax, ymin, ymax)\n", sep="")
-		cat(" coord. ref. :", .proj4(object), "\n")
+		cat(" coord. ref. :", .name_or_proj4(object), "\n")
 		if (all(d > 0)) {
 			dd <- as.data.frame(object)
 			printDF(dd, 3, TRUE)
@@ -152,7 +152,9 @@ setMethod ("show" , "SpatRaster",
 			e <- as.vector(ext(object))
 			cat("extent      : " , e[1], ", ", e[2], ", ", e[3], ", ", e[4], "  (xmin, xmax, ymin, ymax)\n", sep="")
 		}
-		cat("coord. ref. :" , .proj4(object), "\n")
+		
+		
+		cat("coord. ref. :" , .name_or_proj4(object), "\n")
 
 
 		if (hasValues(object)) {
@@ -172,10 +174,19 @@ setMethod ("show" , "SpatRaster",
 			}
 
 			nsr <- nsrc(object)
-			m <- .inMemory(object)
+			m <- inMemory(object)
 			f <- .filenames(object)
+			hdf5 <- substr(f, 1, 5) == "HDF5:"
+			f[!hdf5] <- basename(f[!hdf5])				
+			if (any(hdf5)) {
+				ff <- strsplit(f[hdf5], "://")
+				ff <- sapply(ff, function(i) paste(basename(i), collapse="://"))
+				ff <- gsub('\"', "", ff)
+				f[hdf5] <- ff
+			}
 			#f <- gsub("\\", "/", f, fixed=TRUE)
-			f <- gsub("\"", "", basename(f))
+			
+			f <- gsub("\"", "", f)
 			sources <- rep("memory", length(m))
 			sources[!m] <- f[!m] 
 
@@ -334,7 +345,7 @@ setMethod ("show" , "SpatRaster",
 
 
 .sources <- function(x) {
-	m <- .inMemory(x)
+	m <- inMemory(x)
 	f <- .filenames(x)
 	f <- gsub("\"", "", basename(f))
 	i <- grep(":", f)
@@ -375,7 +386,7 @@ setMethod("show" , "SpatRasterDataset",
 		cat("extent      : " , e[1], ", ", e[2], ", ", e[3], ", ", e[4], "  (xmin, xmax, ymin, ymax)\n", sep="")
 
 
-		cat("coord. ref. :" , .proj4(object[1]), "\n")
+		cat("coord. ref. :" , .name_or_proj4(object[1]), "\n")
 
 		s <- unlist(lapply(1:ns, function(i) .sources(object[i])))
 		s <- unique(s)

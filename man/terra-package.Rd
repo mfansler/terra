@@ -195,6 +195,7 @@ Get or set basic parameters of SpatRasters. If there are values associated with 
     \code{\link{crs}} \tab The coordinate reference system (map projection) \cr	
     \code{\link{is.lonlat}} \tab Test if an object has (or may have) a longitude/latitude coordinate reference system\cr
     \code{\link{sources}} \tab Get the filename(s) to which a SpatRaster is linked \cr	
+    \code{\link{inMemory}} \tab Are the data sources in memory (or on disk)? \cr	
     \code{\link{compareGeom}} \tab Compare the geometry of SpatRasters \cr		
     \code{\link{NAflag}} \tab Set the \code{NA} value (for reading from a file with insufficient metadata) \cr
   --------------------------- \tab ------------------------------------------------------------------------------------------ \cr
@@ -235,7 +236,6 @@ Cell numbers start at 1 in the upper-left corner. They increase within rows, fro
 
 \subsection{Advanced}{
   \tabular{ll}{
-   \code{\link{blockSize}} \tab Get suggested block size for reading and writing \cr
    \code{\link{writeStart}} \tab Open a file for writing \cr
    \code{\link{writeValues}} \tab Write some values  \cr
    \code{\link{writeStop}} \tab Close the file after writing \cr
@@ -250,11 +250,10 @@ Cell numbers start at 1 in the upper-left corner. They increase within rows, fro
     \code{\link{terraOptions}} \tab Show, set, or get session options, mostly to control memory use and to set write options\cr
     \code{\link{sources}} \tab Show the data sources of a SpatRaster \cr
     \code{\link{tmpFiles}} \tab Show or remove temporary files \cr
-    \code{\link{canProcessInMemory}} \tab Test whether a file can be created in memory \cr
-    \code{\link{readStart}} \tab Open file connections for efficient multi-chunck reading \cr
+    \code{\link{mem_info}} \tab memory needs and availability \cr
+    \code{\link{readStart}} \tab Open file connections for efficient multi-chunk reading \cr
     \code{\link{readStop}} \tab Close file connections \cr
     \code{\link{inMemory}} \tab Are the cell values in memory? \cr
-    \code{\link{fromDisk}} \tab Are the cell values read from a file? \cr	
 }
 }
 
@@ -369,7 +368,7 @@ We use the term "attributes" for the tabular data (data.frame) associated with v
   \code{\link{shift}} \tab change the position geometries by shifting their coordinates in horizontal and/or vertical direction\cr
   \code{\link{spin}}\tab rotate geometries around an origin\cr
   \code{\link{rescale}} \tab shrink (or expand) geometries, for example to make an inset map \cr
-  \code{\link{flip}} \tab flip geometries vertially or horizontally\cr
+  \code{\link{flip}} \tab flip geometries vertically or horizontally\cr
   \code{\link{t}} \tab transpose geometries (switch x and y)\cr
 
 }}
@@ -478,7 +477,7 @@ You can coerce SpatRasters to Raster* objects after loading the \code{raster} pa
   \tabular{ll}{
     \code{\link{plot}} \tab x-y scatter plot of the values of (a sample of) the layers of two SpatRaster objects\cr
     \code{\link{hist}} \tab Histogram of SpatRaster values \cr
-    \code{\link{barplot}} \tab Barplot of a SpatRaster \cr
+    \code{\link{barplot}} \tab Bar plot of a SpatRaster \cr
     \code{\link{density}} \tab Density plot of SpatRaster values \cr
     \code{\link{pairs}} \tab Pairs plot for layers in a SpatRaster \cr
     \code{\link{boxplot}} \tab Box plot of the values of a SpatRaster\cr
@@ -563,7 +562,7 @@ Also note that even if function names are the same in \code{terra} and \code{ras
 Except where indicated otherwise, the methods and functions in this package were written by Robert Hijmans. The configuration scripts were written by Roger Bivand for \code{rgdal} and \code{sf}. Some of the C++ code for GDAL/GEOS was adapted from code by Edzer Pebesma for \code{sf}. The progress bar code is by Karl Forner (RcppProgress). Jeroen Ooms provided the compiled GDAL and GEOS libraries for installation on windows}
 
 \section{Acknowledgments}{
-This package is an attempt to climb on the shoulders of giants (GDAL, PROJ, GEOS, NCDF, GeographicLib, Rcpp, R). Many people have contributed by asking questions or \href{https://github.com/rspatial/terra}{filing bug reports}. The feedback and suggestions by Kendon Bell, Jean-Luc Dupouey, Krzysztof Dyba, Jakub Nowosad, Gerald Nelson, and Michael Sumner have been especially helpful.
+This package is an attempt to climb on the shoulders of giants (GDAL, PROJ, GEOS, NCDF, GeographicLib, Rcpp, R). Many people have contributed by asking questions or \href{https://github.com/rspatial/terra}{raising issues}. The feedback and suggestions by Kendon Bell, Jean-Luc Dupouey, Krzysztof Dyba, Jakub Nowosad, Gerald Nelson, and Michael Sumner have been especially helpful.
 }
 
 \keyword{ package }
