@@ -386,17 +386,17 @@ setMethod("diff", signature(x="SpatRaster"),
 )
 
 
-setMethod("disaggregate", signature(x="SpatRaster"), 
+setMethod("disagg", signature(x="SpatRaster"), 
 	function(x, fact, method="near", filename="", ...) {
 		stopifnot(method %in% c("near", "bilinear"))
 		if (method == "bilinear") {
-			y <- disaggregate(rast(x), fact)
+			y <- disagg(rast(x), fact)
 			r <- resample(x, y, "bilinear", filename=filename, ...)
 			return(r)
 		}
 		opt <- spatOptions(filename, ...)
 		x@ptr <- x@ptr$disaggregate(fact, opt)
-		messages(x, "disaggregate")
+		messages(x, "disagg")
 	}
 )
 
@@ -510,9 +510,15 @@ setMethod("mask", signature(x="SpatRaster", mask="SpatVector"),
 
 
 setMethod("project", signature(x="SpatRaster"), 
-	function(x, y, method="bilinear", mask=FALSE, filename="", ...)  {
-
-		method <- ifelse(method == "ngb", "near", method)
+	function(x, y, method, mask=FALSE, filename="", ...)  {
+	  
+		if (missing(method)) {
+			method <- ifelse(is.factor(x)[1], "near", "bilinear")
+		}
+		if (method == "ngb") {
+			method <- "near"
+			warn("project", "argument 'method=ngb' is deprecated, it should be 'method=near'")
+		}
 		opt <- spatOptions(filename, ...)
 		if (inherits(y, "SpatRaster")) {
 			#x@ptr <- x@ptr$warp(y@ptr, method, opt)
@@ -586,8 +592,14 @@ setMethod("rectify", signature(x="SpatRaster"),
 )
 
 setMethod("resample", signature(x="SpatRaster", y="SpatRaster"), 
-	function(x, y, method="bilinear", filename="", ...)  {
-		method <- ifelse(method == "ngb", "near", method)
+	function(x, y, method, filename="", ...)  {
+		if (missing(method)) {
+			method <- ifelse(is.factor(x)[1], "near", "bilinear")
+		}
+		if (method == "ngb") {
+			method <- "near"
+			warn("project", "argument 'method=ngb' is deprecated, it should be 'method=near'")
+		}
 		opt <- spatOptions(filename, ...)
 		x@ptr <- x@ptr$warp(y@ptr, "", method, FALSE, opt)
 		messages(x, "resample")
