@@ -1,8 +1,8 @@
-7b0fd3c972d831db3a3a4ece984f5b47 *DESCRIPTION
+a08ab5cb9cd70ca8f5fff8e5d8b807e2 *DESCRIPTION
 3bf96e5c97281cc65f04d91f348ea4d6 *NAMESPACE
-babdfd31eb15caa287bf954282ed73be *NEWS.md
+1f3a1741493018c9498116680f70e64c *NEWS.md
 bf9c0b006cdf017ed5d86b82a3c0c331 *R/Aclasses.R
-4a6000de2a3bd37296a1b1c6f38ecddd *R/Agenerics.R
+e53d40a5b7ab5fbbf059de14bda02787 *R/Agenerics.R
 3679a351bb3a006cf67ebbdcd61c3b6c *R/Arith_generics.R
 2fdfbb46cfe070171c176a31bd964a5b *R/RcppExports.R
 6d509fcb27193ec53d28fb2c7972427b *R/SpatRasterDataset.R
@@ -19,7 +19,7 @@ af0fc788523be82078d1ccbc544ce77b *R/clean.R
 7ed857a95ed2054d44f3ddc99b44e117 *R/coerce.R
 09c5f26781aa546890f36ffdb272558a *R/colors.R
 9151c9dab621b21eeea92c10cc7a272e *R/crosstab.R
-0ec6d9b2bd68480b5926d079ea4de9fb *R/crs.R
+2898127d8c2cee139f6046b6bff2b3b6 *R/crs.R
 f625b9b772e9119f8788595a81c5ce98 *R/dimensions.R
 43906c9bd4045108a78598ebdb9fd145 *R/distance.R
 608ecef210951140b103c50e785d4366 *R/draw.R
@@ -150,7 +150,7 @@ ac724164a9c7d6966f9ff40e44781787 *man/contour.Rd
 2d9b0c9bd756c25702f550143d8ed6be *man/cover.Rd
 648ad8d4f1d625b6af7095fb23191293 *man/crop.Rd
 14d34d50d0b931e8376527cc6734e18a *man/crosstab.Rd
-46bfb5e292fd87623355264cd9261275 *man/crs.Rd
+74cfc6cbc7480f6b0b2f2f4b4f818ebb *man/crs.Rd
 49a8f4f5a263791ab3ac2867182e453f *man/density.Rd
 a92e15edc79f41a0bb9509611986658c *man/depth.Rd
 97dfca0744020f729b9875879c85cacd *man/describe.Rd
