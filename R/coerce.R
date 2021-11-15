@@ -4,7 +4,9 @@
 # License GPL v3
 
 
-# from terra to raster
+
+
+### from terra
 setAs("SpatRaster", "Raster", 
 	function(from) {
 		s <- sources(from)
@@ -19,12 +21,17 @@ setAs("SpatRaster", "Raster",
 					raster::values(r) <- values(from)
 				}
 			} else {
-				r <- raster::raster(s$source)
+				b <- sources(from, TRUE)
+				r <- raster::raster(s$source, band=b$bands)
 			}
 			names(r) <- names(from)
 		} else {
-			if (nrow(s) == 1 & s$source[1] != "") {
+			b <- sources(from, TRUE)
+			if ((nrow(s) == 1) & (s$source[1] != "")) {
 				r <- raster::brick(s$source)
+				if (!((raster::nlayers(r) == nl) && (b$bands[1] == 1) && (all(diff(b$bands) == 1)))) {
+					r <- raster::stack(s$source, bands=b$bands)
+				}
 			} else if (all(s$source=="")) {
 				r <- raster::brick(ncol=ncol(from), nrow=nrow(from), crs=prj,
 			          xmn=e[1], xmx=e[2], ymn=e[3], ymx=e[4], nl=nlyr(from))
@@ -39,7 +46,8 @@ setAs("SpatRaster", "Raster",
 					if (s$source[i] == "") {
 						r[[i]] <- raster::setValues(x, values(from[[i]]))
 					} else {
-						r[[i]] <- raster::raster(s$source[i])
+						bands <- b$bands[b$sid == i]
+						r[[i]] <- raster::stack(s$source[i], bands=bands)
 					}
 				}
 				r <- raster::stack(r)
@@ -48,8 +56,6 @@ setAs("SpatRaster", "Raster",
 		return(r)
 	}
 )
-
-
 
 
 
@@ -100,6 +106,9 @@ setMethod("as.polygons", signature(x="SpatRaster"),
 			x <- messages(x, "as.polygons")
 			if (values) {
 				ff <- is.factor(x)
+				if (dissolve) {
+					ff <- ff[[1]]
+				}
 				if (any(ff)) {
 					ff <- which(ff)
 					cgs <- cats(x)
@@ -119,7 +128,8 @@ setMethod("as.polygons", signature(x="SpatRaster"),
 setMethod("as.lines", signature(x="SpatRaster"), 
 	function(x) {
 		p <- methods::new("SpatVector")
-		p@ptr <- x@ptr$as_lines()
+		opt <- spatOptions()
+		p@ptr <- x@ptr$as_lines(opt)
 		messages(p, "as.lines")
 	}
 )
@@ -294,8 +304,9 @@ setMethod("as.array", signature(x="SpatRaster"),
 
 
 .fromRasterLayerBrick <- function(from) {
-	f <- raster::filename(from)
-	if (f != "") {
+	 
+	if (raster::fromDisk(from)) {
+		f <- raster::filename(from)
 		if (from@file@driver == "netcdf") {
 			v <- attr(from@data, "zvar")
 			r <- rast(f, v)	

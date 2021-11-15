@@ -10,6 +10,10 @@
 	if (!is.null(ext)) {
 		r <- crop(rast(r), ext)
 	}
+	if ( ((!replace) || (method == "regular")) && (size >= ncell(r)) ) {
+		cells <- 1:ncell(r)
+	}
+
 	if (method == "random") {
 		nsize <- size
 		if (na.rm) {
@@ -63,7 +67,7 @@
 			ystep <- nrow(r) / nr
 			xsamp <- seq(0.5*xstep, ncol(r), xstep)
 			ysamp <- seq(0.5*ystep, nrow(r), ystep)
-			xy <- expand.grid(round(ysamp), round(xsamp))
+			xy <- expand.grid(ysamp, xsamp)
 			cells <- cellFromRowCol(r, xy[,1], xy[,2]) 
 		}
 	}
@@ -109,9 +113,9 @@ setMethod("spatSample", signature(x="SpatRaster"),
 		if (any(size < 1)) {
 			error("spatSample", "sample size must be a positive integer")
 		}
-		#if ((size > ncell(x)) & (!replace)) {
-			#error("spatSample", "sample size is larger than ncell(x) and replace=FALSE")
-		#}
+		if ((size > ncell(x)) & (!replace)) {
+			size <- ncell(x)
+		}
 
 		if (!as.raster) {
 			ff <- is.factor(x)
@@ -147,7 +151,7 @@ setMethod("spatSample", signature(x="SpatRaster"),
 			}
 			if (as.points) {
 				if (xy) {
-					out <- vect(out, geom=c("x", "y"), crs=crs(x))
+					out <- vect(out, crs=crs(x))
 				} else {
 					xy <- xyFromCell(x, cnrs)
 					# xy is a matrix, no geom argument
@@ -178,10 +182,11 @@ setMethod("spatSample", signature(x="SpatRaster"),
 				x <- messages(x, "spatSample")
 				return(x);
 			} else {
+				opt <- spatOptions()
 				if (length(size) > 1) {
-					v <- x@ptr$sampleRowColValues(size[1], size[2])
+					v <- x@ptr$sampleRowColValues(size[1], size[2], opt)
 				} else {
-					v <- x@ptr$sampleRegularValues(size)				
+					v <- x@ptr$sampleRegularValues(size, opt)				
 				}
 				x <- messages(x, "spatSample")
 				if (length(v) > 0) {

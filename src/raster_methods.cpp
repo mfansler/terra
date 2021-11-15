@@ -42,6 +42,41 @@ std::vector<double> flat(std::vector<std::vector<double>> v) {
 }
 */
 
+/*
+SpatRaster SpatRaster::selectHighest(size_t n, bool low, SpatOptions &opt) {
+
+	SpatVector out;
+
+	if (nlyr() > 1) {
+		SpatOptions ops(opt);
+		out.addWarning("only processing the first layer");
+		std::vector<unsigned> lyr = {0};
+		*this = subset(lyr, ops);
+	}
+	if (!hasValues()) {
+		return(out);
+	}
+	if (n >= ncell()) {
+		return isnotnan(opt);
+	}
+	
+	std::vector<double> sel;
+	
+	if (!readStart()) {
+		return(out);
+	}
+
+	BlockSize bs = getBlockSize(opt);
+	for (size_t i = 0; i < bs.n; i++) {
+		std::vector<double> v = readBlock(bs, i);
+		for (size_t j=0; j<v.size(); j++) {
+		} 
+	
+	readStop();
+	return(out);
+}
+*/
+
 bool SpatRaster::get_aggregate_dims(std::vector<unsigned> &fact, std::string &message ) {
 
 	unsigned fs = fact.size();
@@ -577,7 +612,8 @@ SpatRaster SpatRaster::stretch(std::vector<double> minv, std::vector<double> max
 				q[i] = {rmn[i], rmx[i]};
 			} else {
 				std::vector<double> probs = {minq[i], maxq[i]};
-				std::vector<double> v = getValues(i);
+				SpatOptions xopt(opt);
+				std::vector<double> v = getValues(i, xopt);
 				q[i] = vquantile(v, probs, true);
 			}
 		}
@@ -1628,12 +1664,9 @@ SpatRaster SpatRaster::init(std::vector<double> values, SpatOptions &opt) {
 	unsigned nc = ncol();
 	unsigned nl = nc * nlyr();
 	if (values.size() == 1) {
-		std::vector<double> v(out.bs.nrows[0]*nc*nl, values[0]);
+		std::vector<double> v;
 		for (size_t i = 0; i < out.bs.n; i++) {
-			if ((i == (out.bs.n-1)) && (i > 0)) {
-				// last block can be longer, it seems
-				v.resize(out.bs.nrows[i]*nc*nl, values[0]);
-			}
+			v.resize(out.bs.nrows[i]*nc*nl, values[0]);				
 			if (!out.writeValues(v, out.bs.row[i], out.bs.nrows[i], 0, nc)) return out;
 		}
 	} else {
@@ -2032,7 +2065,7 @@ SpatRaster SpatRaster::crop(SpatExtent e, std::string snap, SpatOptions &opt) {
 		return(out);
 	}
 
-	opt.ncopies = 2;
+//	opt.ncopies = 2;
  	if (!out.writeStart(opt)) {
 		readStop();
 		return out;
@@ -2298,7 +2331,7 @@ SpatRaster SpatRasterCollection::mosaic(std::string fun, SpatOptions &opt) {
 			SpatRaster temp = out.crop(ds[i].getExtent(), "near", topt);
 			std::vector<bool> hascats = ds[i].hasCategories();
 			std::string method = hascats[0] ? "near" : "bilinear";
-			ds[i] = ds[i].warper(temp, "", method, false, topt);
+			ds[i] = ds[i].warper(temp, "", method, false, false, topt);
 			if (ds[i].hasError()) {
 				out.setError(ds[i].getError());
 				return out;
@@ -3027,7 +3060,11 @@ SpatRaster SpatRaster::reclassify(std::vector<std::vector<double>> rcl, unsigned
 			for (size_t i=0; i<hr.size(); i++) {
 				if (!hr[i]) hasR = false;
 			}
-			if (!hasR) setRange();
+			
+			if (!hasR) {
+				SpatOptions xopt(opt);
+				setRange(xopt);
+			}
 			std::vector<double> mn = range_min();
 			std::vector<double> mx = range_max();
 			double mnv = vmin(mn, true);

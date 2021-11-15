@@ -218,6 +218,8 @@ RCPP_MODULE(spat){
 		.method("subset_rows", (SpatDataFrame (SpatDataFrame::*)(std::vector<unsigned>))( &SpatDataFrame::subset_rows), "subset_cols")
 		.method("subset_cols", (SpatDataFrame (SpatDataFrame::*)(std::vector<unsigned>))( &SpatDataFrame::subset_cols), "subset_cols")
 
+		.method("remove_rows", &SpatDataFrame::remove_rows)
+
 		.method("cbind", &SpatDataFrame::cbind)
 		.method("rbind", &SpatDataFrame::rbind)
 		.method("values", &getDataFrame, "get data.frame")
@@ -236,6 +238,7 @@ RCPP_MODULE(spat){
 		.method("push_back", &SpatVectorCollection::push_back, "push_back")
 		.method("subset", &SpatVectorCollection::subset, "subset")
 		.method("replace", &SpatVectorCollection::replace, "replace")
+		.method("append", &SpatVectorCollection::append, "append")
 
 		.method("has_error", &SpatVectorCollection::hasError)
 		.method("has_warning", &SpatVectorCollection::hasWarning)
@@ -351,10 +354,12 @@ RCPP_MODULE(spat){
 		.method("shift", &SpatVector::shift)
 		.method("rescale", &SpatVector::rescale)
 		.method("rotate", &SpatVector::rotate)
-		.method("erase", &SpatVector::erase)
+		.method("erase", ( SpatVector (SpatVector::*)(SpatVector))( &SpatVector::erase ))
+		.method("erase_self", ( SpatVector (SpatVector::*)())( &SpatVector::erase ))
+		.method("gaps", &SpatVector::gaps)
+
 		.method("symdif", &SpatVector::symdif)
 		.method("cover", &SpatVector::cover)
-
 		.method("union", ( SpatVector (SpatVector::*)(SpatVector))( &SpatVector::unite ))
 		.method("union_self", ( SpatVector (SpatVector::*)())( &SpatVector::unite ))
 		.method("union_unary", &SpatVector::unaryunion)
@@ -380,6 +385,7 @@ RCPP_MODULE(spat){
 		
 		.method("sample", &SpatVector::sample)
 		.method("sampleGeom", &SpatVector::sample_geom)
+		.method("remove_duplicate_nodes", &SpatVector::remove_duplicate_nodes)
 	;
 
 
@@ -421,7 +427,7 @@ RCPP_MODULE(spat){
 		.method("getMessage", &SpatRaster::getMessage)
 
 		//.field("name", &SpatRaster::name)
-
+		.method("getFileBlocksize", &SpatRaster::getFileBlocksize)
 		
 		.method("sources_to_disk", &SpatRaster::sources_to_disk, "sources_to_disk")
 		.method("mem_needs", &SpatRaster::mem_needs, "mem_needs")
@@ -508,6 +514,9 @@ RCPP_MODULE(spat){
 		.method("nsrc", &SpatRaster::nsrc, "nsrc" )
 		.field("messages", &SpatRaster::msg, "messages")
 		.method("nlyrBySource", &SpatRaster::nlyrBySource, "nlyrBySource" )
+		.method("lyrsBySource", &SpatRaster::lyrsBySource, "lyrsBySource" )
+		.method("getBands", &SpatRaster::getBands, "getBands" )
+		
 		.method("nlyr", &SpatRaster::nlyr, "nlyr" )
 		.property("origin", &SpatRaster::origin)
 		.property("range_min", &SpatRaster::range_min )
@@ -587,7 +596,9 @@ RCPP_MODULE(spat){
 		.method("boundaries", &SpatRaster::edges, "edges")
 		.method("buffer", &SpatRaster::buffer, "buffer")
 		.method("gridDistance", &SpatRaster::gridDistance, "gridDistance")
-		.method("rastDistance", ( SpatRaster (SpatRaster::*)(SpatOptions&) )( &SpatRaster::distance), "rastDistance")
+		.method("rastDistance", &SpatRaster::distance, "rastDistance")
+
+//		.method("rastDistance", ( SpatRaster (SpatRaster::*)(SpatOptions&) )( &SpatRaster::distance), "rastDistance")
 //		.method("vectDistance", ( SpatRaster (SpatRaster::*)(SpatVector, SpatOptions&) )( &SpatRaster::distance), "vectDistance")
 		.method("vectDistanceRasterize", &SpatRaster::distance_vector_rasterize) 
 		.method("vectDistanceDirect", &SpatRaster::distance_vector) 

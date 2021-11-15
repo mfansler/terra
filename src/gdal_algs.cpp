@@ -41,26 +41,26 @@ SpatVector SpatRaster::dense_extent() {
 		rows.resize(nrow());
 		std::iota(rows.begin(), rows.end(), 0);
 	} else {
-		rows = seq_steps((int_64) 0, (int_64) nrow(), 50);
-		rows[rows.size()-1] = nrow()-1;
+		rows = seq_steps((int_64) 0, (int_64) nrow()-1, 50);
 	} 
-	if (ncol() < 20) {
+	if (ncol() < 51) {
 		cols.resize(nrow());
 		std::iota(cols.begin(), cols.end(), 0);
 	} else {
-		cols = seq_steps((int_64) 0, (int_64) ncol(), 50);
-		cols[cols.size()-1] = ncol()-1;
+		cols = seq_steps((int_64) 0, (int_64) ncol()-1, 50);
 	} 
 	
+	SpatExtent e = getExtent();
 
 	std::vector<double> xcol = xFromCol(cols) ;
 	std::vector<double> yrow = yFromRow(rows) ;
+	yrow.insert(yrow.begin(), e.ymax);
+	yrow.push_back(e.ymin);
 
-	SpatExtent e = getExtent();
-	std::vector<double> y0(cols.size(), e.ymin);
-	std::vector<double> y1(cols.size(), e.ymax);
-	std::vector<double> x0(rows.size(), e.xmin);
-	std::vector<double> x1(rows.size(), e.xmax);
+	std::vector<double> y0(xcol.size(), e.ymin);
+	std::vector<double> y1(xcol.size(), e.ymax);
+	std::vector<double> x0(yrow.size(), e.xmin);
+	std::vector<double> x1(yrow.size(), e.xmax);
 
 	std::vector<double> x = x0;
 	std::vector<double> y = yrow;
@@ -75,6 +75,9 @@ SpatVector SpatRaster::dense_extent() {
 	x.insert(x.end(), xcol.begin(), xcol.end());
 	y.insert(y.end(), y1.begin(), y1.end());
 
+	x.push_back(e.xmin);
+	y.push_back(e.ymax);
+	
 	SpatVector v(x, y, polygons, getSRS("wkt"));
 
 	return v;
@@ -83,6 +86,7 @@ SpatVector SpatRaster::dense_extent() {
 #if GDAL_VERSION_MAJOR <= 2 && GDAL_VERSION_MINOR < 2
 
 SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method, bool mask, SpatOptions &opt) {
+	SpatRaster out;
 	out.setError("Not supported for this old version of GDAL");
 	return(out);
 }
@@ -457,7 +461,7 @@ SpatRaster SpatRaster::old_warper(SpatRaster x, std::string crs, std::string met
 
 
 
-SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method, bool mask, SpatOptions &opt) {
+SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method, bool mask, bool align, SpatOptions &opt) {
 
 
 	SpatRaster out = x.geometry(nlyr(), false, false);
@@ -477,6 +481,12 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 	}
 	
 	bool use_crs = crs != "";  
+	if (use_crs) {
+		align = false;
+	}
+	if (align) {
+		crs = out.getSRS("wkt");
+	}
 	if ((!use_crs) & (!hasValues())) {
 		std::string fname = opt.get_filename();
 		if (fname != "") {
@@ -484,6 +494,7 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 		}
 		return out;
 	}
+
 
 	if (!is_valid_warp_method(method)) {
 		out.setError("not a valid warp method");
@@ -498,7 +509,7 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 	
 	lrtrim(crs);
 	SpatOptions sopt(opt);
-	if (use_crs) {
+	if (use_crs || align) {
 		GDALDatasetH hSrcDS;
 		if (!open_gdal(hSrcDS, 0, false, sopt)) {
 			out.setError("cannot create dataset from source");
@@ -506,12 +517,20 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 		}
 		if (!get_output_bounds(hSrcDS, srccrs, crs, out)) {
 			GDALClose( hSrcDS );
+			out.setError("cannot get output boundaries");
 			return out;
 		}
 		GDALClose( hSrcDS );
-		if (!hasValues()) {
-			return out;
-		}
+	}
+	if (align) {
+		SpatExtent e = out.getExtent();
+		e = x.align(e, "out");
+		out.setExtent(e, false);
+		std::vector<double> res = x.resolution();
+		out = out.setResolution(res[0], res[1]);
+	}
+	if (!hasValues()) {
+		return out;
 	}
 
 	SpatOptions mopt;
@@ -581,7 +600,7 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 			out.setError("cannot do this transformation (warp)");
 			return out;
 		}
-		std::vector<double> v = crop_out.getValues(-1);
+		std::vector<double> v = crop_out.getValues(-1, opt);
 		if (!out.writeValues(v, out.bs.row[i], out.bs.nrows[i], 0, out.ncol())) return out;
 	}
 	out.writeStop();
@@ -662,7 +681,7 @@ SpatRaster SpatRaster::rectify(std::string method, SpatRaster aoi, unsigned usea
 	} // else { // if (useaoi == 0) // no aoi
 
 	
-	out = warper(out, "", method, false, opt);
+	out = warper(out, "", method, false, false, opt);
 
 	return(out);
 }

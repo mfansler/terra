@@ -179,8 +179,9 @@ function(x, y, fun=NULL, method="simple", list=FALSE, factors=TRUE, cells=FALSE,
 	#f <- function(i) if(length(i)==0) { NA } else { i }
 	#e <- rapply(e, f, how="replace")
 	cn <- names(x)
+	opt <- spatOptions()
 	if (list) {
-		e <- x@ptr$extractVector(y@ptr, touches[1], method, isTRUE(cells[1]), isTRUE(xy[1]), isTRUE(weights[1]), isTRUE(exact[1]))
+		e <- x@ptr$extractVector(y@ptr, touches[1], method, isTRUE(cells[1]), isTRUE(xy[1]), isTRUE(weights[1]), isTRUE(exact[1]), opt)
 		x <- messages(x, "extract")
 		if (weights || exact) {
 			if (hasfun) {
@@ -193,7 +194,7 @@ function(x, y, fun=NULL, method="simple", list=FALSE, factors=TRUE, cells=FALSE,
 		return(e)
 	}
 
-	e <- x@ptr$extractVectorFlat(y@ptr, touches[1], method, isTRUE(cells[1]), isTRUE(xy[1]), isTRUE(weights[1]), isTRUE(exact[1]))
+	e <- x@ptr$extractVectorFlat(y@ptr, touches[1], method, isTRUE(cells[1]), isTRUE(xy[1]), isTRUE(weights[1]), isTRUE(exact[1]), opt)
 	x <- messages(x, "extract")
 	nc <- nl
 	if (cells) {
@@ -257,27 +258,8 @@ function(x, y, fun=NULL, method="simple", list=FALSE, factors=TRUE, cells=FALSE,
 	}
 	
 	if (factors) {
-		if (is.matrix(e)) {
-			e <- data.frame(e, check.names = FALSE)
-		}
-		f <- is.factor(x)
-		if (any(f)) {
-			g <- levels(x)
-			for (i in which(f)) {
-				labs <- g[[i]]
-				if (!list) {
-					v <- e[[i+1]] + 1
-					if (!(is.null(fun))) {
-						if (max(abs(v - trunc(v)), na.rm=TRUE) > 0) {
-							next
-						}
-					}
-					e[[i+1]] <- setlabs(v, labs)
-				} else {
-					e[[i]] <- rapply(e[[i]], function(j) setlabs(j+1, labs), how="replace")
-				}
-			}
-		}
+		id <- data.frame(e[,1,drop=FALSE])
+		e <- cbind(id, .makeDataFrame(x, e[,-1,drop=FALSE], TRUE))
 	}
 
 	if (useLyr) {

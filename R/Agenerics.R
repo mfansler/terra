@@ -1,4 +1,13 @@
 #if (!isGeneric("#")) { setGeneric("#", function(object) standardGeneric("#")) }
+if (!isGeneric("selectHighest")) {setGeneric("selectHighest", function(x, ...) standardGeneric("selectHighest"))}
+if (!isGeneric("clearance")) {setGeneric("clearance", function(x, ...) standardGeneric("clearance"))}
+if (!isGeneric("width")) {setGeneric("width", function(x, ...) standardGeneric("width"))}
+if (!isGeneric("simplify")) {setGeneric("simplify", function(x, ...) standardGeneric("simplify"))}
+if (!isGeneric("mergeLines")) {setGeneric("mergeLines", function(x, ...) standardGeneric("mergeLines"))}
+if (!isGeneric("makeNodes")) {setGeneric("makeNodes", function(x, ...) standardGeneric("makeNodes"))}
+if (!isGeneric("removeDupNodes")) {setGeneric("removeDupNodes", function(x, ...) standardGeneric("removeDupNodes"))}
+if (!isGeneric("snap")) {setGeneric("snap", function(x, ...) standardGeneric("snap"))}
+
 if (!isGeneric("weighted.mean")) {setGeneric("weighted.mean", function(x, w, ...) standardGeneric("weighted.mean"))}
 
 if (!isGeneric("split")) {setGeneric("split", function(x, f, drop = FALSE, ...) standardGeneric("split"))}
@@ -24,6 +33,7 @@ if (!isGeneric("relate")) {setGeneric("relate", function(x, y, ...) standardGene
 if (!isGeneric("intersect")) {setGeneric("intersect", function(x, y) standardGeneric("intersect"))}	
 
 if (!isGeneric("erase")) {setGeneric("erase", function(x, y, ...) standardGeneric("erase"))}
+if (!isGeneric("gaps")) {setGeneric("gaps", function(x, ...) standardGeneric("gaps"))}
 if (!isGeneric("nearby")) {setGeneric("nearby", function(x, ...) standardGeneric("nearby"))}
 if (!isGeneric("nearest")) {setGeneric("nearest", function(x, ...) standardGeneric("nearest"))}
 if (!isGeneric("cartogram")) {setGeneric("cartogram", function(x, ...) standardGeneric("cartogram"))}

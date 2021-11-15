@@ -1,10 +1,46 @@
-# version 1.4-10
+# version 1.4-18
+
+## bug fixes
+
+- `rast` with some NetCDF files failed because of bad parsing of dates. [#361](https://github.com/rspatial/terra/pull/361) by Juan Carlos Zamora-Pereira
+- `distance,SpatRaster` with lon/lat data was not correct. [#368](https://github.com/rspatial/terra/pull/368)
+by Greg Schmidt
+- `as.polygons,SpatRaster` failed with a SpatRaster and a categorical layer that is not the first layer. [#370](https://github.com/rspatial/terra/pull/370) by Patrick Schratz
+- The filename argument in `rasterize` was not ignored, also causing errors when writing to temporary files. ). [#377](https://github.com/rspatial/terra/pull/377) by Robbie Price
+- `rast,character` crashed if the sds was an empty character string. [#381](https://github.com/rspatial/terra/pull/381) by Dan Baston
+- `plot,SpatVector` now responds to the `range` argument [#385](https://github.com/rspatial/terra/issues/385) by Márcia Barbosa
+- `zonal` failed for user-defined functions. [#393](https://github.com/rspatial/terra/issues/393) by mqueinnec
+
+
+## new
+
+- new method `selectHighest` to select n cell values of a `SpatRaster` with the highest or lowest values. 
+- new method `vect,list` to append SpatVectors (faster than `do.call(rbind, x)`)
+- new argument `align=FALSE` to `project` to align to the template SpatRaster but ignore the resolution
+- new method `gdalCache` to set the GDAL cache size, contributed by Dan Baston [#387](https://github.com/rspatial/terra/pull/387)
+- new method `fileBlocksize`
+- new argument `options` to `writeVector` to pass layer creation options to GDAL
+- new SpatVector topology methods `mergeLines`, `snap`, `makeNodes`, `removeDupNodes`, `gaps`, `simplify`
+- new SpatVector characterization methods `width` and `clearance`
+
+
+## enhancements 
+
+- `terra` now installs with older versions of GEOS [#363](https://github.com/rspatial/terra/pull/363)
+- `terra` now installs on CentOS 7 with GDAL 2.1.4 and a C++ compiler that does not support std::regexp. [#384](https://github.com/rspatial/terra/issues/384) by Ariel Paulson
+
+
+# version 1.4-11
+
+Released on 2021-10-11
 
 ## enhancements
 
-- the definition of `setValues` now has two arguments (`x` and `values`), just like `raster` had to avoid reverse dependency problems with `raster`
+- the definition of `setValues` now has two arguments (`x` and `values`), just like `raster` had; to avoid reverse dependency problems with `raster`
 
 # version 1.4-9
+
+Released on 2021-10-07
 
 ## name changes
 
@@ -21,9 +57,11 @@ To avoid name conflicts with `sp` (via `raster`) `disaggregate` is now called `d
 
 # version 1.4-7
 
+Released on 2021-10-05
+
 ## note
 
-`terra` no longer depends on `raster`. To avoid name clashes between these two packages, and to allow replacing methods from `rgeos` and `rgdal` in `raster`, a future version of `raster` will depend on `terra` instead. 
+`terra` no longer depends on `raster`. To avoid name clashes between these two packages, and to allow replacing methods from `rgeos` and `rgdal` in `raster`. `raster` now depends on `terra` instead. 
 
 
 ## enhancements
@@ -60,6 +98,8 @@ To avoid name conflicts with `sp` (via `raster`) `disaggregate` is now called `d
 
 # version 1.3-22
 
+Released on 2021-08-20
+
 ## enhancements
 
 - if `time(x) <- d` is set with a `Date` class object, `time(x)` now returns a `Date` object instead of a `POSIXct` object. Issue [#256](https://github.com/rspatial/terra/issues/256) raised by Mauricio Zambrano-Bigiarini
@@ -94,6 +134,8 @@ To avoid name conflicts with `sp` (via `raster`) `disaggregate` is now called `d
 
 
 # version 1.3-4
+
+Released on 2021-06-20
 
 ## new
 
@@ -134,6 +176,8 @@ https://github.com/rspatial/terra/issues/178) raised by by Matthew Coghill).
 
 
 # version 1.2-10
+
+Released on 2021-05-13
 
 ## new
 
@@ -176,6 +220,8 @@ To avoid name conflicts with the `spatstat` package
 
 # version 1.2-5
 
+Released on 2021-04-30
+
 ## new
 
 - `trim` has a new argument `value` that allows trimming rows and columns with other values than the default `NA`
@@ -215,6 +261,8 @@ without deprecation warning:
 
 
 # version 1.1-17
+
+Released on 2021-04-14
 
 ## major changes 
 

@@ -4,6 +4,7 @@
 
 \alias{vect}
 \alias{vect,character-method}
+\alias{vect,list-method}
 \alias{vect,data.frame-method}
 \alias{vect,matrix-method}
 \alias{vect,missing-method}
@@ -17,7 +18,15 @@
 \title{Create SpatVector objects}
 
 \description{
-Create a SpatVector
+Methods to create a SpatVector from a filename or other R object. 
+
+A filename can be for a shapefile or any spatial file format. 
+
+You can use a data.frame to make a SpatVector of points; or a "geom" matrix to make a SpatVector of any supported geometry (see examples and  \code{\link{geom}}). 
+
+You can supply a list of SpatVectors to append them into a single SpatVector. 
+
+SpatVectors can also be created from "Well Known Text", and from spatial vector data objects defined in the \code{sf} or \code{sp} packages
 } 
 
 \usage{
@@ -27,6 +36,8 @@ Create a SpatVector
 
 \S4method{vect}{data.frame}(x, geom=c("lon", "lat"), crs="")
 
+\S4method{vect}{list}(x)
+
 \S4method{vect}{sf}(x)
 }
 
@@ -35,7 +46,7 @@ Create a SpatVector
 \item{layer}{character. layer name to select a layer from a file (database) with multiple layers}
 \item{query}{character. An query to subset the dataset in the \href{https://gdal.org/user/ogr_sql_dialect.html}{OGR-SQL dialect}}
 \item{extent}{Spat* object. The extent of the object is used as a spatial filter to select the geometries to read. Ignored if \code{filter} is not \code{NULL}}
-\item{filter}{SpatVector. Used as a spatial filter to select geometries to read (the convex hull is used for lines or points}
+\item{filter}{SpatVector. Used as a spatial filter to select geometries to read (the convex hull is used for lines or points)}
 \item{type}{character. Geometry type. Must be "points", "lines", or "polygons"}
 \item{atts}{data.frame with the attributes. The number of rows must match the number of geometrical elements}
 \item{crs}{the coordinate reference system in one of the following formats: WKT/WKT2, <authority>:<code>, or PROJ-string notation (see\code{link{crs}})}

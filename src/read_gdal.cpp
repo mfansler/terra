@@ -134,15 +134,17 @@ bool GetVAT(std::string filename, SpatCategories &vat) {
 	}
 	if (rng.size() > 1) {
 		vat.d = v.df.subset_cols(rng);
-		if (rng.size() == 2) {
-			std::string sc = vat.d.names[1];
-			lowercase(sc);
-			if (sc == "count") {
-				return false;
-			}
-		}
 		vat.d.names[0] = "ID";
 		vat.index = 1;
+		std::string sc = vat.d.names[1];
+		lowercase(sc);
+		if (sc == "count") {
+			if (rng.size() == 2) {
+				return false;
+			} else {
+				vat.index = 2;
+			}
+		}
 		vat.vat = true;
 		return true;
 	}
@@ -215,6 +217,12 @@ SpatCategories GetCategories(char **pCat, std::string name) {
 }
 
 
+std::string strend(std::string f, size_t n) {
+	n = std::min(n, f.length());
+	std::string end = f.substr(f.length() - n);
+	return end;
+}
+
 std::string basename_sds(std::string f) {
 	const size_t i = f.find_last_of("\\/");
 	if (std::string::npos != i) {
@@ -224,11 +232,21 @@ std::string basename_sds(std::string f) {
 	if (std::string::npos != j) {
 		f.erase(0, j + 1);
 	}
+
+	std::string end = strend(f, 3);
+	if ((end == ".h5") || (end == ".nc")) {
+		f.erase( f.end()-3, f.end() );
+	} else if (strend(f, 4) == ".hdf")  {
+		f.erase( f.end()-4, f.end() );
+	}
+	f.erase(std::remove(f.begin(), f.end(), '"'), f.end());
+
+/*	
 	f = std::regex_replace(f, std::regex("\\.h5$"), "");
 	f = std::regex_replace(f, std::regex("\\.hdf$"), "");
 	f = std::regex_replace(f, std::regex("\\.nc$"), "");
 	f = std::regex_replace(f, std::regex("\""), "");
-
+*/
 	return f;
 }
 
@@ -423,7 +441,9 @@ bool SpatRaster::constructFromFile(std::string fname, std::vector<int> subds, st
 	s.rotated = false;
 	double adfGeoTransform[6];
 
+	bool hasExtent = true;
 	if( poDataset->GetGeoTransform( adfGeoTransform ) == CE_None ) {
+
 		double xmin = adfGeoTransform[0]; /* left x */
 		double xmax = xmin + adfGeoTransform[1] * s.ncol; /* w-e pixel resolution */
 		//xmax = roundn(xmax, 9);
@@ -444,6 +464,7 @@ bool SpatRaster::constructFromFile(std::string fname, std::vector<int> subds, st
 			addWarning("the data in this file are rotated. Use 'rectify' to fix that");
 		}
 	} else {
+		hasExtent = false;
 		SpatExtent e(0, 1, 0, 1);
 		s.extent = e;
 		if ((gdrv=="netCDF") || (gdrv == "HDF5")) {
@@ -475,13 +496,13 @@ bool SpatRaster::constructFromFile(std::string fname, std::vector<int> subds, st
 
 	std::string crs = getDsWKT(poDataset);
 	if (crs == "") {
-		if (s.extent.xmin >= -180 && s.extent.xmax <= 360 && s.extent.ymin >= -90 && s.extent.ymax <= 90) {
+		if (hasExtent && s.extent.xmin >= -180 && s.extent.xmax <= 360 && s.extent.ymin >= -90 && s.extent.ymax <= 90) {
 			crs = "OGC:CRS84";
 			s.parameters_changed = true;
 		}
 	}
 	std::string msg;
-	if (!s.srs.set({crs}, msg)) {
+	if (!s.srs.set(crs, msg)) {
 		addWarning(msg);
 	}
 
@@ -499,6 +520,7 @@ bool SpatRaster::constructFromFile(std::string fname, std::vector<int> subds, st
 	bool getCols = s.nlyr == 3;
 	std::vector<unsigned> rgb_lyrs(3, -99);
 
+	int bs1, bs2;
 	for (size_t i = 0; i < s.nlyr; i++) {
 		poBand = poDataset->GetRasterBand(i+1);
 
@@ -527,7 +549,11 @@ bool SpatRaster::constructFromFile(std::string fname, std::vector<int> subds, st
 			s.has_scale_offset[i] = true;
 		} 
 
-
+	
+		poBand->GetBlockSize(&bs1, &bs2);
+		s.blockcols[i] = bs1;
+		s.blockrows[i] = bs2;
+		
 		//std::string dtype = GDALGetDataTypeName(poBand->GetRasterDataType());
 
 		adfMinMax[0] = poBand->GetMinimum( &bGotMin );
@@ -1159,7 +1185,7 @@ bool SpatRaster::constructFromSDS(std::string filename, std::vector<std::string>
 		return false;
 	}
 	// select sds by index
-	if (subds[0] >=0) {
+	if ((subds.size() > 0) && (subds[0] >= 0)) {
 		for (size_t i=0; i<subds.size(); i++) {
 			if (subds[i] >=0 && subds[i] < n) {
 				sd.push_back(info[0][subds[i]]);
@@ -1171,7 +1197,7 @@ bool SpatRaster::constructFromSDS(std::string filename, std::vector<std::string>
 			}
 		}
 	// select by name
-	} else if (subdsname[0] != "") {
+	} else if ((subdsname.size() > 0) && (subdsname[0] != "")) {
 		for (size_t i=0; i<subdsname.size(); i++) {
 			int w = where_in_vector(subdsname[i], info[1], false);
 			if (w >= 0) {

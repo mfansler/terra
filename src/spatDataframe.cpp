@@ -198,6 +198,21 @@ void SpatDataFrame::add_row() {
 }
 
 
+void SpatDataFrame::add_rows(size_t n) {
+	size_t s = nrow() + n;
+	for (size_t i=0; i < dv.size(); i++) {
+		dv[i].resize(s, NAN);
+	}
+	long longNA = NA<long>::value;
+	for (size_t i=0; i < iv.size(); i++) {
+		iv[i].resize(s, longNA);
+	}
+	for (size_t i=0; i < sv.size(); i++) {
+		sv[i].resize(s, NAS);
+	}
+}
+
+
 void SpatDataFrame::reserve(unsigned n) {
 	for (size_t i=0; i<dv.size(); i++) {
 		dv[i].reserve(n);
@@ -222,6 +237,26 @@ void SpatDataFrame::resize_rows(unsigned n) {
 		sv[i].resize(n, NAS);
 	}
 }
+
+void SpatDataFrame::remove_rows(std::vector<unsigned> r) {
+	if (r.size() == 0) return;
+	sort(r.begin(), r.end(), std::greater<unsigned>());
+	r.erase(std::unique(r.begin(), r.end()), r.end());
+	
+	for (size_t j=0; j<r.size(); j++) {
+		for (size_t i=0; i<dv.size(); i++) {
+			dv[i].erase(dv[i].begin() + r[j]);
+		}
+		for (size_t i=0; i<iv.size(); i++) {
+			iv[i].erase(iv[i].begin() +r[j]);
+		}
+		for (size_t i=0; i<sv.size(); i++) {
+			sv[i].erase(sv[i].begin() +r[j]);
+		}
+	}
+}
+
+
 
 void SpatDataFrame::resize_cols(unsigned n) {
 	if (n < ncol()) {

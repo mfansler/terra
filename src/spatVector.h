@@ -81,6 +81,7 @@ class SpatGeom {
 		//double length_plane();
 		//double length_lonlat(double a, double f);
 		unsigned size() { return parts.size(); };
+		void remove_duplicate_nodes(int digits);
 };
 
 
@@ -172,13 +173,14 @@ class SpatVector {
 		SpatVector remove_holes();
 		SpatVector get_holes();
 		SpatVector set_holes(SpatVector x, size_t i);
+		SpatVector remove_duplicate_nodes(int digits);
 
 		bool read(std::string fname, std::string layer, std::string query, std::vector<double> extent, SpatVector filter);
 		
-		bool write(std::string filename, std::string lyrname, std::string driver, bool overwrite);
+		bool write(std::string filename, std::string lyrname, std::string driver, bool overwrite, std::vector<std::string>);
 		
 #ifdef useGDAL
-		GDALDataset* write_ogr(std::string filename, std::string lyrname, std::string driver, bool overwrite);
+		GDALDataset* write_ogr(std::string filename, std::string lyrname, std::string driver, bool overwrite, std::vector<std::string> options);
 		GDALDataset* GDAL_ds();
 		bool read_ogr(GDALDataset *poDS, std::string layer, std::string query, std::vector<double> extent, SpatVector filter);
 		SpatVector fromDS(GDALDataset *poDS);
@@ -249,6 +251,7 @@ class SpatVector {
 		SpatVector simplify(double tolerance, bool preserveTopology);
 		SpatVector shared_paths();
 		SpatVector snap(double tolerance);
+		SpatVector snapto(SpatVector y, double tolerance);
 
 		SpatVector allerretour();
 		SpatVectorCollection bienvenue();
@@ -268,6 +271,8 @@ class SpatVector {
 		SpatVector unite(SpatVector v);
 		SpatVector unite();
 		SpatVector erase(SpatVector v);
+		SpatVector erase();
+		SpatVector gaps();		
 		SpatVector cover(SpatVector v, bool identity);
 		SpatVectorCollection split(std::string field);
 		SpatVector symdif(SpatVector v);
@@ -283,8 +288,8 @@ class SpatVector {
 		SpatVector sample(unsigned n, std::string method, unsigned seed);
 		SpatVector sample_geom(std::vector<unsigned> n, std::string method, unsigned seed);
 
-		std::vector<double> clearance();
-		std::vector<double> width();
+		SpatVector clearance();
+		SpatVector width();
 
 		SpatVector unaryunion();
 
@@ -339,6 +344,8 @@ class SpatVectorCollection {
 			}
 			return out;
 		}
+		
+		SpatVector append();
 		
 };
 

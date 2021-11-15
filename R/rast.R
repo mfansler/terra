@@ -148,6 +148,7 @@ setMethod("rast", signature(x="character"),
 		f <- .fullFilename(x)
 		#subds <- subds[1]
 		if (is.null(opts)) opts <- ""[0]
+		if (length(subds) == 0) subds = 0
 		if (is.character(subds)) { 
 			#r@ptr <- SpatRaster$new(f, -1, subds, FALSE, 0[])
 			r@ptr <- SpatRaster$new(f, -1, subds, FALSE, opts, 0[])
@@ -301,6 +302,7 @@ setMethod("rast", signature(x="ANY"),
 	d <- dim(xyz)
 	r <- rast(xmin=minx, xmax=maxx, ymin=miny, ymax=maxy, crs=crs, nlyrs=d[2]-2)
 	res(r) <- c(rx, ry)
+	ext(r) <- round(ext(r), digits+2)
 	cells <- cellFromXY(r, xyz[,1:2])
 	if (d[2] > 2) {
 		names(r) <- ln[-c(1:2)]
