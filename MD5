@@ -1,6 +1,6 @@
-89ae6c0eb0164d7001b758cc3ba6d61f *DESCRIPTION
+9b7603c2c52f8aff0efe2d86219c0928 *DESCRIPTION
 d6c5ac77f0e4df8a7d125b2028f270c1 *NAMESPACE
-b234d4cfd37ba6035c64312b11d0bd3e *NEWS.md
+b2a1e9b8dd973378c7a5f0aab756254d *NEWS.md
 bf9c0b006cdf017ed5d86b82a3c0c331 *R/Aclasses.R
 2fcb60850b19745609ef35665816638f *R/Agenerics.R
 3679a351bb3a006cf67ebbdcd61c3b6c *R/Arith_generics.R
@@ -22,7 +22,7 @@ dc0fd04a052fb5d243dc3e89601a8dbb *R/connect.R
 9151c9dab621b21eeea92c10cc7a272e *R/crosstab.R
 2898127d8c2cee139f6046b6bff2b3b6 *R/crs.R
 f625b9b772e9119f8788595a81c5ce98 *R/dimensions.R
-43906c9bd4045108a78598ebdb9fd145 *R/distance.R
+6d42892e46d4a2d4793e4d34fb2b6bba *R/distance.R
 608ecef210951140b103c50e785d4366 *R/draw.R
 5400e1077bafcf624467f47401fc058e *R/expand.R
 947782b2708aed7c7c829c7c782b1e7a *R/extent.R
@@ -289,13 +289,13 @@ adc2fba1a7a36b617329645392cf6777 *src/Makevars.in
 d379d5724a820784efcbe0b715eea380 *src/Makevars.win
 37ee144abeb36df9affb194cf3859d4c *src/NA.h
 36d7e86b91c3e37f5d261c8ea1315716 *src/RcppExports.cpp
-32cb964ee55fd5979253d4cbf855180e *src/RcppFunctions.cpp
+19bfed0dea19c21788a0afd1a85bb817 *src/RcppFunctions.cpp
 9f140544ac5e9e8f28379466b70b78a6 *src/RcppModule.cpp
 fce88eb4ad52b67d224001bee42019f9 *src/arith.cpp
 f17957dce9455c4b9e4a4af9165366c7 *src/crs.cpp
 c9cee35b652c280a535bcdf8b463d08e *src/crs.h
 6b3a4081314a8f4efbd312bcf35110d5 *src/date.h
-b23dde4c44bc4883a8cf434d41481611 *src/distRaster.cpp
+1d92c3eafd0f24431a25417a8f9d8466 *src/distRaster.cpp
 fc0733e19c1a39e841f27211940deaa2 *src/distance.cpp
 be683e55ffb824b6d574f045aa0543a9 *src/distance.h
 afe6a4735d93ea7fc8c6b28821f044f7 *src/extract.cpp
@@ -309,7 +309,7 @@ f8a0080f505dc29d7fbb8e19b326b6eb *src/gdalio.cpp
 1ae564db9a722f8faa74ca5459e1feca *src/gdalio.h
 4f277083c49bd086621abc203160e993 *src/geodesic.c
 598c2f9f280f518436b2f8876df17a81 *src/geodesic.h
-bf0632ba4aba271a77363d6fdbcda316 *src/geos_methods.cpp
+9c8a7bcf800625fc6a12d31059ec7268 *src/geos_methods.cpp
 f17d9d1c69d5a0076e57f64b5772a111 *src/geos_spat.h
 83cdc856c845c93180734521a36540fa *src/graticule.cpp
 0c4d5592d0001c66c5ee167e9018a244 *src/math_utils.cpp
@@ -334,7 +334,7 @@ c0a766b8ada025a5b74c9712ce1c9850 *src/read.cpp
 61156f4b65d0407f18cae5b64561f05c *src/sample.cpp
 df5d9199c824506d96c59b6cefc29cc5 *src/spatBase.cpp
 2a8b4bdc1b0ac5239a1016136fa93b22 *src/spatBase.h
-d0d624f952719ccd484f8ac8a5896b79 *src/spatDataframe.cpp
+f1d0bf09f4665098bcdb0030b01b37b0 *src/spatDataframe.cpp
 a061099ee7259732d7335aa2b305a353 *src/spatDataframe.h
 47bcd2e0aa1f9ea7b6e9fe5d1225bc06 *src/spatFactor.h
 3dd73569af15072c392cc4cf6e784abe *src/spatRaster.cpp
