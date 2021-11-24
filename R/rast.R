@@ -4,7 +4,7 @@
 # License GPL v3
 
 
-new_rast <- function(nrows=10, ncols=10, nlyrs=1, xmin=0, xmax=1, ymin=0, ymax=1, crs, extent, resolution, vals, names) {
+new_rast <- function(nrows=10, ncols=10, nlyrs=1, xmin=0, xmax=1, ymin=0, ymax=1, crs, extent, resolution, vals, names, time) {
 		if (missing(extent)) {
 			e <- c(xmin, xmax, ymin, ymax) 
 		} else {
@@ -43,17 +43,40 @@ new_rast <- function(nrows=10, ncols=10, nlyrs=1, xmin=0, xmax=1, ymin=0, ymax=1
 				values(r) <- rep_len(vals, ncell(r))
 			}
 		}
+		if (!missing(time)) {
+			time(r) <- time
+		}
 		r
 }
 
 
 setMethod("rast", signature(x="missing"),
-	function(x, nrows=180, ncols=360, nlyrs=1, xmin=-180, xmax=180, ymin=-90, ymax=90, crs, extent, resolution, vals, names) {
-		new_rast(nrows, ncols, nlyrs, xmin, xmax, ymin, ymax, crs, extent, resolution, vals, names)
+	function(x, nrows=180, ncols=360, nlyrs=1, xmin=-180, xmax=180, ymin=-90, ymax=90, crs, extent, resolution, vals, names, time) {
+		new_rast(nrows, ncols, nlyrs, xmin, xmax, ymin, ymax, crs, extent, resolution, vals, names, time)
 	}
 )
 
+setMethod("rast", signature(x="stars"),
+	function(x) {
+		x <- from_stars(x)
+		if (inherits(x, "SpatRasterDataset")) {
+			rast(x)
+		} else {
+			x
+		}
+	}
+)
 
+setMethod("rast", signature(x="stars_proxy"),
+	function(x) {
+		x <- from_stars(x)
+		if (inherits(x, "SpatRasterDataset")) {
+			rast(x)
+		} else {
+			x
+		}
+	}
+)
 
 setMethod("rast", signature(x="list"),
 	function(x) {
@@ -207,8 +230,8 @@ multi <- function(x, subds=0, xyz=c(1,2,3)) {
 
 
 setMethod("rast", signature(x="SpatRaster"),
-	function(x, nlyrs=nlyr(x), names, vals, time=FALSE, props=FALSE) {
-		x@ptr <- x@ptr$geometry(nlyrs, props, time)
+	function(x, nlyrs=nlyr(x), names, vals, keeptime=FALSE, props=FALSE) {
+		x@ptr <- x@ptr$geometry(nlyrs, props, keeptime)
 		x <- messages(x, "rast")
 		if (!missing(names)) {
 			if (length(names) == nlyr(x)) names(x) <- names
@@ -223,7 +246,18 @@ setMethod("rast", signature(x="SpatRaster"),
 
 setMethod("rast", signature(x="SpatRasterDataset"),
 	function(x) {
-		rast(x[1])
+		if (length(x) == 1) {
+			x[1]
+		} else {
+			r <- rast(lapply(1:length(x), function(i) x[i]))
+			nms <- names(x)
+			if (any(nms != "")) {
+				nl <- nlyr(x)
+				nms <- paste(rep(nms, nl), names(r), sep="_")
+				names(r) <- nms
+			}
+			r
+		}
 	}
 )
 
@@ -317,12 +351,19 @@ setMethod("rast", signature(x="ANY"),
 
 
 setMethod("rast", signature(x="matrix"),
-	function(x, type="", crs="", digits=6) {
+	function(x, type="", crs="", digits=6, extent=NULL) {
 		stopifnot(prod(dim(x)) > 0)
 		if (type == "xyz") {
 			r <- .rastFromXYZ(x, crs=crs, digits=digits)
+			if (!is.null(extent)) {
+				warn("rast", 'argument "extent" is ignored if type="xyz"')
+			}
 		} else {
-			r <- rast(nrows=nrow(x), ncols=ncol(x), crs=crs, extent=ext(c(0, 1, 0, 1)))
+			if (is.null(extent)) {
+				r <- rast(nrows=nrow(x), ncols=ncol(x), crs=crs, extent=ext(c(0, 1, 0, 1)))
+			} else {
+				r <- rast(nrows=nrow(x), ncols=ncol(x), crs=crs, extent=extent)			
+			}
 			values(r) <- as.vector(t(x))
 		}
 		messages(r, "rast")

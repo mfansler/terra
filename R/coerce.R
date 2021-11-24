@@ -3,7 +3,139 @@
 # Version 1.0
 # License GPL v3
 
+## from stars
+#stars:::st_as_raster is used
+#setAs("stars", "SpatRaster") is provided by stars via st_as_raster
 
+
+from_stars <- function(from) {
+
+	isProxy <- inherits(from, "stars_proxy")
+	natts <- length(from)
+	#from[i] recursion does not work with proxy
+	if (!isProxy && (natts > 1)) { # not sure what attributes represent
+		ra <- list()
+		for (i in 1:natts) {
+			ra[[i]] <- from_stars(from[i])
+		}
+		if (all(sapply(ra, function(i) inherits(i, "SpatRaster")))) {
+			nl <- sapply(ra, nlyr)
+			ra <- rast(ra)
+			nms <- names(ra)
+			names(ra) <- paste(rep(names(from), nl), nms, sep="_")
+		} else 	if (all(sapply(ra, function(i) inherits(i, "SpatRasterDataset")))) {
+			ra <- do.call(c, ra)
+		} else {
+			ra <- lapply(ra, function(i) if (!inherits(i, "SpatRasterDataset")) {sds(i)} else {i})
+			ra <- do.call(c, ra)
+		}
+		return(ra)
+	}
+	
+	dims <- attr(from, "dimensions")
+	dd <- dim(from)
+	
+	# x, y
+	hasBands <- "band" %in% names(dd)
+	hasTime <- "time" %in% names(dd)
+	timev <- NULL
+	if (hasTime) {
+		tim <- dims$time$offset
+		tseq <- dims$time$from:dims$time$to
+		if (dims$time$refsys == "Date") {
+			timev <- as.Date(tim) + tseq
+		} else { # for now
+			timev <- tseq
+		}
+	}
+
+	# no time or variables
+	if (length(dd) - hasBands == 2) {
+		return( methods::as(from, "SpatRaster"))
+	}
+
+
+	# time, perhaps bands or variables
+	if (length(dd) - (hasTime + hasBands) == 2) {
+		r <- methods::as(from, "SpatRaster")
+		if (hasBands) {
+			timev <- rep(timev, each=dd["band"])
+		} 
+		time(r) <- timev
+		return(r)
+	}
+
+	if (isProxy) {
+		# currently not setting time dim here
+		if (natts > 1) {
+			ff <- sapply(from, function(i) from[i][[1]])
+			s <- sds(ff)
+			names(s) <- names(from) 
+		} else {
+			f <- from[[1]]
+			s <- sds(f)
+			nms <- names(dd)[3+hasBands]
+			if (!is.na(nms)) {
+				names(s) <- paste(nms, 1:length(s), sep="-")
+			}
+		}
+		return(s)
+	}
+
+	xmin <- dims$x$offset
+	nc <- dims$x$to
+	xmax <- xmin + nc * dims$x$delta
+	ymax <- dims$y$offset
+	nr <- dims$y$to
+	ymin <- ymax + nr * dims$y$delta
+
+	from <- from[[1]]
+	rr <- list()
+	if (hasTime && hasBands) {
+		for (i in 1:dd[5]) {
+			x <- from[,,,,i]
+			r <- rast(ncols=nc, nrows=nr, xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, crs=dims$x$refsys$wkt, nlyr=dd["band"] * dd["time"])
+			time(r) <- rep(timev, each=dd["band"])
+			bandnames <- rep(paste("band", 1:dd["band"], sep="-"), length(timev))
+			names(r) <- paste(bandnames, rep(timev, each=dd["band"]), sep="_")
+			r <- setValues(r, as.vector(x))
+			rr[[i]] <- r
+		}
+	} else { #if (hasTime || hasBands) {
+		for (i in 1:dd[4]) {
+			x <- from[,,,i]
+			r <- rast(ncols=nc, nrows=nr, xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, crs=dims$x$refsys$wkt, nlyr=dim(x)[3], time=timev)
+			if (hasBands) {
+				names(r) <- paste("band", 1:dd["band"], sep="-")
+			} else {
+				names(r) <- timev
+			}
+			rr[[i]] <- setValues(r, x)
+		}
+	} 
+	s <- sds(rr)
+	names(s) <- paste(names(dd)[4], 1:length(s), sep="-")
+	s
+}
+	
+	
+
+setAs("stars", "SpatRasterDataset",
+	function(from) {
+		from_stars(from) 
+	}
+)
+
+setAs("ggmap", "SpatRaster", 
+	function(from) {
+		b <- attr(from, "bb")
+		e <- ext(b$ll.lon, b$ur.lon, b$ll.lat, b$ur.lat)
+		r <- rast(nrows=nrow(from), ncols=ncol(from), ext=e, nlyr=3, crs="epsg:4326")
+		values(r) <- t(grDevices::col2rgb(from))
+		RGB(r) <- 1:3
+		r
+	}
+)
 
 
 ### from terra
@@ -276,6 +408,31 @@ setMethod("as.data.frame", signature(x="SpatRaster"),
 		d
 	}
 )
+
+
+if (!isGeneric("as.data.table")) { setGeneric("as.data.table", function(x, ...) standardGeneric("as.data.table")) }	
+
+setMethod("as.data.table", signature(x="SpatRaster"), 
+	function(x, xy=FALSE, cells=FALSE, na.rm=TRUE) {
+		d <- data.table::data.table()
+		if (xy) {
+			d <- cbind(d, xyFromCell(x, 1:ncell(x)))
+		} 
+		if (cells) {
+			d <- cbind(cell=1:ncell(x), d)
+		}
+		if (any(is.factor(x))) {
+			d <- cbind(d, values(x, dataframe=TRUE))
+		} else {
+			d <- cbind(d, values(x, dataframe=FALSE))
+		}
+		if (na.rm) {
+			d <- stats::na.omit(d) 
+		}
+		d
+	}
+)
+
 
 setAs("SpatRaster", "data.frame", 
 	function(from) {
