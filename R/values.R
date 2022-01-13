@@ -9,28 +9,71 @@ setMethod("hasValues", signature(x="SpatRaster"),
 	}
 )
 
+
+.makeDataFrame <- function(x, v, factors=TRUE, ...) {
+
+	v <- data.frame(v, check.names=FALSE, ...)
+
+	if (factors) {
+		ff <- is.factor(x)
+		if (any(ff)) {
+			ff <- which(ff)
+			cgs <- cats(x)
+			for (f in ff) {
+				cg <- cgs[[f]]
+				i <- match(v[,f], cg[,1])
+				act <- activeCat(x, f) + 1
+				if (!inherits(cg[[act]], "numeric")) {
+					v[[f]] <- factor(cg[i, act], levels=unique(cg[[act]]))
+				} else {
+					v[[f]] <- cg[i, act]
+				}
+			}
+		} else {
+			bb <- is.bool(x)
+			if (any(bb)) {
+				for (b in which(bb)) {
+					v[[b]] = as.logical(v[[b]])
+				}
+			}
+
+			ii <- is.int(x)
+			if (any(ii)) {
+				for (i in which(ii)) {
+					v[[i]] = as.integer(v[[i]])
+				}
+			}
+		}		
+	} else {
+		bb <- is.bool(x)
+		if (any(bb)) {
+			for (b in which(bb)) {
+				v[[b]] = as.logical(v[[b]])
+			}
+		}
+
+		ii <- is.int(x)
+		if (any(ii)) {
+			for (i in which(ii)) {
+				v[[i]] = as.integer(v[[i]])
+			}
+		}
+	}
+	v
+}
+
+
 setMethod("readValues", signature(x="SpatRaster"), 
-function(x, row=1, nrows=nrow(x), col=1, ncols=ncol(x), mat=FALSE, dataframe=FALSE) {
+function(x, row=1, nrows=nrow(x), col=1, ncols=ncol(x), mat=FALSE, dataframe=FALSE, ...) {
 	stopifnot(row > 0 && nrows > 0)
 	stopifnot(col > 0 && ncols > 0)
-	
 	v <- x@ptr$readValues(row-1, nrows, col-1, ncols)
 	messages(x, "readValues")
 	if (dataframe || mat) {
 		v <- matrix(v, ncol = nlyr(x))
 		colnames(v) <- names(x)
-	}
-	if (dataframe) {
-		v <- data.frame(v)
-		ff <- is.factor(x)
-		if (any(ff)) {
-			ff <- which(ff)
-			levs <- levels(x)
-			for (f in ff) {
-				fct <- levs[[f]]
-				v[[f]] = factor(v[[f]], levels=(1:length(fct))-1)
-				levels(v[[f]]) = fct
-			}
+		if (dataframe) {
+			return(.makeDataFrame(x, v, factors=TRUE, ...) )
 		}
 	}
 	v
@@ -39,12 +82,12 @@ function(x, row=1, nrows=nrow(x), col=1, ncols=ncol(x), mat=FALSE, dataframe=FAL
 
 
 setMethod("values", signature(x="SpatRaster"), 
-function(x, mat=TRUE, dataframe=FALSE, row=1, nrows=nrow(x), col=1, ncols=ncol(x)) {
+function(x, mat=TRUE, dataframe=FALSE, row=1, nrows=nrow(x), col=1, ncols=ncol(x), ...) {
 	readStart(x)
 	on.exit(readStop(x))
-	v <- readValues(x, row, nrows, col, ncols, mat=mat, dataframe=dataframe)
+	v <- readValues(x, row, nrows, col, ncols, mat=mat, dataframe=dataframe, ...)
 	messages(x, "values")
-	return(v)
+	v
 }
 )
 
@@ -64,7 +107,8 @@ setMethod("focalValues", signature("SpatRaster"),
 		}
 		readStart(x)
 		on.exit(readStop(x))
-		m <- matrix(x@ptr$focalValues(w, fill, row-1, nrows), ncol=prod(w), byrow=TRUE)
+		opt <- spatOptions()
+		m <- matrix(x@ptr$focalValues(w, fill, max(0, row-1), nrows, opt), ncol=prod(w), byrow=TRUE)
 		messages(x, "focalValues")
 		m
 	}
@@ -72,7 +116,9 @@ setMethod("focalValues", signature("SpatRaster"),
 
 
 setMethod("setValues", signature("SpatRaster"), 
-	function(x, values, keeptime=TRUE, props=FALSE) {
+	function(x, values, keeptime=TRUE, keepunits=TRUE, props=FALSE) {
+
+		y <- rast(x, keeptime=keeptime, keepunits=keepunits, props=props)
 
 		if (is.matrix(values)) { 
 			if (nrow(values) == nrow(x)) {
@@ -85,42 +131,51 @@ setMethod("setValues", signature("SpatRaster"),
 			values <- as.vector(aperm(values, c(2,1,3)))
 		}
 		make_factor <- FALSE
+		set_coltab <- FALSE
 		if (is.character(values)) {
-			values <- as.factor(values)
-			levs <- levels(values)
-			values <- as.integer(values) - 1
-			if (max(values, na.rm=TRUE) <= 255) {
+			if (all(substr(na.omit(values), 1, 1) == "#")) {
+				fv <- as.factor(values)
+				if (length(levels(fv)) <= 256) {
+					values <- as.integer(fv)-1
+					fv <- levels(fv)
+					set_coltab <- TRUE
+				} else {
+					fv <- NULL
+					values <- t(grDevices::col2rgb(values))
+					y <- rast(y, nlyr=3, names=c("red", "green", "blue"))
+					RGB(y) <- 1:3
+				}
+			} else {
+				values <- as.factor(values)
+				levs <- levels(values)
+				values <- as.integer(values) - 1 # -1 not needed anymore?
 				make_factor <- TRUE
 			}
 		} else if (is.factor(values)) {
-			levs <- levels(values)			
+			levs <- levels(values)
 			values <- as.integer(values) - 1
-			if (max(values, na.rm=TRUE) <= 255) {
-				make_factor <- TRUE
-			}
-		}
+			make_factor <- TRUE
+		} 
 
 		if (!(is.numeric(values) || is.integer(values) || is.logical(values))) {
 			error("setValues", "values must be numeric, integer, logical, factor or character")
 		}
 
 		lv <- length(values)
-		y <- rast(x, keeptime=keeptime, props=props)
 		nc <- ncell(y)
 		nl <- nlyr(y)
 		opt <- spatOptions()
-		
+
 		if (lv == 1) {
 			y@ptr$setValues(values, opt)
 		} else {
-			if (!((lv %% nc) == 0)) {
-				warn("setValues", "length of values does not match the number of cells")
-			}
 			if (lv > (nc * nl)) {
+				warn("setValues", "values is larger than the size of cells")
 				values <- values[1:(nc*nl)]
 			} else if (lv < (nc * nl)) {
+				warn("setValues", "values were recycled")
 				values <- rep(values, length.out=nc*nl)
-			}
+			} 
 			y@ptr$setValues(values, opt)
 		}
 		y <- messages(y, "setValues")
@@ -129,14 +184,18 @@ setMethod("setValues", signature("SpatRaster"),
 				setCats(y, i, levs, 2)
 			}
 		}
+		if (set_coltab) {
+			coltab(y) <- fv
+		} else if (is.logical(values)) {
+			y@ptr$setValueType(3)
+		} else if (is.integer(values)) {
+			y@ptr$setValueType(1)
+		}
 		y
 	}
 )
 
 
-#.hasValues <- function(x) {
-#	x@ptr$hasValues
-#}
 
 setMethod("inMemory", signature(x="SpatRaster"), 
 	function(x, bylayer=FALSE) {
@@ -150,35 +209,36 @@ setMethod("inMemory", signature(x="SpatRaster"),
 )
 
 
-..inMemory <- function(x) {
-	x@ptr$inMemory
-}
-
-.filenames <- function(x) {
-	x@ptr$filenames
-}
-
-.hasMinMax <- function(x) {
-	x@ptr$hasRange
-}
-
+#..hasValues <- function(x) { x@ptr$hasValues}
+#..inMemory <- function(x) { x@ptr$inMemory }
+#..filenames <- function(x) {	x@ptr$filenames }
 
 
 setMethod("sources", signature(x="SpatRaster"), 
-	function(x, bands=FALSE) {
+	function(x, nlyr=FALSE, bands=FALSE) {
 		src <- x@ptr$filenames
-		src[src == ""] <= "memory"
 		if (bands) {
 			nls <- x@ptr$nlyrBySource()
-			data.frame(     sid=rep(1:length(src), nls), 
+			d <- data.frame(sid=rep(1:length(src), nls), 
 						 source=rep(src, nls), 
 						 bands=x@ptr$getBands()+1, stringsAsFactors=FALSE)
-		} else {
+			if (nlyr) {
+				d$nlyr <- rep(nls, nls) 
+			}
+			d			 
+		} else if (nlyr) {
 			data.frame(source=src, nlyr=x@ptr$nlyrBySource(), stringsAsFactors=FALSE)
+		} else {
+			src
 		}
 	}
 )
 
+setMethod("hasMinMax", signature(x="SpatRaster"), 
+	function(x) {
+		x@ptr$hasRange
+	}
+)
 
 setMethod("minmax", signature(x="SpatRaster"), 
 	function(x) {
@@ -199,7 +259,7 @@ setMethod("setMinMax", signature(x="SpatRaster"),
 		opt <- spatOptions()
 		if (force) {
 			x@ptr$setRange(opt)
-		} else if (any(!.hasMinMax(x))) {
+		} else if (!all(hasMinMax(x))) {
 			x@ptr$setRange(opt)
 		}
 		x <- messages(x, "setMinMax")
@@ -226,8 +286,8 @@ setMethod("compareGeom", signature(x="SpatRaster", y="SpatRaster"),
 
 
 setMethod("values", signature("SpatVector"), 
-	function(x) {
-		as.data.frame(x)
+	function(x, ...) {
+		as.data.frame(x, ...)
 	}
 )
 

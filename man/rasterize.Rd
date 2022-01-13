@@ -4,6 +4,7 @@
 
 \alias{rasterize}
 \alias{rasterize,SpatVector,SpatRaster-method}
+\alias{rasterize,matrix,SpatRaster-method}
 
 \title{Rasterize vector data}
 
@@ -14,13 +15,19 @@ Transfer vector data to a raster
 \usage{
 \S4method{rasterize}{SpatVector,SpatRaster}(x, y, field="", fun, ..., background=NA, touches=FALSE,
 	update=FALSE, sum=FALSE, cover=FALSE, filename="", overwrite=FALSE, wopt=list())
+
+\S4method{rasterize}{matrix,SpatRaster}(x, y, values=1, fun, ..., background=NA, 
+	update=FALSE, filename="", overwrite=FALSE, wopt=list())
 }
 
 \arguments{
-  \item{x}{SpatVector}
+  \item{x}{SpatVector or a two-column matrix (point coordinates)}
+  
   \item{y}{SpatRaster}
   
   \item{field}{character or numeric. If \code{field} is a character, it should a variable name in \code{x}. If \code{field} is numeric it typically is a single number or a vector of length \code{nrow(x)}. The values are recycled to \code{nrow(x)}}
+
+  \item{values}{numeric. For when \code{x} is a matrix. Normally of length 1 or nrow(x). The values will be recycled to \code{nrow(x)}}
   
   \item{fun}{function, summarizing function that returns a single number; for when there are multiple points in one cell. For example \code{mean}, \code{length} (to get a count), \code{min} or \code{max}. Only used if \code{x} consists of points}
   \item{...}{additional arguments passed to \code{fun} if \code{x} has point geometries}
@@ -53,13 +60,27 @@ SpatRaster
 }
 
 \examples{
+r <- rast(xmin=0, ncols=18, nrows=18)
+
+# generate points
+set.seed(1)
+p <- spatSample(r, 1000, xy=TRUE, replace=TRUE)
+
+# rasterize points as a matrix
+x <- rasterize(p, r, fun=sum)
+y <- rasterize(p, r, value=1:nrow(p), fun=max)
+
+# rasterize points as a SpatVector
+pv <- vect(p)
+xv <- rasterize(pv, r, fun=sum)
+
+# Polygons
 f <- system.file("ex/lux.shp", package="terra")
 v <- vect(f)
 r <- rast(v, ncols=75, nrows=100)
-#x <- rasterize(v, r, "NAME_2")
-
-#plot(x)
-#lines(v)
+z <- rasterize(v, r, "NAME_2")
+plot(z)
+lines(v)
 }
 
 \keyword{spatial}

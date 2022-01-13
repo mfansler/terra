@@ -71,7 +71,8 @@ std::vector<std::vector<double>> SpatRaster::freq(bool bylayer, bool round, int 
 		std::vector<std::map<double, unsigned long long int>> tabs(nl);
 		for (size_t i = 0; i < bs.n; i++) {
 			unsigned nrc = bs.nrows[i] * nc;
-			std::vector<double> v = readValues(bs.row[i], bs.nrows[i], 0, nc);
+			std::vector<double> v; 
+			readValues(v, bs.row[i], bs.nrows[i], 0, nc);
 			if (round) {
 				for(double& d : v) d = roundn(d, digits);
 			}
@@ -89,7 +90,8 @@ std::vector<std::vector<double>> SpatRaster::freq(bool bylayer, bool round, int 
 		out.resize(1);
 		std::map<double, long long unsigned> tabs;
 		for (size_t i = 0; i < bs.n; i++) {
-			std::vector<double> v = readValues(bs.row[i], bs.nrows[i], 0, nc);
+			std::vector<double> v;
+			readValues(v, bs.row[i], bs.nrows[i], 0, nc);
 			if (round) {
 				for (double& d : v) d = roundn(d, digits);
 			}
@@ -117,7 +119,8 @@ std::vector<size_t> SpatRaster::count(double value, bool bylayer, bool round, in
 		out.resize(nl);
 		for (size_t i = 0; i < bs.n; i++) {
 			unsigned nrc = bs.nrows[i] * nc;
-			std::vector<double> v = readValues(bs.row[i], bs.nrows[i], 0, nc);
+			std::vector<double> v;
+			readValues(v, bs.row[i], bs.nrows[i], 0, nc);
 			if (round) {
 				for(double& d : v) d = roundn(d, digits);
 			}
@@ -137,7 +140,8 @@ std::vector<size_t> SpatRaster::count(double value, bool bylayer, bool round, in
 	} else {
 		out.resize(1);
 		for (size_t i = 0; i < bs.n; i++) {
-			std::vector<double> v = readValues(bs.row[i], bs.nrows[i], 0, nc);
+			std::vector<double> v;
+			readValues(v, bs.row[i], bs.nrows[i], 0, nc);
 			if (round) {
 				for (double& d : v) d = roundn(d, digits);
 			}
@@ -165,7 +169,7 @@ SpatRaster SpatRaster::quantile(std::vector<double> probs, bool narm, SpatOption
 		return out;
 	} else if (nlyr() < 2) {
 		out.setError("more than one layer needed to compute quantiles");
-		return out;	
+		return out;
 	}
 
 	double pmin = vmin(probs, false);
@@ -191,7 +195,8 @@ SpatRaster SpatRaster::quantile(std::vector<double> probs, bool narm, SpatOption
 	std::vector<double> v(nl);
 
 	for (size_t i = 0; i < out.bs.n; i++) {
-		std::vector<double> a = readBlock(out.bs, i);
+		std::vector<double> a;
+		readBlock(a, out.bs, i);
 		unsigned nc = out.bs.nrows[i] * out.ncol();
 		std::vector<double> b(nc * n);
 		for (size_t j=0; j<nc; j++) {
@@ -203,7 +208,7 @@ SpatRaster SpatRaster::quantile(std::vector<double> probs, bool narm, SpatOption
 				b[j+(k*nc)] = p[k];
 			}
 		}
-		if (!out.writeValues(b, out.bs.row[i], out.bs.nrows[i], 0, ncol())) return out;
+		if (!out.writeBlock(b, i)) return out;
 	}
 	out.writeStop();
 	readStop();
@@ -250,7 +255,8 @@ std::vector<std::vector<double>> SpatRaster::unique(bool bylayer, SpatOptions &o
 	if (bylayer) {
 		for (size_t i = 0; i < bs.n; i++) {
 			unsigned n = bs.nrows[i] * nc;
-			std::vector<double> v = readValues(bs.row[i], bs.nrows[i], 0, nc);
+			std::vector<double> v;
+			readValues(v, bs.row[i], bs.nrows[i], 0, nc);
 			for (size_t lyr=0; lyr<nl; lyr++) {
 				unsigned off = lyr*n;
 				out[lyr].insert(out[lyr].end(), v.begin()+off, v.begin()+off+n);
@@ -262,7 +268,8 @@ std::vector<std::vector<double>> SpatRaster::unique(bool bylayer, SpatOptions &o
 		for (size_t i = 0; i < bs.n; i++) {
 			unsigned n = bs.nrows[i] * nc;
 			std::vector<std::vector<double>> m(n, std::vector<double>(nl));
-			std::vector<double> v = readValues(bs.row[i], bs.nrows[i], 0, nc);
+			std::vector<double> v;
+			readValues(v, bs.row[i], bs.nrows[i], 0, nc);
 			for (size_t j = 0; j < v.size(); j++) {
 				if (std::isnan(v[j])) v[j] = lowest_double;
 			}
@@ -380,25 +387,25 @@ void jointstats(const std::vector<double> &u, const std::vector<double> &v, cons
 	if (narm) {
 		for (size_t i=0; i<z.size(); i++) {
 			if ((!std::isnan(z[i])) && (!std::isnan(v[i]))) {
-				dat[z[i]].push_back(v[i]);	
+				dat[z[i]].push_back(v[i]);
 			}
 		}
 	} else {
 		for (size_t i=0; i<z.size(); i++) {
 			if (!std::isnan(z[i])) {
-				dat[z[i]].push_back(v[i]);	
+				dat[z[i]].push_back(v[i]);
 			}
 		}
 	}
 	if (fun=="sum") {
-		for (size_t i=0; i<u.size(); i++) {	
+		for (size_t i=0; i<u.size(); i++) {
 			if (dat[i].size() > 0) {
 				out[i] += vsum(dat[i], false);
 			}
 		}
 	}
 	if (fun=="mean") {
-		for (size_t i=0; i<u.size(); i++) {	
+		for (size_t i=0; i<u.size(); i++) {
 			if (dat[i].size() > 0) {
 				out[i] += vsum(dat[i], false);
 				cnt[i] += dat[i].size();
@@ -406,7 +413,7 @@ void jointstats(const std::vector<double> &u, const std::vector<double> &v, cons
 		}
 	}
 	if (fun=="min") {
-		for (size_t i=0; i<u.size(); i++) {	
+		for (size_t i=0; i<u.size(); i++) {
 			if (dat[i].size() > 0) {
 				double mn = vmin(dat[i], false);
 				out[i] = std::min(out[i], mn);
@@ -414,7 +421,7 @@ void jointstats(const std::vector<double> &u, const std::vector<double> &v, cons
 		}
 	}
 	if (fun=="max") {
-		for (size_t i=0; i<u.size(); i++) {	
+		for (size_t i=0; i<u.size(); i++) {
 			if (dat[i].size() > 0) {
 				double mx = vmax(dat[i], false);
 				out[i] = std::max(out[i], mx);
@@ -473,14 +480,15 @@ SpatDataFrame SpatRaster::zonal(SpatRaster z, std::string fun, bool narm, SpatOp
 	opt.ncopies = 6;
 	BlockSize bs = getBlockSize(opt);
 	for (size_t i=0; i<bs.n; i++) {
-		std::vector<double> v =    readValues(bs.row[i], bs.nrows[i], 0, ncol());
-		std::vector<double> zv = z.readValues(bs.row[i], bs.nrows[i], 0, ncol());
+		std::vector<double> v, zv;
+		readValues(v, bs.row[i], bs.nrows[i], 0, ncol());
+		z.readValues(zv, bs.row[i], bs.nrows[i], 0, ncol());
 		std::vector<double> zvr(zv.size());
 		for (size_t j=0; j<zvr.size(); j++)	 {
 			if (std::isnan(zv[j])) {
-				zvr[j] = NAN;				
+				zvr[j] = NAN;
 			} else {
-				for (size_t k=0; k<u.size(); k++) {	
+				for (size_t k=0; k<u.size(); k++) {
 					if (zv[j] == u[k]) {
 						zvr[j] = k;
 						continue;
@@ -515,7 +523,7 @@ SpatDataFrame SpatRaster::zonal(SpatRaster z, std::string fun, bool narm, SpatOp
 			}
 		}
 	} 
-	
+
 	else if (fun == "min") {
 		for (size_t lyr=0; lyr<nlyr(); lyr++) {
 			for (size_t j=0; j<u.size(); j++) {
@@ -523,7 +531,7 @@ SpatDataFrame SpatRaster::zonal(SpatRaster z, std::string fun, bool narm, SpatOp
 					stats[lyr][j] = NAN;
 				}
 			}
-		}		
+		}
 	} else if (fun == "max") {
 		for (size_t lyr=0; lyr<nlyr(); lyr++) {
 			for (size_t j=0; j<u.size(); j++) {
@@ -531,7 +539,7 @@ SpatDataFrame SpatRaster::zonal(SpatRaster z, std::string fun, bool narm, SpatOp
 					stats[lyr][j] = NAN;
 				}
 			}
-		}		
+		}
 	}
 
 	out.add_column(u, "zone");

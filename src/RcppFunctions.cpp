@@ -1,16 +1,73 @@
 #include <Rcpp.h>
-//#include "spatRaster.h"
 #include "spatRasterMultiple.h"
+#include "string_utils.h"
 
-//#include <memory> //std::addressof
 #include "gdal_priv.h"
 #include "gdalio.h"
 #include "ogr_spatialref.h"
 
+#define GEOS_USE_ONLY_R_API
+#include <geos_c.h>
+
 
 #if GDAL_VERSION_MAJOR >= 3
 #include "proj.h"
+#define projh
+#if PROJ_VERSION_MAJOR > 7
+# define PROJ_71
+#else
+# if PROJ_VERSION_MAJOR == 7
+#  if PROJ_VERSION_MINOR >= 1
+#   define PROJ_71
+#  endif
+# endif
 #endif
+#else
+#include <proj_api.h>
+#endif
+
+//from sf
+
+#ifdef projh
+
+// [[Rcpp::export]]
+std::string proj_version() {
+	std::stringstream buffer;
+	buffer << PROJ_VERSION_MAJOR << "." << PROJ_VERSION_MINOR << "." << PROJ_VERSION_PATCH;
+	return buffer.str();
+}
+
+#else
+
+std::string proj_version() {
+	int v = PJ_VERSION;
+	std::stringstream buffer;
+	buffer << v / 100 << "." << (v / 10) % 10 << "." << v % 10;
+	return buffer.str();
+}
+
+#endif
+
+
+// [[Rcpp::export]]
+std::vector<unsigned char> hex2rgb(std::string s) { 
+	unsigned char r, g, b;
+	s = s.erase(0,1); // remove the "#"
+	sscanf(s.c_str(), "%02hhx%02hhx%02hhx", &r, &g, &b);
+	std::vector<unsigned char> x = {r, g, b};
+	return x;
+}
+
+// [[Rcpp::export]]
+std::string rgb2hex(std::vector<unsigned char> x) { 
+	std::stringstream ss; 
+	ss << "#" << std::hex << std::setw(6) << (x[0] << 16 | x[1] << 8 | x[2] ); 
+	std::string s = ss.str();
+	//std::transform(s.begin(), s.end(), s.begin(), ::toupper);
+	str_replace_all(s, " ", "0");
+	return s;
+}
+
 
 // [[Rcpp::export(name = ".sameSRS")]]
 bool sameSRS(std::string x, std::string y) {
@@ -26,7 +83,7 @@ std::vector<std::string> getCRSname(std::string s) {
 	OGRSpatialReference x;
 	OGRErr erro = x.SetFromUserInput(s.c_str());
 	if (erro != OGRERR_NONE) {
-		return {"unknown", "", "", ""};
+		return {"unknown", "", "", "", ""};
 	}
 	std::string node;
 	if (x.IsGeographic()) {
@@ -41,30 +98,36 @@ std::vector<std::string> getCRSname(std::string s) {
 	if (value != NULL) {
 		name = value;
 	}
-	std::string epsg = "";
+	std::string aname = "";
+	value = x.GetAuthorityName(node.c_str());
+	if (value != NULL) {
+		aname = value;
+	}
+
+	std::string acode = "";
 	value = x.GetAuthorityCode(node.c_str());
 	if (value != NULL) {
-		epsg = value;
+		acode = value;
 	}
-		
+
 	double west, south, east, north;
 	west = -10000;
 	east = -10000;
 	south = -10000;
 	north = -10000;
-	
+
 	std::string aoi="", box="";
 	#if GDAL_VERSION_MAJOR >= 3
 	if (x.GetAreaOfUse(&west, &south, &east, &north, &value)) {
 		if (value != NULL) {
 			if (west > -1000) {
 				aoi	= value;
-				box = std::to_string(west) + ", " + std::to_string(east) + ", " + std::to_string(north) + ", " + std::to_string(south);	
+				box = std::to_string(west) + ", " + std::to_string(east) + ", " + std::to_string(north) + ", " + std::to_string(south);
 			}
 		}
 	}
 	#endif
-	return {name, epsg, aoi, box};
+	return {name, aname, acode, aoi, box};
 }
 
 // [[Rcpp::export(name = ".getLinearUnits")]]
@@ -81,7 +144,7 @@ double getLinearUnits(std::string s) {
 std::vector<double> geotransform(std::string fname) {
 	std::vector<double> out;
     GDALDataset *poDataset = static_cast<GDALDataset*>(GDALOpenEx( fname.c_str(), GDAL_OF_RASTER | GDAL_OF_READONLY, NULL, NULL, NULL ));
-	
+
     if( poDataset == NULL )  {
 		Rcpp::Rcout << "cannot read from: " + fname << std::endl;
 		return out;
@@ -110,12 +173,24 @@ std::vector<std::vector<std::string>> sd_info(std::string filename) {
 	return sd;
 }
 
-// [[Rcpp::export(name = ".gdalversion")]]
+// [[Rcpp::export(name = ".gdal_version")]]
 std::string gdal_version() {
 	const char* what = "RELEASE_NAME";
 	const char* x = GDALVersionInfo(what);
 	std::string s = (std::string) x;
 	return s;
+}
+
+// [[Rcpp::export(name = ".geos_version")]]
+std::string geos_version(bool runtime = false, bool capi = false) {
+	if (runtime)
+		return GEOSversion();
+	else {
+		if (capi)
+			return GEOS_CAPI_VERSION;
+		else
+			return GEOS_VERSION;
+	}
 }
 
 // [[Rcpp::export(name = ".metadata")]]
@@ -178,7 +253,7 @@ std::vector<std::vector<std::string>> gdal_drivers() {
 	for (size_t i=0; i<n; i++) {
 	    poDriver = GetGDALDriverManager()->GetDriver(i);
 		const char* ss = poDriver->GetDescription();
-		if (ss != NULL ) s[0][i] = ss;		
+		if (ss != NULL ) s[0][i] = ss;
 		ss = poDriver->GetMetadataItem( GDAL_DMD_LONGNAME );
 		if (ss != NULL ) s[4][i] = ss;
 
@@ -231,7 +306,7 @@ static void __err_error(CPLErr eErrClass, int err_no, const char *msg) {
         case 0:
         case 1:
         case 2:
-            break; 	
+            break; 
         case 3:
             warningNoCall("%s (GDAL error %d)", msg, err_no); 
             break;
@@ -273,12 +348,12 @@ void set_gdal_warnings(int level) {
 	if (level==4) {
 		CPLSetErrorHandler((CPLErrorHandler)__err_none);
 	} else if (level==1) {
-		CPLSetErrorHandler((CPLErrorHandler)__err_warning);		
+		CPLSetErrorHandler((CPLErrorHandler)__err_warning);
 	} else if (level==2) {
-		CPLSetErrorHandler((CPLErrorHandler)__err_error);		
+		CPLSetErrorHandler((CPLErrorHandler)__err_error);
 	} else {
 		CPLSetErrorHandler((CPLErrorHandler)__err_fatal);
-	} 	
+	} 
 }
 
 
@@ -288,6 +363,8 @@ void gdal_init(std::string path) {
     GDALAllRegister();
     OGRRegisterAll(); 
 	CPLSetConfigOption("GDAL_MAX_BAND_COUNT", "9999999");
+	CPLSetConfigOption("OGR_CT_FORCE_TRADITIONAL_GIS_ORDER", "YES");
+	
 	//GDALregistred = true;
 #if GDAL_VERSION_MAJOR >= 3
 	if (path != "") {
@@ -295,11 +372,14 @@ void gdal_init(std::string path) {
 		proj_context_set_search_paths(PJ_DEFAULT_CTX, 1, &cp);
 	}
 #endif
+#ifdef PROJ71
+	proj_context_set_enable_network(PJ_DEFAULT_CTX, 1);
+#endif
 }
 
 // [[Rcpp::export(name = ".precRank")]]
 std::vector<double> percRank(std::vector<double> x, std::vector<double> y, double minc, double maxc, int tail) {
-					
+
 	std::vector<double> out;
 	out.reserve(y.size());
 	size_t nx = x.size();
@@ -405,5 +485,22 @@ bool set_proj_search_paths(std::vector<std::string> paths) {
 #endif
 }
 
+// [[Rcpp::export(name = ".PROJ_network")]]
+std::string PROJ_network(bool enable, std::string url) {
+	std::string s = "";
+#ifdef PROJ_71
+	if (enable) {
+		proj_context_set_enable_network(PJ_DEFAULT_CTX, 1);
+		if (url.size() > 5) {
+			proj_context_set_url_endpoint(PJ_DEFAULT_CTX, url.c_str());
+		}
+		s = proj_context_get_url_endpoint(PJ_DEFAULT_CTX);
+	} else { // disable:
+		proj_context_set_enable_network(PJ_DEFAULT_CTX, 0);
+	}
+#endif
+	return s;
+}
 
 
+	

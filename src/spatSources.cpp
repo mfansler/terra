@@ -46,35 +46,46 @@ SpatRasterSource::SpatRasterSource() {
 
 
 
-SpatRaster SpatRaster::combineSources(SpatRaster x) {
+SpatRaster SpatRaster::combineSources(SpatRaster x, bool warn) {
 
 	SpatRaster out = geometry();
+	if (!hasValues()) {
+		if (!x.hasValues()) {
+			if (out.compare_geom(x, false, false, 0.1)) {
+				out.source.insert(out.source.end(), x.source.begin(), x.source.end());
+				out.setNames(out.getNames());
+			} else {
+				out = x.deepCopy();
+				if (warn) {
+					out.addWarning("both rasters were empty, but had different geometries. The first one was ignored");
+				}
+			}
+		} else {
+			out = x.deepCopy();
+			if (warn) {
+				out.addWarning("the first raster was empty and ignored");
+			}
+		}
+		return out;
+	}
 
-						// opt.get_tolerance()
 	if (!out.compare_geom(x, false, false, 0.1)) {
 		return out;
 	}
 
-	bool hv = hasValues();
-	if (hv != x.hasValues()) {
-		out.setError("combined sources must all have values; or none should have values");
+	out = deepCopy();
+	if (!x.hasValues()) {
+		out.addWarning("you cannot add SpatRaster with no values to one that has values");
 		return(out);
 	}
-
-	out = deepCopy();
-//    if (!hv) {
-//       out.source = x.source;
-//    } else {
 	out.source.insert(out.source.end(), x.source.begin(), x.source.end());
-//	}
-    // to make names unique
-	out.setNames(out.getNames());
+    // to make names unique (not great of called several times
+	//out.setNames(out.getNames());
 	return(out);
 }
 
 
 void SpatRaster::combine(SpatRaster x) {
-
 
 	if (!compare_geom(x, false, false, 0.1)) {
 		return;
@@ -87,18 +98,33 @@ void SpatRaster::combine(SpatRaster x) {
 	}
 
 	source.insert(source.end(), x.source.begin(), x.source.end());
-	setNames(getNames());
+	//setNames(getNames());
 	return;
 }
 
-void SpatRaster::addSource(SpatRaster x) {
+void SpatRaster::addSource(SpatRaster x, bool warn) {
 
-	if (compare_geom(x, false, false, 0.1	)) {
-        if (!hasValues()) {  //or if n src == 0?
-            source = x.source;
-        } else {
-            source.insert(source.end(), x.source.begin(), x.source.end());
-        }
+	if (!hasValues()) {
+		if (!x.hasValues()) {
+			if (compare_geom(x, false, false, 0.1)) {
+				source.insert(source.end(), x.source.begin(), x.source.end());
+			} else {
+				source = x.source;
+				if (warn) {
+					addWarning("both rasters were empty, but had different geometries. The first one was ignored");
+				}
+			}
+		} else {
+			source = x.source;
+			if (warn) {
+				addWarning("the first raster was empty and ignored");
+			}
+		}
+		return;
+	}
+
+	if (compare_geom(x, false, false, 0.1)) {
+        source.insert(source.end(), x.source.begin(), x.source.end());
 	}
 }
 
@@ -209,7 +235,7 @@ void SpatRasterSource::appendValues(std::vector<double> &v, unsigned lyr) {
 	size_t nc ;
 	if (hasWindow) {
 		nc = window.full_ncol * window.full_nrow;
-	} else {	
+	} else {
 		nc = nrow * ncol;
 	}
 	size_t start = lyr * nc;
@@ -234,12 +260,13 @@ void SpatRasterSource::resize(unsigned n) {
 	time.resize(n);
 	unit.resize(n);
 	depth.resize(n);
+	valueType.resize(n, 0);
     hasRange.resize(n, false);
     range_min.resize(n, NAN);
     range_max.resize(n, NAN);
     blockcols.resize(n);
     blockrows.resize(n);
-	
+
 	has_scale_offset.resize(n, false);
 	scale.resize(n, 1);
 	offset.resize(n, 0);
@@ -258,7 +285,7 @@ void SpatRasterSource::resize(unsigned n) {
 
 //std::vector<SpatRasterSource> SpatRasterSource::subset(std::vector<unsigned> lyrs) {
 SpatRasterSource SpatRasterSource::subset(std::vector<unsigned> lyrs) {
-	
+
     unsigned nl = lyrs.size();
     bool all = true;
     if (lyrs.size() == nlyr) {
@@ -290,26 +317,28 @@ SpatRasterSource SpatRasterSource::subset(std::vector<unsigned> lyrs) {
 		out.source_name_long = source_name_long;
 		out.timestep = timestep;
 		out.hasTime = hasTime;
+		out.hasUnit = hasUnit;
 		out.memory = memory;
 		out.hasValues = hasValues;
 		//out.filename = filename;
 		//out.driver = driver;
-		//out.datatype = datatype; 
+		//out.valueType = valueType; 
 		//out.hasNAflag = hasNAflag;
 		//out.NAflag = NAflag;
 	} else { 
 		//no values, deep copy is cheap
 		out = *this;
 		out.resize(0);
-	}		
-		
-	
+	}
+
+
     for (size_t i=0; i<nl; i++) {
         unsigned j = lyrs[i];
 		out.names.push_back(names[j]);
 		out.time.push_back(time[j]);
 		out.depth.push_back(depth[j]);
 		out.unit.push_back(unit[j]);
+		out.valueType.push_back(valueType[j]);
         out.hasRange.push_back(hasRange[j]);
         out.range_min.push_back(range_min[j]);
         out.range_max.push_back(range_max[j]);
@@ -322,7 +351,7 @@ SpatRasterSource SpatRasterSource::subset(std::vector<unsigned> lyrs) {
 		out.has_scale_offset.push_back(has_scale_offset[j]);
 		out.scale.push_back(scale[j]);
 		out.offset.push_back(offset[j]);
-		
+
 		if (memory) {
 			out.layers.push_back(i);
 			if (hasValues) {
@@ -400,7 +429,7 @@ SpatRaster SpatRaster::subset(std::vector<unsigned> lyrs, SpatOptions &opt) {
     } //else {
 	//	out.collapse();
 	//}
-	
+
     return out;
 }
 
@@ -430,6 +459,7 @@ bool SpatRasterSource::combine_sources(const SpatRasterSource &x) {
 	unit.insert(unit.end(), x.unit.begin(), x.unit.end());
 
 	depth.insert(depth.end(), x.depth.begin(), x.depth.end());
+	valueType.insert(valueType.end(), x.valueType.begin(), x.valueType.end());
 	hasRange.insert(hasRange.end(), x.hasRange.begin(), x.hasRange.end());
 	range_min.insert(range_min.end(), x.range_min.begin(), x.range_min.end());
 	range_max.insert(range_max.end(), x.range_max.begin(), x.range_max.end());
@@ -443,7 +473,7 @@ bool SpatRasterSource::combine_sources(const SpatRasterSource &x) {
 	cats.insert(cats.end(), x.cats.begin(), x.cats.end());
 	hasColors.insert(hasColors.end(), x.hasColors.begin(), x.hasColors.end());
 	cols.insert(cols.end(), x.cols.begin(), x.cols.end());
-	datatype.insert(datatype.end(), x.datatype.begin(), x.datatype.end());
+	valueType.insert(valueType.end(), x.valueType.begin(), x.valueType.end());
 	has_scale_offset.insert(has_scale_offset.end(), x.has_scale_offset.begin(), x.has_scale_offset.end());
 	scale.insert(scale.end(), x.scale.begin(), x.scale.end());
 	offset.insert(offset.end(), x.offset.begin(), x.offset.end());
@@ -475,6 +505,7 @@ bool SpatRasterSource::combine(SpatRasterSource &x) {
 	}
 	unit.insert(unit.end(), x.unit.begin(), x.unit.end());
 	depth.insert(depth.end(), x.depth.begin(), x.depth.end());
+	valueType.insert(valueType.end(), x.valueType.begin(), x.valueType.end());
 	hasRange.insert(hasRange.end(), x.hasRange.begin(), x.hasRange.end());
 	range_min.insert(range_min.end(), x.range_min.begin(), x.range_min.end());
 	range_max.insert(range_max.end(), x.range_max.begin(), x.range_max.end());
@@ -487,7 +518,7 @@ bool SpatRasterSource::combine(SpatRasterSource &x) {
 	cats.insert(cats.end(), x.cats.begin(), x.cats.end());
 	hasColors.insert(hasColors.end(), x.hasColors.begin(), x.hasColors.end());
 	cols.insert(cols.end(), x.cols.begin(), x.cols.end());
-	datatype.insert(datatype.end(), x.datatype.begin(), x.datatype.end());
+	valueType.insert(valueType.end(), x.valueType.begin(), x.valueType.end());
 	has_scale_offset.insert(has_scale_offset.end(), x.has_scale_offset.begin(), x.has_scale_offset.end());
 	scale.insert(scale.end(), x.scale.begin(), x.scale.end());
 	offset.insert(offset.end(), x.offset.begin(), x.offset.end());

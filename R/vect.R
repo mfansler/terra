@@ -91,8 +91,8 @@ setMethod("vect", signature(x="XY"), #sfg
 	z <- tolower(x[1:2])
 	x <- substr(z, 1, 3)
 	y <- substr(x, 1, 1)
-	if ((y[1] == "x") & (y[2] == "y")) return(TRUE)
-	if ((x[1] == "eas") & (x[2] == "nor")) return(TRUE)
+	if ((y[1] == "x") & (y[2] == "y")) return(FALSE)
+	if ((x[1] == "eas") & (x[2] == "nor")) return(FALSE)
 	if ((x[1] == "lon") & (x[2] == "lat")) return(TRUE)
 	if (grepl("lon", z[1]) & grepl("lat", z[2])) return(TRUE)
 
@@ -105,6 +105,7 @@ setMethod("vect", signature(x="XY"), #sfg
 	} else if (warn) {
 		warn("coordinate names not recognized. Expecting lon/lat, x/y, or easting/northing")
 	}
+	return(FALSE)
 }
 
 setMethod("vect", signature(x="matrix"), 
@@ -115,18 +116,21 @@ setMethod("vect", signature(x="matrix"),
 
 		p <- methods::new("SpatVector")
 		p@ptr <- SpatVector$new()
+		crs(p) <- ifelse(is.na(crs), "", as.character(crs))
+
 		nr <- nrow(x)
 		if (nr == 0) {
 			return(p)
 		}
 
 		if (ncol(x) == 2) { 
-			.checkXYnames(colnames(x))
-			if (type == "points") {	# treat as unique points
-				p@ptr$setGeometry(type, 1:nr, rep(1, nr), x[,1], x[,2], rep(FALSE, nr))
+			lonlat <- .checkXYnames(colnames(x))
+			if (type == "points") {
+				p@ptr$setPointsXY(x[,1], x[,2])
 			} else {
 				p@ptr$setGeometry(type, rep(1, nr), rep(1, nr), x[,1], x[,2], rep(FALSE, nr))
 			}
+			if (lonlat && isTRUE(crs=="")) crs <- "+proj=longlat" 
 		} else if (ncol(x) == 4) {
 			#.checkXYnames(colnames(x)[3:4])
 			p@ptr$setGeometry(type, x[,1], x[,2], x[,3], x[,4], rep(FALSE, nr))
@@ -141,7 +145,6 @@ setMethod("vect", signature(x="matrix"),
 				values(p) <- atts
 			}
 		}
-		crs(p) <- ifelse(is.na(crs), "", as.character(crs))
 		messages(p, "vect")
 	}
 )
@@ -213,7 +216,7 @@ setReplaceMethod("[", c("SpatVector", "missing", "ANY"),
 
 setReplaceMethod("[[", c("SpatVector", "character", "missing"),
 	function(x, i, j, value) {
-		
+
 		if (is.null(value)) {
 			for (name in i) {
 				if (name %in% names(x)) {
@@ -225,7 +228,7 @@ setReplaceMethod("[[", c("SpatVector", "character", "missing"),
 		if (length(i) > 1) {
 			error("[[<-", "you can only set one variable at a time")
 		}
-	
+
 		name <- i[1]
 		value <- rep(value, length.out=nrow(x))
 
@@ -275,7 +278,12 @@ setMethod("vect", signature(x="data.frame"),
 			error("vect", "the variable name(s) in argument `geom` are not in `x`")
 		}
 		if (length(geom) == 2) {
-			v <- vect(as.matrix(x[,geom]), crs=crs)
+			geom <- match(geom[1:2], names(x))
+			p <- methods::new("SpatVector")
+			p@ptr <- SpatVector$new()
+			x <- .makeSpatDF(x)
+			p@ptr$setPointsDF(x, geom-1, ifelse(is.na(crs), "", crs))
+			return(p)
 		} else if (length(geom) == 1) {
 			v <- vect(unlist(x[,geom]), crs=crs)
 		} else {

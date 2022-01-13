@@ -18,7 +18,9 @@
 #include <algorithm>
 #include <vector>
 #include <string>
-#include <regex>
+//#include <regex>
+#include "string_utils.h"
+
 
 typedef long long SpatTime_t;
 
@@ -61,12 +63,20 @@ SpatTime_t get_time(long year, unsigned month, unsigned day, unsigned hr, unsign
 			time += yeartime(y);
 		}
 	}
-	
+
 	time += (mdays[isleap(year)][month-1] + day) * 86400;
 	time += (hr * 3600) + (min * 60) + sec;
     return time;
 }
 
+
+SpatTime_t get_time_str(std::vector<std::string> s) {
+	std::vector<long> d(6, 0);
+	for (size_t i=0; i<s.size(); i++) {
+		d[i] = stoi(s[i]);
+	}
+	return get_time(d[0], d[1], d[2], d[3], d[4], d[5]);
+}
 
 
 std::vector<int> get_date(SpatTime_t x) {
@@ -83,7 +93,7 @@ std::vector<int> get_date(SpatTime_t x) {
 		while (x < 0) {
 			year--;
 			x += yeartime(year);
-		}	
+		}
 	} else if (x > 0) {
 		while (x > 0) {
 			x -= yeartime(year);
@@ -185,7 +195,7 @@ SpatTime_t get_time_string(std::string s) {
 	time = get_time(std::stoi(ss[0]), std::stoi(ss[1]), std::stoi(ss[2]), 0, 0, 0);
 
 //	} else {
-//		time = get_time_noleap(std::stoi(ss[0]), std::stoi(ss[1]), std::stoi(ss[2]));	
+//		time = get_time_noleap(std::stoi(ss[0]), std::stoi(ss[1]), std::stoi(ss[2]));
 //	}
 	return time;
 }
@@ -247,6 +257,27 @@ SpatTime_t time_from_day_360(int syear, int smonth, int sday, double ndays) {
 }
 
 
+
+SpatTime_t parse_time(std::string x) {
+	lrtrim(x);
+	std::vector<std::string> s = strsplit(x, " ");
+
+	std::vector<std::string> time = strsplit(s[0], "-");
+	if (time.size() == 1) {
+		return stoi(time[0]);
+	} else if (time.size() != 3) {
+		return 0;
+	}
+
+	if (s.size() > 1) {
+		std::vector<std::string> secs = strsplit(s[1], ":");
+		if (secs.size() == 3) {
+			time.insert(time.end(), secs.begin(), secs.end());
+		}
+	}
+
+	return get_time_str(time);
+}
 
 
 /*
@@ -313,7 +344,7 @@ SpatTime_t get_time360(long year, unsigned month, unsigned day=15, unsigned hr=0
 			time += 31104000;
 		}
 	}
-	
+
 	time += (mdays[month-1] + day) * 86400;
 
 	time += (hr * 3600) + (min * 60) + sec;

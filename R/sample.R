@@ -1,4 +1,81 @@
 
+
+sampleStratified <- function(x, size, replace=FALSE, as.df=TRUE, as.points=FALSE, cells=TRUE, xy=FALSE, ext=NULL, warn=TRUE, exp=2) {
+	
+	if ((!xy && !as.points)) cells <- TRUE
+	
+	f <- freq(x)	
+	exp <- max(1, exp)
+	ss <- exp * size * nrow(f)
+	lonlat <- is.lonlat(x, perhaps=TRUE, warn=FALSE)
+	if ((!lonlat) && (ss > (0.8 * ncell(x)))) { 
+		sr <- cbind(1:ncell(x), values(x))
+		colnames(sr) <- c("cell", names(x))
+	} else {
+		sr <- spatSample(x, ss, "random", replace=replace, na.rm=TRUE, ext=ext, cells=TRUE, values=TRUE, warn=warn)
+	}
+	
+	ys <- list()
+	notfound <- NULL
+
+	for (i in seq_len(nrow(f))) {
+		y <- sr[sr[, 2] == f[i,2], ,drop=FALSE]
+		if (nrow(y) == 0) {
+			notfound <- c(notfound, i)
+		} else {
+			if (nrow(y) > size) {
+				y <- y[sample(nrow(y), size),  ,drop=FALSE]
+			} 
+			ys[[i]] <- y
+		}
+	}
+	res <- do.call(rbind, ys)
+	colnames(res) <- c('cell', names(x))
+	
+	ures <- unique(res[,2])
+	miss <- !(ures %in% f[,"value"])
+	if (any(miss) && warn) {
+		miss <- which(miss)
+		if (length(miss)== 1) {
+			warn("sample", 'no samples for stratum: ', tanm)
+		} else if (length(miss) > 1) {
+			warn("sample", 'no samples for strata: ', paste(tanm, collapse=', '))
+		}
+	}
+	
+	ta <- tapply(res[,1], res[,2], length) 
+	tanm <- names(ta)[which(ta < size)]
+	if ((length(tanm) > 0) && warn) {
+		if (length(tanm)== 1) {
+			warn("sample", 'fewer samples than requested for stratum: ', tanm)
+		} else if (length(tanm) > 1) {
+			warn("sample", 'fewer samples than requested for strata: ', paste(tanm, collapse=', '))
+		}
+	}
+
+	if (xy) {
+		pts <- xyFromCell(x, res[,1])
+		res <- cbind(res[,1,drop=FALSE], pts, res[,2,drop=FALSE])
+	}
+	if (as.points) {
+		if (!xy) {
+			pts <- xyFromCell(x, res[,1])
+		}
+		res <- vect(pts, crs=crs(x), atts=data.frame(res))
+	} else if (as.df) {
+		res <- data.frame(res)
+	}
+	if (!cells) {
+		res <- res[,-1,drop=FALSE]
+	}	
+	res
+}
+
+
+
+
+
+
 .seed <- function() {
   sample.int(.Machine$integer.max, 1)
 }
@@ -18,7 +95,7 @@
 		nsize <- size
 		if (na.rm) {
 			if (replace) {
-				size <- size*5			
+				size <- size*5
 			} else {
 				size <- min(ncell(r)*2, size*5)
 			}
@@ -52,13 +129,13 @@
 			xi <- xi / w
 			xi <- pmax(1,pmin(xi, ncol(r)))
 			z <- list()
-			#off <- stats::runif(1) 			
+			#off <- stats::runif(1) 
 			for (i in 1:length(rows)) {
 				z[[i]] <- cbind(rows[i], unique(round(seq(0.5*xi[i], ncol(r), xi[i]))))
 			}
 			z <- do.call(rbind, z)
 			cells <- cellFromRowCol(r, z[,1], z[,2])
-	
+
 		} else {
 			f <- sqrt(size / ncell(r))
 			nr <- ceiling(nrow(r) * f)
@@ -108,7 +185,7 @@ set_factors <- function(x, ff, cts, asdf) {
 
 setMethod("spatSample", signature(x="SpatRaster"), 
 	function(x, size, method="random", replace=FALSE, na.rm=FALSE, as.raster=FALSE, as.df=TRUE, as.points=FALSE, values=TRUE, cells=FALSE, xy=FALSE, ext=NULL, warn=TRUE) {
-		
+
 		size <- round(size)
 		if (any(size < 1)) {
 			error("spatSample", "sample size must be a positive integer")
@@ -117,11 +194,26 @@ setMethod("spatSample", signature(x="SpatRaster"),
 			size <- ncell(x)
 		}
 
+		method <- match.arg(tolower(method), c("random", "regular", "stratified"))
+		if (method == "stratified") {
+			if (as.raster) {
+				error("as.raster is not valid for method='stratified'")
+			}
+			if (nlyr(x) > 1) {
+				x <- x[[1]]
+				warn("only the first layer of x is used")			
+			}
+			if (!hasValues(x)) {
+				error("x has no values")			
+			}
+			return( sampleStratified(x, size, replace=replace, as.df=as.df, as.points=as.points, cells=cells, xy=xy, ext=ext, warn=warn, exp=5) )
+		}
+
 		if (!as.raster) {
 			ff <- is.factor(x)
 			lv <- active_cats(x)
 		}
-		
+
 		if (cells || xy || as.points) {
 			size <- size[1]
 			cnrs <- .sampleCells(x, size, method, replace, na.rm, ext)
@@ -144,7 +236,7 @@ setMethod("spatSample", signature(x="SpatRaster"),
 				e <- extract(x, cnrs)
 				e <- set_factors(e, ff, lv, as.df)
 				if (is.null(out)) {
-					out <- e				
+					out <- e
 				} else {
 					out <- cbind(out, e)
 				}
@@ -186,7 +278,7 @@ setMethod("spatSample", signature(x="SpatRaster"),
 				if (length(size) > 1) {
 					v <- x@ptr$sampleRowColValues(size[1], size[2], opt)
 				} else {
-					v <- x@ptr$sampleRegularValues(size, opt)				
+					v <- x@ptr$sampleRegularValues(size, opt)
 				}
 				x <- messages(x, "spatSample")
 				if (length(v) > 0) {
@@ -290,7 +382,7 @@ setMethod("spatSample", signature(x="SpatExtent"),
 
 	cell <- cellFromXY(r, xy)
     uc <- unique(stats::na.omit(cell))
-	
+
 	chess <- trim(chess)
 	if (chess != "") {
 		chess <- match.arg(tolower(chess), c("white", "black"))
@@ -306,7 +398,7 @@ setMethod("spatSample", signature(x="SpatExtent"),
 			row1 <- 1:(ceiling(nr / 2)) * 2 - 1
 			row2 <- row1 + 1
 			row2 <- row2[row2 <= nr]
-			
+
 			if (chess=="white") {
 				col1 <- 1:(ceiling(nc / 2)) * 2 - 1
 				col2 <- col1 + 1
@@ -316,14 +408,14 @@ setMethod("spatSample", signature(x="SpatExtent"),
 				col2 <- col1 - 1
 				col1 <- col1[col1 <= nc]
 			}
-				
+
 			cells1 <- cellFromRowColCombine(r, row1, col1)
 			cells2 <- cellFromRowColCombine(r, row2, col2)
 			tf <- c(cells1, cells2)
-		}	
+		}
 		uc <- uc[uc %in% tf]
 	}
-	
+
     cell <- cellFromXY(r, xy)
     cell <- cbind(1:nrow(xy), cell, stats::runif(nrow(xy)))
 	cell <- stats::na.omit(cell)
@@ -371,7 +463,7 @@ setMethod("spatSample", signature(x="SpatVector"),
 					if (is.character(strata)) {
 						stopifnot(strata %in% names(x))
 					} else  {
-						stopifnot((strata > 0) && (strata < ncol(x)))	
+						stopifnot((strata > 0) && (strata < ncol(x)))
 					} 
 					strata <- x[[strata, drop=TRUE]]
 				} else if (length(strata) != length(x)) {
@@ -393,7 +485,7 @@ setMethod("spatSample", signature(x="SpatVector"),
 			if (length(size) == 1) {
 				x@ptr = x@ptr$sample(size, method[1], .seed())
 			} else {
-				x@ptr = x@ptr$sampleGeom(size, method[1], .seed())			
+				x@ptr = x@ptr$sampleGeom(size, method[1], .seed())
 			}
 			return(messages(x))
 		} else if (grepl(gtype, "points")) {
@@ -457,12 +549,12 @@ setMethod("spatSample", signature(x="SpatVector"),
 				# xi <- xi / w
 				# xi <- pmin(xi, 180)
 				# z <- list()
-				# #off <- stats::runif(1) 			
+				# #off <- stats::runif(1) 
 				# for (i in 1:length(lat)) {
 					# z[[i]] <- cbind(seq(e[1]+0.5*xi[i], e[2], xi[i]), lat[i])
 				# }
 				# z <- do.call(rbind, z)
-				# vect(z, crs="+proj=lonlat +datum=WGS84")		
+				# vect(z, crs="+proj=lonlat +datum=WGS84")
 			# } else {
 				# x <- seq(e[1]+0.5*xi, e[2], xi)
 				# y <- seq(e[3]+0.5*yi, e[4], yi)

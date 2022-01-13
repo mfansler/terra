@@ -12,7 +12,7 @@
 }
  
 .options_names <- function() {
-	c("progress", "tempdir", "memfrac", "datatype", "filetype", "filenames", "overwrite", "todisk", "names", "verbose", "NAflag", "statistics", "steps", "ncopies", "tolerance") #, "append") 
+	c("progress", "tempdir", "memfrac", "memmax", "datatype", "filetype", "filenames", "overwrite", "todisk", "names", "verbose", "NAflag", "statistics", "steps", "ncopies", "tolerance", "pid") #, "append") 
 }
 
  
@@ -43,7 +43,7 @@
 		wopt <- wopt[s]
 		i <- which(nms == "names")
 		if (length(i) > 0) {
-			namevs <- trimws(unlist(strsplit(wopt[[i]], ",")))
+			namevs <- trimws(unlist(strsplit(as.character(wopt[[i]]), ",")))
 			x[["names"]] <- namevs
 			wopt <- wopt[-i]
 			nms <- nms[-i]
@@ -69,12 +69,12 @@ defaultOptions <- function() {
 spatOptions <- function(filename="", overwrite=FALSE, ..., wopt=NULL) {
 
 	wopt <- c(list(...), wopt)
-	
+
 	## work around onLoad problem
 	if (is.null(.terra_environment$options)) .create_options()
 
 	opt <- .terra_environment$options@ptr$deepcopy()
-
+	opt$pid <- Sys.getpid()
 	filename <- .fullFilename(filename, mustExist=FALSE)
 	if (!is.null(unlist(wopt))) {
 		wopt$filenames <- filename
@@ -111,6 +111,9 @@ spatOptions <- function(filename="", overwrite=FALSE, ..., wopt=NULL) {
 	for (n in nms) {
 		v <- eval(parse(text=paste0("opt$", n)))
 		cat(paste0(substr(paste(n, "         "), 1, 10), ": ", v, "\n"))
+	}
+	if (opt$memmax > 0) {
+		cat(paste0("memmax    : ", 8 * opt$memmax / (1024^3), "\n"))	
 	}
 }
 

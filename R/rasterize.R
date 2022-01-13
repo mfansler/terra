@@ -10,29 +10,20 @@ rasterize_points <- function(x, y, field, values, fun="last", background=NA, upd
 	} 
 
 	nrx <- nrow(x)
-	g <- geom(x, df=TRUE)
-	# also allow for multiple columns to multiple layers
-	if (field[1] != "") {
-		values <- x[[field]]
-	} else {
-		if (!is.data.frame(values)) {
+
+	if (!is.data.frame(values)) {
+		values <- as.data.frame(values)
+	}
+	if (nrow(values) == 1) {
+		values <- sapply(values, function(x) rep_len(x, nrx))
+		if (!is.data.frame(values)) { # dropped if nrx==1
 			values <- as.data.frame(values)
 		}
-		if (nrow(values) == 1) {
-			values <- sapply(values, function(x) rep_len(x, nrx))
-			if (!is.data.frame(values)) { # dropped if nrx==1
-				values <- as.data.frame(values)
-			}
-		} else {
-			if (nrow(values) != nrx) {
-				error("rasterize", "the number or rows in values does not match the number of points")
-			}
+	} else {
+		if (nrow(values) != nrx) {
+			error("rasterize", "the number or rows in values does not match the number of points")
 		}
 	}
-	if (nrow(g) != nrx) { # multi-points
-		values <- sapply(1:ncol(values), values[g[,1], i])
-	}
-
 	nl <- ncol(values)
 	r <- rast(y, nlyrs=nl)
 #	values(r) <- background
@@ -47,8 +38,8 @@ rasterize_points <- function(x, y, field, values, fun="last", background=NA, upd
 			has_levels <- TRUE
 		} 
 	}
-	
-	g <- cellFromXY(y, as.matrix(g[, c("x", "y")]))
+
+	g <- cellFromXY(y, x)
 	i <- which(!is.na(g))
 	g <- g[i]
 	if (length(g) == 0) {
@@ -122,6 +113,17 @@ rasterize_points <- function(x, y, field, values, fun="last", background=NA, upd
 }
 
 
+setMethod("rasterize", signature(x="matrix", y="SpatRaster"), 
+	function(x, y, values=1, fun, ..., background=NA, update=FALSE, filename="", overwrite=FALSE, wopt=list()) {
+
+		lonlat <- .checkXYnames(colnames(x))
+
+		rasterize_points(x=x, y=y, field="", values=rep_len(values, nrow(x)), fun=fun, background=background, update=update, filename=filename, overwrite=overwrite, wopt=wopt, ...) 
+
+	}
+)
+
+
 setMethod("rasterize", signature(x="SpatVector", y="SpatRaster"), 
 	function(x, y, field="", fun, ..., background=NA, touches=FALSE, update=FALSE, sum=FALSE, cover=FALSE, filename="", overwrite=FALSE, wopt=list()) {
 
@@ -137,6 +139,15 @@ setMethod("rasterize", signature(x="SpatVector", y="SpatRaster"),
 
 		g <- geomtype(x)
 		if (grepl("points", g)) {
+			nrx <- nrow(x)
+			# also allow for multiple columns to multiple layers
+			if (field[1] != "") {
+				values <- x[[field]]
+			}
+			x <- crds(x)
+			if (nrow(x) != nrx) { # multi-points
+				values <- sapply(1:ncol(values), function(i) values[g[,1], i])
+			}
 			return(
 				rasterize_points(x=x, y=y, field=field, values=values, fun=fun, background=background, update=update, filename=filename, overwrite=overwrite, wopt=wopt, ...) 
 			)
@@ -226,7 +237,7 @@ setMethod("rasterize", signature(x="SpatVector", y="SpatRaster"),
 					# v <- as.integer(f) - 1
 					# y@ptr <- y@ptr$rasterize1(x@ptr, field, v, levs, background, update[1], touches[1], inverse[1], FALSE, opt)
 				# } else {
-					
+
 					# #y@ptr <- y@ptr$rasterize1(x@ptr, field, 0[0], levs, background, update[1], touches[1], inverse[1], opt)
 					# ## for old gdal
 					# y@ptr <- y@ptr$rasterize1(x@ptr, field, x[[field,drop=T]], levs, background, update[1], touches[1], inverse[1], FALSE, opt)

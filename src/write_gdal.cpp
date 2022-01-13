@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2021  Robert J. Hijmansf
+// Copyright (c) 2018-2021  Robert J. Hijmans
 //
 // This file is part of the "spat" library.
 //
@@ -15,14 +15,14 @@
 // You should have received a copy of the GNU General Public License
 // along with spat. If not, see <http://www.gnu.org/licenses/>.
 
-
-
 #include "spatRaster.h"
 #include "math_utils.h"
 #include "string_utils.h"
 #include "file_utils.h"
+#include "vecmath.h"
 
 #include <unordered_map>
+#include <vector>
 
 #include "gdal_priv.h"
 #include "cpl_conv.h" // for CPLMalloc()
@@ -31,6 +31,57 @@
 #include "gdal_rat.h"
 
 #include "gdalio.h"
+/*
+void add_quotes(std::vector<std::string> &s) {
+	for (size_t i=0; i< s.size(); i++) {
+		s[i] = "\"" + s[i] + "\"";
+	}
+}
+*/
+
+std::string quoted_csv(const std::vector<std::string> &s) {
+	std::string ss;
+	if (s.size() == 0) {
+		ss = "";
+		return ss;
+	}
+	ss = "\"" + s[0] + "\"";
+	for (size_t i=1; i< s.size(); i++) {
+		ss += ",\"" + s[i] + "\"";
+	}
+	return ss;
+}
+
+bool SpatRaster::write_aux_json(std::string filename) {
+	filename += ".aux.json";
+	std::ofstream f;
+	bool wunits = hasUnit();
+	bool wtime = hasTime();
+	if (wunits || wtime) {
+		f.open(filename);
+		if (f.is_open()) {
+			f << "{" << std::endl;
+			if (wtime) {
+				std::vector<std::string> tstr = getTimeStr(false);
+				std::string ss = quoted_csv(tstr);
+				f << "\"time\":[" << ss << "]," << std::endl;
+				f << "\"timestep\":\"" << source[0].timestep << "\"";
+				if (wunits) f << ",";
+				f << std::endl;
+			}
+			if (wunits) {
+				std::vector<std::string> units = getUnit();
+				std::string ss = quoted_csv(units);
+				f << "\"unit\":[" << ss << "]" << std::endl;
+			}
+			f << "}" << std::endl;
+		} else {
+			return false;
+		}
+		return true;
+	}
+	return true;
+}
 
 
 bool setCats(GDALRasterBand *poBand, std::vector<std::string> &labels) {
@@ -51,33 +102,32 @@ bool setRat(GDALRasterBand *poBand, SpatDataFrame &d) {
 		return false;
 	}
 	size_t nr = d.nrow();
-	
+
 	for (size_t i=0; i<d.ncol(); i++) {
 		const char *fn = d.names[i].c_str();
 		if (d.itype[i] == 0) {
 			if (pRat->CreateColumn(fn, GFT_Real, GFU_Generic) != CE_None) {
-				delete pRat;
 				return false;
 			};
 		} else if (d.itype[i] == 1) {
 			if (pRat->CreateColumn(fn, GFT_Integer, GFU_Generic) != CE_None) {
-				delete pRat;
 				return false;
 			}
 		} else {
 			if (pRat->CreateColumn(fn, GFT_String, GFU_Generic) != CE_None) {
-				delete pRat;
 				return false;
 			}
 		}
 	}
+	
+	return false;
 
 	pRat->SetRowCount(nr);
 	for (size_t i=0; i<d.ncol(); i++) {
 		if (d.itype[i] == 0) {
 			std::vector<double> v = d.dv[d.iplace[i]];
 			if( pRat->ValuesIO(GF_Write, i, 0, nr, &v[0]) != CE_None ) {
-				return false;				
+				return false;
 			}
 		} else if (d.itype[i] == 1) {
 			std::vector<long> v = d.iv[d.iplace[i]];
@@ -92,31 +142,86 @@ bool setRat(GDALRasterBand *poBand, SpatDataFrame &d) {
 		}
 	}
 
-	CPLErr err = poBand->SetDefaultRAT(pRat);
-	delete pRat;
-	return (err == CE_None);
+	//CPLErr err = poBand->SetDefaultRAT(pRat);
+	//return (err == CE_None);
+	return true;
+}
+
+
+
+bool setBandCategories(GDALRasterBand *poBand, SpatDataFrame &d, std::vector<std::string> labs) {
+
+	if (d.ncol() == 2) {
+		if (d.itype[0] == 1) {
+			long dmin = vmin(d.iv[0], true);
+			long dmax = vmax(d.iv[0], true);
+			if (dmin >= 0 || dmax <= 255) { 
+				std::vector<std::string> s(255, "");
+				for (size_t i=0; i<d.nrow(); i++) {
+					s[d.iv[0][i]] = labs[i];
+				}
+				if (setCats(poBand, s)) {
+					return true;
+				}
+			}
+		} else if (d.itype[0] == 0) {
+			double dmin = vmin(d.dv[0], true);
+			double dmax = vmax(d.dv[0], true);
+			if (dmin >= 0 || dmax <= 255) { 
+				std::vector<std::string> s(255, "");
+				for (size_t i=0; i<d.nrow(); i++) {
+					s[d.dv[0][i]] = labs[i];
+				}
+				if (setCats(poBand, s)) {
+					return true;
+				}
+			}
+		}
+	}
+
+	return false;	
 }
 
 
 
 bool setCT(GDALRasterBand *poBand, SpatDataFrame &d) {
+
+	long dmin = vmin(d.iv[0], true);
+	long dmax = vmax(d.iv[0], true);
+	if (dmin < 0 || dmax > 255) {
+		return false;
+	}
+	
+	SpatDataFrame s;
+	s.add_column(1, "red");
+	s.add_column(1, "green");
+	s.add_column(1, "blue");
+	s.add_column(1, "alpha");
+	s.reserve(255);
+	for (size_t i=0; i<d.nrow(); i++) {
+		s.iv[0][d.iv[0][i]] = d.iv[1][i]; 
+		s.iv[1][d.iv[0][i]] = d.iv[2][i];
+		s.iv[2][d.iv[0][i]] = d.iv[3][i];
+		s.iv[3][d.iv[0][i]] = d.iv[4][i];
+	}
+	
 	CPLErr err = poBand->SetColorInterpretation(GCI_PaletteIndex);
 	if (err != CE_None) {
 		return false;
 	}
 	GDALColorTable *poCT = new GDALColorTable(GPI_RGB);
 	GDALColorEntry col;
-	for (size_t j=0; j< d.nrow(); j++) {
-	if (d.iv[3][j] == 0) { // maintain transparency in gtiff
+	for (size_t j=0; j< s.nrow(); j++) {
+		if (s.iv[4][j] == 0) { // maintain transparency in gtiff
 			col.c1 = 255;
 			col.c2 = 255;
 			col.c3 = 255;
 			col.c4 = 0;
 		} else {
-			col.c1 = (short)d.iv[0][j];
-			col.c2 = (short)d.iv[1][j];
-			col.c3 = (short)d.iv[2][j];
-			col.c4 = (short)d.iv[3][j];
+			col.c1 = (short)s.iv[1][j];
+			col.c2 = (short)s.iv[2][j];
+			col.c3 = (short)s.iv[3][j];
+			col.c4 = (short)s.iv[4][j];
 		}
 		poCT->SetColorEntry(j, &col);
 	}
@@ -181,7 +286,6 @@ void stat_options(int sstat, bool &compute_stats, bool &gdal_stats, bool &gdal_m
 
 bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 
-
 	std::string filename = opt.get_filename();
 	if (filename == "") {
 		setError("empty filename");
@@ -197,6 +301,19 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 		setError("cannot guess file type from filename");
 		return(false);
 	}
+    GDALDriver *poDriver;
+    poDriver = GetGDALDriverManager()->GetDriverByName(driver.c_str());
+    if(poDriver == NULL) {
+		setError("invalid driver");
+		return (false);
+	}
+    char **papszMetadata;
+    papszMetadata = poDriver->GetMetadata();
+    if (!CSLFetchBoolean( papszMetadata, GDAL_DCAP_RASTER, FALSE)) {
+		setError(driver + " is not a raster format");
+		return false;
+	}
+
 	std::string datatype = opt.get_datatype();
 	
 	bool writeRGB = (rgb && nlyr() == 3 && rgblyrs.size() == 3);
@@ -208,23 +325,34 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 		setError(errmsg);
 		return false;
 	}
-	
-	bool append = std::find(opt.gdal_options.begin(), opt.gdal_options.end(), "APPEND_SUBDATASET=YES") != opt.gdal_options.end();
-	if (append) {
-		if (!file_exists(filename)) {
-			setError("cannot append to a file that does not exist");
-			return(false);
-		} 
-	} else if (file_exists(filename) & (!opt.get_overwrite())) {
-		setError("file exists. You can use 'overwrite=TRUE' to overwrite it");
-		return(false);
+
+	std::string appstr = "APPEND_SUBDATASET=YES";
+	bool append = std::find(opt.gdal_options.begin(), opt.gdal_options.end(), appstr) != opt.gdal_options.end();
+	if (append & (!CSLFetchBoolean( papszMetadata, GDAL_DMD_SUBDATASETS, FALSE))) {
+		setError("cannot append datasets with this file format");
+		return false;
 	}
-	
+	if (append & opt.get_overwrite()) {
+		setError("append and overwrite at the same time");
+		return false;
+	}
+	if (file_exists(filename) & (!opt.get_overwrite()) & (!append)) {
+		setError("file exists. You can use 'overwrite=TRUE' to overwrite it");
+		return false;
+	}
+
 //	if (!can_write(filename, opt.get_overwrite(), errmsg)) {
 //		setError(errmsg);
 //		return(false);
 //	}
-	
+
+
+// what if append=true? 
+	std::string auxf = filename + ".aux.xml";
+	remove(auxf.c_str());
+	auxf = filename + ".aux.json";
+	remove(auxf.c_str());
+
 	std::vector<bool> hasCT = hasColors();
 	bool rat = isRat();
 	std::vector<bool> hasCats = hasCategories();
@@ -262,25 +390,16 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 	GIntBig diskAvailable = VSIGetDiskFreeSpace(dname.c_str());
 	if ((diskAvailable > -1) && (diskAvailable < diskNeeded)) {
 		setError("insufficient disk space (perhaps from temporary files?)");
-		return(false);		
+		return(false);
 	}
-
 
 	stat_options(opt.get_statistics(), compute_stats, gdal_stats, gdal_minmax, gdal_approx);
-
-    GDALDriver *poDriver;
-    poDriver = GetGDALDriverManager()->GetDriverByName(driver.c_str());
-    if(poDriver == NULL) {
-		setError("invalid driver");
-		return (false);
-	}
-
 	char **papszOptions = set_GDAL_options(driver, diskNeeded, writeRGB, opt.gdal_options);
 
 /*	if (driver == "GTiff") {
 		GDAL_tiff_options(diskNeeded > 4194304000, writeRGB, opt);
 	}
-	
+
 	for (size_t i=0; i<opt.gdal_options.size(); i++) {
 		std::vector<std::string> gopt = strsplit(opt.gdal_options[i], "=");
 		if (gopt.size() == 2) {
@@ -292,12 +411,6 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 	}
 */
 
-    char **papszMetadata;
-    papszMetadata = poDriver->GetMetadata();
-    if (!CSLFetchBoolean( papszMetadata, GDAL_DCAP_RASTER, FALSE)) {
-		setError(driver + " is not a raster format");
-		return false;
-	}
 	//bool isncdf = ((driver == "netCDF" && opt.get_ncdfcopy()));
 
 	GDALDataset *poDS;
@@ -310,7 +423,7 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 			poDriver = GetGDALDriverManager()->GetDriverByName("MEM");
 			poDS = poDriver->Create("", ncol(), nrow(), nlyr(), gdt, papszOptions);
 		} else {
-			std::string f = tempFile(opt.get_tempdir(), ".tif");
+			std::string f = tempFile(opt.get_tempdir(), opt.pid, ".tif");
 			copy_filename = f;
 			poDriver = GetGDALDriverManager()->GetDriverByName("GTiff");
 			poDS = poDriver->Create(f.c_str(), ncol(), nrow(), nlyr(), gdt, papszOptions);
@@ -329,7 +442,7 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 			setError("failed writing "+ driver + " file");
 		}
 		GDALClose( (GDALDatasetH) poDS );
-		return false;	
+		return false;
 	}
 
     #ifdef useRcpp
@@ -383,19 +496,12 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 			}
 		}
 		if (hasCats[i]) {
-			//bool catsdone = false;
-			//SpatCategories cats = getLayerCategories(i);
-			//if (cats.d.ncol() > 2) {
-			//	if (!setRat(poBand, cats.d)) {
-			//		catsdone = true;
-			//	}
-			//}
-			//if (!catsdone) {
-				std::vector<std::string> labs = getLabels(i);
-				if (!setCats(poBand, labs)) {
-					addWarning("could not write categories");
-				}
-			//}
+			SpatCategories cats = getLayerCategories(i);
+			std::vector<std::string> labs;
+			if (cats.d.ncol() == 2) {
+				labs = getLabels(i);
+				setBandCategories(poBand, cats.d, labs);
+			}
 		}
 
 		/*
@@ -446,6 +552,7 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 	SpatExtent extent = getExtent();
 	double adfGeoTransform[6] = { extent.xmin, rs[0], 0, extent.ymax, 0, -1 * rs[1] };
 	poDS->SetGeoTransform(adfGeoTransform);
+	
 	std::string crs = source[0].srs.wkt;
 	OGRSpatialReference oSRS;
 	OGRErr erro = oSRS.SetFromUserInput(&crs[0]);
@@ -459,8 +566,6 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 	poDS->SetProjection(pszSRS_WKT);
 	CPLFree(pszSRS_WKT);
 	// destroySRS(oSRS) ?
-	
-	source[0].gdalconnection = poDS;
 
 	source[0].resize(nlyr());
 	source[0].nlyrfile = nlyr();
@@ -474,6 +579,28 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 	source[0].filename = filename;
 	source[0].memory = false;
 
+	write_aux_json(filename);
+
+/*
+	if (append) {
+		GDALClose( (GDALDatasetH) poDS );
+		std::vector<std::string> ops;
+		poDS = openGDAL(filename, GDAL_OF_RASTER | GDAL_OF_UPDATE, ops);
+		std::vector<std::string> subds;
+		char **metadata = poDS->GetMetadata("SUBDATASETS");
+		if (metadata != NULL) {
+			for (size_t i=0; metadata[i] != NULL; i++) {
+				subds.push_back(metadata[i]);
+			}
+			std::vector<std::vector<std::string>> s = parse_metadata_sds(subds);
+			GDALClose( (GDALDatasetH) poDS );
+			filename = s[0].back();
+			poDS = openGDAL(filename, GDAL_OF_RASTER | GDAL_OF_UPDATE, ops);			
+		}
+	}
+*/
+	
+	source[0].gdalconnection = poDS;
 	return true;
 }
 
@@ -497,6 +624,7 @@ void tmp_min_max_na(std::vector<T> &out, const std::vector<double> &v, const dou
 
 
 bool SpatRaster::writeValuesGDAL(std::vector<double> &vals, size_t startrow, size_t nrows, size_t startcol, size_t ncols){
+
 
 	CPLErr err = CE_None;
 	double vmin, vmax;
@@ -523,7 +651,7 @@ bool SpatRaster::writeValuesGDAL(std::vector<double> &vals, size_t startrow, siz
 			if (!std::isnan(vmin)) {
 				if (std::isnan(source[0].range_min[i])) {
 					source[0].range_min[i] = vmin;
-					source[0].range_max[i] = vmax;		
+					source[0].range_max[i] = vmax;
 				} else {
 					source[0].range_min[i] = std::min(source[0].range_min[i], vmin);
 					source[0].range_max[i] = std::max(source[0].range_max[i], vmax);
@@ -531,6 +659,7 @@ bool SpatRaster::writeValuesGDAL(std::vector<double> &vals, size_t startrow, siz
 			}
 		}
 	}
+
 
 	if ((datatype == "FLT8S") || (datatype == "FLT4S")) {
 		err = source[0].gdalconnection->RasterIO(GF_Write, startcol, startrow, ncols, nrows, &vals[0], ncols, nrows, GDT_Float64, nl, NULL, 0, 0, 0, NULL );
@@ -546,7 +675,7 @@ bool SpatRaster::writeValuesGDAL(std::vector<double> &vals, size_t startrow, siz
 			std::vector<int32_t> vv;
 			tmp_min_max_na(vv, vals, na, (double)INT32_MIN, (double)INT32_MAX);
 			err = source[0].gdalconnection->RasterIO(GF_Write, startcol, startrow, ncols, nrows, &vv[0], ncols, nrows, GDT_Int32, nl, NULL, 0, 0, 0, NULL );
-		} else if (datatype == "INT2S") {				
+		} else if (datatype == "INT2S") {
 			//min_max_na(vals, na, (double)INT16_MIN, (double)INT16_MAX); 
 			//std::vector<int16_t> vv(vals.begin(), vals.end());
 			std::vector<int16_t> vv;
@@ -569,7 +698,10 @@ bool SpatRaster::writeValuesGDAL(std::vector<double> &vals, size_t startrow, siz
 			//std::vector<int8_t> vv(vals.begin(), vals.end());
 			std::vector<int8_t> vv;
 			tmp_min_max_na(vv, vals, na, 0, 255);
+			
 			err = source[0].gdalconnection->RasterIO(GF_Write, startcol, startrow, ncols, nrows, &vv[0], ncols, nrows, GDT_Byte, nl, NULL, 0, 0, 0, NULL );
+
+
 		} else {
 			setError("bad datatype");
 			GDALClose( source[0].gdalconnection );
@@ -589,6 +721,7 @@ bool SpatRaster::writeValuesGDAL(std::vector<double> &vals, size_t startrow, siz
 
 bool SpatRaster::writeStopGDAL() {
 
+
 	GDALRasterBand *poBand;
 	source[0].hasRange.resize(nlyr());
 	std::string datatype = source[0].datatype;
@@ -606,13 +739,13 @@ bool SpatRaster::writeStopGDAL() {
 					mn = adfMinMax[0];
 					mx = adfMinMax[1];
 				} else {
-					poBand->ComputeStatistics(gdal_approx, &mn, &mx, &av, &sd, NULL, NULL);				
+					poBand->ComputeStatistics(gdal_approx, &mn, &mx, &av, &sd, NULL, NULL);
 				}
 				poBand->SetStatistics(mn, mx, av, sd);
 			} else {
 				if (datatype.substr(0,3) == "INT") {
 					source[0].range_min[i] = trunc(source[0].range_min[i]); 
-					source[0].range_max[i] = trunc(source[0].range_max[i]); 		
+					source[0].range_max[i] = trunc(source[0].range_max[i]); 
 				}
 				poBand->SetStatistics(source[0].range_min[i], source[0].range_max[i], -9999., -9999.);
 			}
@@ -621,7 +754,7 @@ bool SpatRaster::writeStopGDAL() {
 			source[0].hasRange[i] = false;
 		}
 	}
-	
+
 	if (copy_driver != "") {
 		GDALDataset *newDS;
 		GDALDriver *poDriver;
@@ -635,7 +768,7 @@ bool SpatRaster::writeStopGDAL() {
 				copy_driver = "";
 				GDALClose( (GDALDatasetH) newDS );
 				GDALClose( (GDALDatasetH) source[0].gdalconnection );
-				return false;	
+				return false;
 			}
 			copy_driver = "";
 			GDALClose( (GDALDatasetH) newDS );
@@ -660,7 +793,7 @@ bool SpatRaster::writeStopGDAL() {
 				copy_filename = "";
 				GDALClose( (GDALDatasetH) oldDS );
 				GDALClose( (GDALDatasetH) newDS );
-				return false;	
+				return false;
 			}
 			copy_driver = "";
 			copy_filename = "";
@@ -672,6 +805,7 @@ bool SpatRaster::writeStopGDAL() {
 		GDALClose( (GDALDatasetH) source[0].gdalconnection );
 	}
 	source[0].hasValues = true;
+
 	return true;
 }
 

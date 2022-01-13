@@ -47,12 +47,12 @@ function(x, fun, ..., usenames=FALSE, cores=1, filename="", overwrite=FALSE, wop
 	doclust <- FALSE
 	if (inherits(cores, "cluster")) {
 		doclust <- TRUE
-		ncores <- length(cores)		
+		ncores <- length(cores)
 	} else if (cores > 1) {
 		doclust <- TRUE
 		ncores <- cores
 		cores <- parallel::makeCluster(cores)
-		on.exit(parallel::stopCluster(cores), add=TRUE)	
+		on.exit(parallel::stopCluster(cores), add=TRUE)
 	}
 
 	readStart(x)
@@ -146,7 +146,7 @@ function(x, fun, ..., recycle=FALSE, filename="", overwrite=FALSE, wopt=list()) 
 	v <- lapply(1:length(x), function(i) readValues(x[i], round(0.51*nrx), 1, 1, ncx, mat=TRUE))
 	test <- .lapp_test_stack(v, fun, recycle, ...)
 	if (test$nl < 1) error("lapp", "cannot use 'fun'")
-	out <- rast(x)
+	out <- rast(x[1])
 	nlyr(out) <- test$nl
 	if (length(test$names == test$nl)) {
 		if (is.null(wopt$names)) wopt$names <- test$names

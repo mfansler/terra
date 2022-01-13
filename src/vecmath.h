@@ -26,9 +26,10 @@
 #include <math.h>
 
 
-
 bool haveFun(std::string fun);
 std::function<double(std::vector<double>&, bool)> getFun(std::string fun);
+bool bany(const std::vector<bool>& v);
+bool ball(const std::vector<bool>& v);
 
 
 template <typename T>
@@ -125,14 +126,15 @@ T vmedian(std::vector<T>& v, bool narm) {
 	if (n == 0) {
 		return(NA<T>::value);
 	}
+	if (n == 1) {
+		return(vv[0]);
+	}
 	size_t n2 = n / 2;
 	std::nth_element(vv.begin(), vv.begin()+n2, vv.end());
-	T med = vv[n2];
-	if (n % 2 == 1) {
-		return med;
+	if (n % 2) {
+		return vv[n2];
 	} else {
-		std::nth_element(vv.begin(), vv.begin()+n2-1, vv.end());
-		return 0.5 * (med + vv[n2-1] );
+		return (vv[n2] + vv[n2-1]) / 2;
 	}
 }
 
@@ -166,7 +168,7 @@ T vsum(std::vector<T>& v, bool narm) {
 
 template <typename T>
 T vsum2(std::vector<T>& v, bool narm) {
-	T x = v[0];
+	T x = v[0] * v[0];
 	if (narm) {		
 		for (size_t i=1; i<v.size(); i++) {
 			if (is_NA(x)) {
@@ -360,7 +362,7 @@ T vmax(std::vector<T>& v, bool narm) {
 
 
 template <typename T>
-double vwhich(std::vector<T>& v, bool narm) {
+double vwhich(const std::vector<T>& v, bool narm) {
 	double out;
 	for (size_t i=0; i<v.size(); i++) {
 		if ((!is_NA(v[i])) && v[i] != 0) {
@@ -375,7 +377,7 @@ double vwhich(std::vector<T>& v, bool narm) {
 
 
 template <typename T>
-T vwhichmin(std::vector<T>& v, bool narm) {
+T vwhichmin(const std::vector<T>& v, bool narm) {
 	T x = v[0];
 	T out;
 	if (is_NA(x)) {
@@ -417,7 +419,7 @@ T vwhichmin(std::vector<T>& v, bool narm) {
 
 
 template <typename T>
-T vwhichmax(std::vector<T>& v, bool narm) {
+T vwhichmax(const std::vector<T>& v, bool narm) {
 
 	T x = v[0];
 	T out;
@@ -462,7 +464,7 @@ T vwhichmax(std::vector<T>& v, bool narm) {
 // problematic; should be ok for int and float but
 // won't work with bool values (nodata == 0)
 template <typename T>
-T vall(std::vector<T>& v, bool narm) {
+T vall(const std::vector<T>& v, bool narm) {
 	T x;
 	if (narm) {
 		x = 1;
@@ -490,8 +492,9 @@ T vall(std::vector<T>& v, bool narm) {
 }
 
 
+
 template <typename T>
-T vany(std::vector<T>& v, bool narm) {
+T vany(const std::vector<T>& v, bool narm) {
 	T x = 0;
 	bool hasnd = false;
 	for (size_t i=0; i<v.size(); i++) {
@@ -689,6 +692,18 @@ void cummin(std::vector<T>& v, bool narm) {
     }
 }
 
+/*
+#include <numeric>
+
+template <typename T>
+std::vector<size_t> order(const std::vector<T> &v) {
+	std::vector<size_t> idx(v.size());
+	std::iota(idx.begin(), idx.end(), 0);
+	stable_sort(idx.begin(), idx.end(),
+		[&v](size_t i, size_t j) {return v[i] < v[j];});
+	return idx;
+}
+*/
 
 #endif
 

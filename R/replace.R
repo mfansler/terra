@@ -81,7 +81,6 @@ setReplaceMethod("[", c("SpatRaster", "missing", "missing"),
 	function(x, i, j, value) {
 
 		nl <- nlyr(x)
-		x <- rast(x)
 
 		if (is.matrix(value)) {
 			if (all(dim(value) == c(ncell(x), nl))) {
@@ -113,25 +112,24 @@ setReplaceMethod("[", c("SpatRaster","numeric", "missing"),
 			i <- cellFromRowColCombine(x, i, 1:ncol(x))
 		}
 
+		bylyr = FALSE
 		if (!is.null(dim(value))) {
 			#x@ptr <- x@ptr$replaceValues(i, value, ncol(value))
 			stopifnot(ncol(value) == nlyr(x))
-		} else if (length(i) != length(value)) {
-			# recycling with warning
-			v <- value
-			value <- i
-			value[] <- v
-		}
-		if (hasValues(x)) {
-			v <- values(x)
+			bylyr = TRUE
+			if (inherits(value, "data.frame")) {
+				value <- as.matrix(value)
+			}
+			value <- as.vector(value)
+		} 
+
+		if (!x@ptr$replaceCellValues(i-1, value, bylyr, spatOptions())) {
+			messages(x)
 		} else {
-			v <- matrix(NA, nrow=ncell(x), ncol=nlyr(x))
+			x
 		}
-		v[i,] <- value
-		setValues(x, v, TRUE, TRUE)
 	}
 )
-
 
 
 
@@ -164,7 +162,7 @@ setReplaceMethod("[", c("SpatRaster", "logical", "missing"),
 )
 
 
-setReplaceMethod("[", c("SpatRaster", "SpatRaster", "missing"),
+setReplaceMethod("[", c("SpatRaster", "SpatRaster", "ANY"),
 	function(x, i, j, value) {
 		theCall <- sys.call(-1)
 		narg <- length(theCall)-length(match.call(call=sys.call(-1)))
@@ -174,25 +172,20 @@ setReplaceMethod("[", c("SpatRaster", "SpatRaster", "missing"),
 		if (inherits(value, "SpatRaster")) {
 			x <- mask(x, i, maskvalues=TRUE)
 			cover(x, value)
-		} else if (inherits(value, "data.frame")) {
-			if (ncol(value) > 1) {
+		} else {
+			if (NCOL(value) > 1) {
 				error(" [", "cannot use a data.frame with multiple columns")
 			}
 			value <- unlist(value)
-			v <- values(x)
-			v[as.logical(values(i))] <- value
-			values(x) <- v
-			x		
-		} else {
-			if (length(value) > 1) {
-				v <- values(x)
-				v[as.logical(values(i))] <- value
-				values(x) <- v
-				x
-				#warn(" [,SpatRaster,SpatRaster", "the first replacement value is used for all cells")
-			} else {
+			if (length(value) == 1) {
 				mask(x, i, maskvalues=TRUE, updatevalue=value[1])
-			}
+			} else {
+				i <- as.logical(values(i))
+				i[is.na(i)] <- TRUE
+				i <- which(i)
+				x[i] <- value
+				x
+			} 
 		}
 	}
 )

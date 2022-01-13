@@ -2,7 +2,7 @@
 get_groups <- function(x, y) {
 	j <- 1
 	outx <- outy <- list()
-	
+
 	for (i in 1:length(x)) {
 		if (is.na(x[i])) next
 		gx <- na.omit(x[x[i] == x] )
@@ -11,16 +11,16 @@ get_groups <- function(x, y) {
 		while(TRUE) {
 			if (nx == length(gx)) break
 			ny <- length(gy)
-			nx <- length(gx)		
+			nx <- length(gx)
 			if ((ny == length(y) || (nx == length(x)))) break
 			ux <- unique( x[y %in% gy] )
 			gy <- y[x %in% ux]
 			gx <- x[y %in% gy]
 		}
 		x[x %in% gx] <- NA
-		y[y %in% gy] <- NA	
+		y[y %in% gy] <- NA
 		outx[[j]] <- gx
-		outy[[j]] <- gy		
+		outy[[j]] <- gy
 		j <- j + 1
 	}
 	list(outx, outy)
@@ -43,6 +43,7 @@ connect_dateline <- function(x) {
 
 	xx <- shift(x[west,], 360, 0)
 	yy <- x[east, ]
+	#zz <- x[-c(east, west), ]
 	px <- py <- c()
 	hasDF <- ncol(x) > 0
 	for (i in 1:nrow(xx)) {
@@ -68,7 +69,7 @@ connect_dateline <- function(x) {
 	groups <- get_groups(px, py)
 	xg <- groups[[1]]
 	yg <- groups[[2]]
-	vvv <- list()	
+	vvv <- list()
 	for (i in 1:length(xg)) {
 		vvv[[i]] <- aggregate(x[unique(c(xg[[i]], yg[[i]])), ], dissolve=TRUE)
 	}
@@ -76,4 +77,5 @@ connect_dateline <- function(x) {
 	out <- c(vvv, out)
 	do.call(rbind, out)
 }
+
 

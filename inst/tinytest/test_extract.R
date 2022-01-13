@@ -1,14 +1,14 @@
 
-#f <- system.file("ex/lux.shp", package="terra")
-#y <- vect(f)
-#y <- y[1:2,]
-#x <- rast(y, res=.2)
-#values(x) <- 1:ncell(x)
-#expect_equal(cells(x, y), cbind(id=c(1,2), cell=c(1,5)))
-#expect_equal(as.vector(cells(x, y, weights=TRUE)), c(1, 1, 1, 2, 2, 2, 1, 2, 5, 4, 5, 6, 0.55, 0.41, 0.04, 0.08, 0.51, 0.11))
+f <- system.file("ex/lux.shp", package="terra")
+y <- vect(f)
+y <- y[1:2,]
+x <- rast(y, res=.2)
+values(x) <- 1:ncell(x)
+expect_equal(cells(x, y), cbind(ID=c(1,2), cell=c(1,4)))
+expect_equal(as.vector(cells(x, y, weights=TRUE)), c(1, 1, 1, 2, 2, 2, 1, 2, 4, 2, 3, 4, 0.68, 0.55, 0.1, 0.01, 0.13, 0.67))
 
-#expect_equivalent(unlist(extract(x, y)), c(1,2,1,5))
-#expect_equivalent(unlist(extract(x, y, cells=TRUE, weights=TRUE)), c(1, 1, 1, 2, 2, 2, 1, 2, 5, 4, 5, 6, 1, 2, 5, 4, 5, 6, 0.55, 0.41, 0.04, 0.08, 0.51, 0.11))
+expect_equivalent(unlist(extract(x, y)), c(1,2,1,4))
+expect_equivalent(unlist(extract(x, y, cells=TRUE, weights=TRUE)), c(1, 1, 1, 2, 2, 2, 1, 2, 4, 2, 3, 4, 1, 2, 4, 2, 3, 4, 0.68, 0.55, 0.1, 0.01, 0.13, 0.67))
 
 
 r <- rast(nrows=5, ncols=5, xmin=0, xmax=1, ymin=0, ymax=1, names="test")
@@ -46,7 +46,7 @@ expect_equal(e[,1] , c(378.00, 270.75, 197.25))
 
 e <- extract(r, xy, method="bilinear", cells=T, xy=T)
 expect_equal(unlist(e, use.names=FALSE), c(378.00, 270.75, 197.25,8173.00,8016.00,6041.00,178900.00, 179000.00, 180000.00, 329900.00, 330000.00, 331000.00))
-	
+
  
 r <- rast(nrows = 10, ncols = 10, nlyrs = 1, vals = 1:100, names = "temp")
 x1 <- rbind(c(-145,-10), c(-145,-5), c(-140, -5), c(-140,-10))

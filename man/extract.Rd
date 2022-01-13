@@ -55,7 +55,7 @@ When argument \code{y} is a \code{SpatVector}, and \code{list=FALSE}, the first 
 \item{weights}{logical. If \code{TRUE} and \code{y} has polygons, the approximate fraction of each cell that is covered is returned as well, for example to compute a weighted mean}
 \item{exact}{logical. If \code{TRUE} and \code{y} has polygons, the exact fraction of each cell that is covered is returned as well, for example to compute a weighted mean}
 \item{touches}{logical. If \code{TRUE}, values for all cells touched by lines or polygons are extracted, not just those on the line render path, or whose center point is within the polygon. Not relevant for points; and always considered \code{TRUE} when \code{weights=TRUE} or \code{exact=TRUE}}
-\item{layer}{character or numeric to select the layer to exctract from for each geometry. If \code{layer} is a character it can be a name in \code{y} or a vector of layer names. If it is numeric, it must be integer values between \code{1} and \code{nlyr(x)}}
+\item{layer}{character or numeric to select the layer to extract from for each geometry. If \code{layer} is a character it can be a name in \code{y} or a vector of layer names. If it is numeric, it must be integer values between \code{1} and \code{nlyr(x)}}
 }
 
 \value{matrix, list, or data.frame}
@@ -109,25 +109,24 @@ values(z) <- 1:ncell(z)
 
 rf <- system.file("ex/elev.tif", package="terra")
 x <- rast(rf)
-#extract(x, v, mean, na.rm=TRUE)
+extract(x, v, mean, na.rm=TRUE)
 
-#e <- extract(z, v)
-#e
-#tapply(e[,2], e[,1], mean, na.rm=TRUE)
+e <- extract(z, v)
+e
+tapply(e[,2], e[,1], mean, na.rm=TRUE)
 
-#ee <- extract(z, v, list=TRUE)
-#rapply(ee, mean)
+ee <- extract(z, v, list=TRUE)
+rapply(ee, mean)
 
-#x <- c(z, z*2, z/3)
-#names(x) <- letters[1:3]
+x <- c(z, z*2, z/3)
+names(x) <- letters[1:3]
 
+e <- extract(x, v)
+de <- data.frame(e)
+aggregate(de[,2:4], de[,1,drop=FALSE], mean)
 
-#e <- extract(x, v)
-#de <- data.frame(e)
-#aggregate(de[,2:4], de[,1,drop=FALSE], mean)
-
-#ee <- extract(x, v, list=TRUE)
-#matrix(rapply(ee, mean), ncol=nlyr(x), byrow=TRUE)
+ee <- extract(x, v, list=TRUE)
+matrix(rapply(ee, mean), ncol=nlyr(x), byrow=TRUE)
 }
 
 \keyword{methods}

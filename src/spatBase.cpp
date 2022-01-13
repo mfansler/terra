@@ -26,9 +26,10 @@ SpatOptions::SpatOptions() {}
 SpatOptions::SpatOptions(const SpatOptions &opt) {
 	tempdir = opt.tempdir;
 	memfrac = opt.memfrac;
+	memmax = opt.memmax;
 	todisk = opt.todisk;
 	tolerance = opt.tolerance;
-	
+
 	def_datatype = opt.def_datatype;
 	def_filetype = opt.def_filetype; 
 	filenames = {""};
@@ -49,11 +50,11 @@ SpatOptions::SpatOptions(const SpatOptions &opt) {
 	datatype_set = opt.datatype_set;
 	datatype = opt.datatype;
 	filetype = opt.filetype;
+	pid = opt.pid + 1000;
 }
 
 SpatOptions SpatOptions::deepCopy() {
-	SpatOptions opt = *this;
-	return opt;
+	return *this;
 }
 
 
@@ -165,8 +166,18 @@ double SpatOptions::get_memfrac() { return memfrac; }
 
 void SpatOptions::set_memfrac(double d) {
 	// allowing very high values for testing purposes
-	if ((d >= 0.1) && (d <= 100)) { 
+	if ((d >= 0) && (d <= 100)) { 
 		memfrac = d;
+	} 
+}
+
+double SpatOptions::get_memmax() { return memmax; }
+
+void SpatOptions::set_memmax(double d) {
+	if (std::isnan(d) || (d <= 0)) {
+		memmax = -1;
+	} else {
+		memmax = d * 1024 * 1024 * 1024 / 8;
 	} 
 }
 
@@ -371,7 +382,7 @@ SpatExtent SpatRaster::align(SpatExtent e, std::string snap) {
 		if (ymn > ymx) std::swap(ymn, ymx);
 	}
 
-		
+
 	if (xmn == xmx) {
 		if (xmn < e.xmin) {
 			xmx = xmx + res[0];

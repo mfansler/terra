@@ -191,24 +191,35 @@ setMethod("Compare", signature(e1="numeric", e2="SpatRaster"),
 )
 
 
+getFactTable <- function(x, table, sender="%in%") {
+	if (!is.factor(x)) {
+		error(sender, "Can only match character values if x is categorical")
+	}
+	if (nlyr(x) != 1) {
+		error(sender, "matching with character values is only supported for single layer SpatRaster")
+	}
+	d <- cats(x)[[1]]
+	levs <- levels(x)[[1]]
+	m <- na.omit(match(table, levs))
+	if (length(m) == 0) {
+		return(as.logical(x*0))
+	}
+	d[m,1]
+}
+
 setMethod("Compare", signature(e1="SpatRaster", e2="character"),
     function(e1, e2){ 
 		oper <- as.vector(.Generic)[1]
-		if (!is.factor(e1)) {
-			error(oper, "SpatRaster is not categorical")		
-		}
+		e2 <- getCatIDs(e1, e2, "==")
 		if (oper != "==") {
 			error(oper, "only '==' is supported with categorical comparisons")
 		}
-		if (nlyr(e1) != 1) {
-			error(oper, "categorical comparisons only supported for single layer SpatRaster")
+		if (length(e2) == 0) {
+			return(as.logical(e1*0))
 		}
 		if (length(e2) != 1) {
 			error(oper, "comparisons only supported for single values (see %in% and match)")
 		}
-		
-		e2 <- match(e2, levels(e1)[[1]])
-		if (is.na(e2)) return (e1 * 0)
 		opt <- spatOptions()
 		e1@ptr <- e1@ptr$arith_numb(e2, oper, TRUE, opt)
 		messages(e1, oper)
@@ -275,22 +286,59 @@ setMethod("!", signature(x="SpatRaster"),
 
 setMethod("isTRUE", signature(x="SpatRaster"),
 	function(x) {
-		x <- x == 1
-		classify(x, cbind(NA, 0))
+		opt <- spatOptions()
+		x@ptr <- x@ptr$is_true(opt)
+		messages(x, "isTRUE")
 	}
 )
 
 
 setMethod("isFALSE", signature(x="SpatRaster"),
 	function(x) {
-		x <- x != 1
-		classify(x, cbind(NA, 0))
+		opt <- spatOptions()
+		x@ptr <- x@ptr$is_false(opt)
+		messages(x, "isFALSE")
 	}
 )
 
 setMethod("as.logical", signature(x="SpatRaster"),
 	function(x) {
 		isTRUE(x)
+	}
+)
+
+
+setMethod("is.bool", signature(x="SpatRaster"), 
+	function(x) {
+		x@ptr$valueType == 3
+	}
+)
+setMethod("is.int", signature(x="SpatRaster"), 
+	function(x) {
+		x@ptr$valueType == 1
+	}
+)
+
+
+setMethod("as.bool", signature(x="SpatRaster"), 
+	function(x, filename="", ...) {
+		opt <- spatOptions(filename, ...)
+		x@ptr <- x@ptr$is_true(opt)
+		messages(x, "as.boolean")
+	}
+)
+
+setMethod("as.int", signature(x="SpatRaster"), 
+	function(x, filename="", ...) {
+		opt <- spatOptions(filename, ...)
+		x@ptr <- x@ptr$math("trunc", opt)
+		messages(x, "as.int")
+	}
+)
+
+setMethod("as.integer", signature(x="SpatRaster"), 
+	function(x, filename="", ...) {
+		as.int(x, filename, x)
 	}
 )
 
@@ -331,18 +379,19 @@ setMethod("is.infinite", signature(x="SpatRaster"),
 
 
 .summarize <- function(x, ..., fun, na.rm=FALSE, filename="", overwrite=FALSE, wopt=list()) {
+
 	dots <- list(...)
 	add <- NULL
 	cls <- FALSE
 	if (length(dots) > 0) {
 		cls <- sapply(dots, function(i) inherits(i, "SpatRaster"))
 		if (!all(cls)) {
-			dots <- dots[!cls]
-			if (!is.null(names(dots))) {
+			add <- dots[!cls]
+			if (!is.null(names(add))) {
 				error(fun, "additional arguments cannot be names (except for `filename`, `overwrite` and `wopt`)")
 			}
-			i <- sapply(dots, function(x) class(x) %in% c("logical", "integer", "numeric"))
-			add <- unlist(dots[i], use.names = FALSE)
+			i <- sapply(add, function(x) class(x) %in% c("logical", "integer", "numeric"))
+			add <- unlist(add[i], use.names = FALSE)
 			if (any(!i)) {
 				error(fun, "invalid argument(s)")
 			}
@@ -441,13 +490,17 @@ setMethod("mean", signature(x="SpatRaster"),
 setMethod("mean", signature(x="SpatVector"),
 	function(x, ..., trim=NA, na.rm=FALSE){
 		if (!is.na(trim)) {	warn("mean", "argument 'trim' is ignored") }
+		if (!is.null(list(...))) {	warn("mean", "additional arguments are ignored") }
 		colMeans(values(x))
 	}
 )
 
 setMethod("median", signature(x="SpatRaster"),
-	function(x, na.rm=FALSE){
-		.summarize(x, fun="median", na.rm=na.rm)
+	function(x, na.rm=FALSE, ...){
+		if (!is.logical(na.rm)) {
+			error("median", "na.rm (the second argument) must be a logical value")
+		}
+		.summarize(x, ..., fun="median", na.rm=na.rm)
 	}
 )
 
@@ -471,7 +524,7 @@ setMethod("Compare", signature(e1="SpatExtent", e2="SpatExtent"),
 setMethod("stdev", signature(x="SpatRaster"),
 	function(x, ..., pop=TRUE, na.rm=FALSE){
 		if (pop) {
-			.summarize(x, ..., fun="std", na.rm=na.rm)			
+			.summarize(x, ..., fun="std", na.rm=na.rm)
 		} else {
 			.summarize(x, ..., fun="sd", na.rm=na.rm)
 		}

@@ -5,6 +5,37 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+bool write_text(std::string filename, std::vector<std::string> s) {
+	std::ofstream f;
+	f.open(filename);
+	if (f.is_open()) {
+		for (size_t i=0; i<s.size(); i++) {
+			f << s[i] << std::endl;
+		}
+		f.close();
+		return true;
+	} else {
+		return false;
+	}
+}
+
+
+std::vector<std::string> read_text(std::string filename) {
+	std::vector<std::string> s;
+	std::string line;
+	std::ifstream f(filename);
+	if (f.is_open())  {
+		while (getline(f, line)) {
+			if (line.empty()) {
+				s.push_back("");
+			} else {
+				s.push_back(line);
+			}
+		}
+		f.close();
+	} 
+	return s;
+}
 
 
 std::string getFileExt(const std::string& s) {
@@ -124,7 +155,7 @@ bool can_write(std::string filename, bool overwrite, std::string &msg) {
 
 
 
-std::string tempFile(std::string tmpdir, std::string ext) {
+std::string tempFile(std::string tmpdir, unsigned pid, std::string ext) {
     std::vector<char> characters = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F','G','H','I','J','K',
     'L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z','a','b','c','d','e','f','g','h','i','j','k','l','m',
     'n','o','p','q','r','s','t','u','v','w','x','y','z' };
@@ -137,7 +168,7 @@ std::string tempFile(std::string tmpdir, std::string ext) {
 	};
     std::string filename(15, 0);
     std::generate_n(filename.begin(), 15, draw);
-	filename = tmpdir + "/spat_" + filename + ext;
+	filename = tmpdir + "/spat_" + filename + "_" + std::to_string(pid) + ext;
 	return filename;
 }
 

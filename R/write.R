@@ -28,7 +28,7 @@ setMethod("writeStop", signature(x="SpatRaster"),
 	function(x) {
 		success <- x@ptr$writeStop()
 		messages(x, "writeStop")
-		f <- sources(x)$source
+		f <- sources(x)
 		if (f != "") {
 			x <- rast(f)
 		}
@@ -38,12 +38,7 @@ setMethod("writeStop", signature(x="SpatRaster"),
 
 setMethod("writeValues", signature(x="SpatRaster", v="vector"), 
 	function(x, v, start, nrows) {
-		#wstart <- start[1]-1
-		#nrows <- start[2]
-		#if (is.na(nrows)) {
-		#	nrows <- length(v) / (ncol(x) * nlyr(x))
-		#}
-		success <- x@ptr$writeValues(v, start-1, nrows, 0, ncol(x))
+		success <- x@ptr$writeValues(v, start-1, nrows)
 		messages(x, "writeValues")
 		invisible(success)
 	}
@@ -95,11 +90,11 @@ function(x, filename, filetype=NULL, layer=NULL, overwrite=FALSE, options="ENCOD
 		error("writeVector", "provide a filename")
 	}
 	if (is.null(filetype)) {
-		filetype <- get_filetype(filename)	
+		filetype <- get_filetype(filename)
 	}
 	if (is.null(layer)) layer <- tools::file_path_sans_ext(basename(filename))
 	if (is.null(options)) { options <- ""[0] }
-	
+
 	if (filetype == "ESRI Shapefile") {
 		nms <- names(x)
 		i <- nchar(nms) > 10

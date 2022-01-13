@@ -18,7 +18,11 @@ setMethod("distance", signature(x="SpatRaster", y="missing"),
 	function(x, y, grid=FALSE, filename="", ...) {
 		opt <- spatOptions(filename, ...)
 		if (grid) {
-			x@ptr <- x@ptr$gridDistance(opt)
+			if (is.lonlat(x)) {
+				return(gridDistance(x, filename=filename, ...))
+			} else {
+				x@ptr <- x@ptr$gridDistance(opt)
+			}
 		} else {
 			x@ptr <- x@ptr$rastDistance(opt)
 		}
@@ -27,12 +31,11 @@ setMethod("distance", signature(x="SpatRaster", y="missing"),
 )
 
 
-
 setMethod("distance", signature(x="SpatRaster", y="SpatVector"), 
 	function(x, y, filename="", ...) {
 		opt <- spatOptions(filename, ...)
-		if (is.lonlat(x)) {
-			x@ptr <- x@ptr$vectDistanceRasterize(y@ptr, TRUE, opt)		
+		if (is.lonlat(x, perhaps=TRUE)) {
+			x@ptr <- x@ptr$vectDisdirRasterize(y@ptr, TRUE, TRUE, FALSE, FALSE, opt)
 		} else {
 			x@ptr <- x@ptr$vectDistanceDirect(y@ptr, opt)
 		} 
@@ -117,12 +120,24 @@ setMethod("distance", signature(x="matrix", y="matrix"),
 )
 
 
-setMethod("distance", signature(x="matrix", y="ANY"), 
-	function(x, y, lonlat, sequential=FALSE) {
-		crs <- ifelse(lonlat, "+proj=longlat +datum=WGS84", 
+setMethod("distance", signature(x="matrix", y="missing"), 
+	function(x, y, lonlat=NULL, sequential=FALSE) {
+		if (is.null(lonlat)) {
+			error("distance", "lonlat should be TRUE or FALSE")
+		}
+		crs <- ifelse(isTRUE(lonlat), "+proj=longlat +datum=WGS84", 
 							  "+proj=utm +zone=1 +datum=WGS84")
 		x <- vect(x, crs=crs)
-		distance(x, sequential)
+		distance(x, sequential=sequential)
+	}
+)
+
+
+setMethod("direction", signature(x="SpatRaster"), 
+	function(x, from=FALSE, degrees=FALSE, filename="", ...) {
+		opt <- spatOptions(filename, ...)
+		x@ptr <- x@ptr$rastDirection(from[1], degrees[1], opt)
+		messages(x, "direction")
 	}
 )
 

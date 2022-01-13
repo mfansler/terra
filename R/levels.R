@@ -38,7 +38,7 @@ setMethod("levels<-", signature(x="SpatRaster"),
 				setCats(x, i, value[[i]])
 			}
 		} else {
-			setCats(x, 1, value, 2)		
+			setCats(x, 1, value, 2)
 		}
 		x
 	}
@@ -75,13 +75,13 @@ setMethod ("setCats" , "SpatRaster",
 
 
 		if (inherits(value, "list")) {
-			value <- value[[1]]		
+			value <- value[[1]]
 		}
 		setname <- FALSE
 		vat <- FALSE
 		if (!is.data.frame(value)) {
 			if (is.vector(value) || is.factor(value)) {
-				if (length(value == 1) && value[1] == "") {
+				if ((length(value) == 1) && value[1] == "") {
 					return(invisible(""))
 				}
 				value <- data.frame(ID=0:(length(value)-1), category=value)
@@ -111,8 +111,8 @@ setMethod ("setCats" , "SpatRaster",
 		if ((maxv < 256) && (minv >=0)) {
 			v <- data.frame(ID=0:maxv)
 			value <- merge(v, value, by=1, all.x=TRUE)
-		}	
-		
+		}
+
 		index <- max(1, min(ncol(value), index))
 #		if (is.data.frame(value)) {
 		if (setname) {
@@ -157,10 +157,10 @@ setMethod("activeCat<-" , "SpatRaster",
 			layer <- layer[1]
 		}
 		if ((layer < 1) | (layer > nlyr(x))) {
-			error("activeCat", "invalid layer")		
+			error("activeCat", "invalid layer")
 		}
 		if (!is.factor(x)[layer]) {
-			error("activeCat", "layer is not categorical")				
+			error("activeCat", "layer is not categorical")
 		}
 		if (is.character(value)) {
 			g <- cats(x)[[layer]]
@@ -178,16 +178,15 @@ setMethod("activeCat<-" , "SpatRaster",
 
 setMethod("cats" , "SpatRaster", 
 	function(x, layer) {
+		if (!missing(layer)) {
+			x <- x[[layer]]
+		}
 		x <- x@ptr$getCategories()
 		x <- lapply(x, function(i) {
-			if (is.null(i)) return( NULL)
+			if (i$df$nrow == 0) return( NULL)
 			.getSpatDF(i$df)
 		})
-		if (!missing(layer)) {
-			x[[layer]]
-		} else {
-			x
-		}
+		x
 	}
 )
 
@@ -205,7 +204,7 @@ active_cats <- function(x, layer) {
 		a <- activeCat(x, i)
 		r[, c(1, a+1)]
 	})
-	
+
 	if (!missing(layer)) {
 		x[[layer]]
 	} else {
@@ -240,7 +239,7 @@ setMethod ("as.numeric", "SpatRaster",
 	}
 )
 
-	
+
 
 catLayer <- function(x, index, ...) {
 		stopifnot(nlyr(x) == 1)
@@ -255,7 +254,7 @@ catLayer <- function(x, index, ...) {
 		}
 		from <- g[,1]
 		toc <- g[,index]
-		
+
 		addFact <- FALSE
 		if (!is.numeric(toc)) {
 			addFact <- TRUE
@@ -275,8 +274,8 @@ catLayer <- function(x, index, ...) {
 		x
 }
 
-	
-	
+
+
 setMethod("catalyze", "SpatRaster", 
 	function(x, filename="", ...) {
 		g <- cats(x)

@@ -17,7 +17,7 @@ is.proj <- function(crs) {
 		d <- gsub("datum=", "", d)
 		if (!(d %in% c("wgs84", "nad83", "nad27"))) {
 			warn("crs<-", "Only the WGS84, NAD83 and NAD27 datums can be used with a PROJ.4 string. Use WKT2, authority:code, or +towgs84= instead")
-		}		
+		}
 	}
 	#d <- grep("towgs84=", x, value=TRUE)
 	#if (length(d) > 0) {  
@@ -33,14 +33,14 @@ is.proj <- function(crs) {
 .name_or_proj4 <- function(x) {
 	d <- .srs_describe(x@ptr$get_crs("wkt"))
 	r <- x@ptr$get_crs("proj4")
-	if (!(d$name %in% c("unknown", "unnamed"))) {
+	if (!(d$name %in% c(NA, "unknown", "unnamed"))) {
 		if (substr(r, 1, 13) == "+proj=longlat") {
 			r <- paste("lon/lat", d$name)
 		} else {
 			r <- d$name
 		}
-		if (!is.na(d$EPSG)) {
-			r <- paste0(r, " (EPSG:", d$EPSG, ")")
+		if (!is.na(d$code)) {
+			r <- paste0(r, " (", d$authority, ":", d$code, ")")
 		} 
 	} 
 	r
@@ -50,7 +50,7 @@ is.proj <- function(crs) {
 
 .srs_describe <- function(srs) {
 	info <- .SRSinfo(srs)
-	names(info) <- c("name", "EPSG", "area", "extent")
+	names(info) <- c("name", "authority", "code", "area", "extent")
 	d <- data.frame(t(info), stringsAsFactors=FALSE)
 	d$area <- gsub("\\.$", "", d$area)
 	d[d == ""] <- NA
@@ -68,11 +68,11 @@ is.proj <- function(crs) {
 	if (describe) {
 		d <- .srs_describe(x@ptr$get_crs("wkt"))
 		if (proj) {
-			d$proj <- x@ptr$get_crs("proj4")		
+			d$proj <- x@ptr$get_crs("proj4")
 		}
 		d
 	} else if (proj) {
-		x@ptr$get_crs("proj4")		
+		x@ptr$get_crs("proj4")
 	} else {
 		r <- x@ptr$get_crs("wkt")
 		if (parse) {
@@ -105,7 +105,7 @@ setMethod("crs", signature("SpatRasterDataset"),
 	if (inherits(x, "SpatVector") | inherits(x, "SpatRaster")) {
 		x <- crs(x)
 	}
-	if (is.na(x)) {
+	if (is.null(x) || is.na(x)) {
 		x <- ""
 	} else if (inherits(x, "CRS")) {
 		if (warn) warn("crs", "expected a character string, not a CRS object")
@@ -180,26 +180,31 @@ setMethod("is.lonlat", signature("SpatRaster"),
 			if (ok && warn) {
 				warn("is.lonlat", "assuming lon/lat crs")
 			}
-			return(ok)
 		} else {
 			ok <- x@ptr$isLonLat()
 			if (ok && global) {
 				ok <- x@ptr$isGlobalLonLat()
 			}
-			return(ok)
+			if ((!ok) && (crs(x) == "")) {
+				ok <- NA
+			}
 		}
+		ok
 	}
 )
 
 
 setMethod("is.lonlat", signature("SpatVector"), 
 	function(x, perhaps=FALSE, warn=TRUE) {
-		ok <- x@ptr$isLonLat()
-		if (ok) return(ok)
 		if (perhaps) {
 			ok <- x@ptr$couldBeLonLat()
 			if (ok && warn) {
 				if (crs(x) == "") warn("is.lonlat", "assuming lon/lat crs")
+			}
+		} else {
+			ok <- x@ptr$isLonLat()
+			if ((!ok) && (crs(x) == "")) {
+				ok <- NA
 			}
 		}
 		ok

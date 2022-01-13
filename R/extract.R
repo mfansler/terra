@@ -27,7 +27,7 @@ ext_from_rc <- function(x, r1, r2, c1, c2){
 		r1 <- r2
 		r2 <- tmp
 	}
-		
+
 	xn <- xFromCol(x, c1) - 0.5 * r[1]
 	xx <- xFromCol(x, c2) + 0.5 * r[1]
 	yx <- yFromRow(x, r1) + 0.5 * r[2]
@@ -37,32 +37,6 @@ ext_from_rc <- function(x, r1, r2, c1, c2){
 
 
 
-.makeDataFrame <- function(x, v, factors=TRUE) {
-	v <- data.frame(v, check.names = FALSE)
-	if (factors) {
-		ff <- is.factor(x)
-		if (any(ff)) {
-			ff <- which(ff)
-			#levs <- levels(x)
-			cgs <- cats(x)
-			for (f in ff) {
-				#lvs <- levs[[f]]
-				cg <- cgs[[f]]
-				i <- match(v[,f], cg[,1])
-				act <- activeCat(x, f) + 1
-				#v[[f]] = factor(v[[f]], levels=(1:length(lvs))-1)
-				#levels(v[[f]]) = levs[[f]]
-				
-				if (!inherits(cg[[act]], "numeric")) {
-					v[[f]] <- factor(cg[i, act], levels=unique(cg[[act]]))
-				} else {
-					v[[f]] <- cg[i, act]				
-				}
-			}
-		}
-	}
-	v
-}
 
 setlabs <- function(x, labs) {
 	x[ (x<1) | (x>length(labs))] <- NA
@@ -120,6 +94,90 @@ wmax <- function(p, na.rm=FALSE) {
 			#}
 		#}
 
+
+
+extractCells <- function(x, y, method="simple", list=FALSE, factors=TRUE, cells=FALSE, xy=FALSE, layer=NULL) {
+	
+	method <- match.arg(tolower(method), c("simple", "bilinear"))
+	
+	nl <- nlyr(x)
+	useLyr <- FALSE
+	if (!is.null(layer) && nl > 1) {
+		if (any(is.na(layer))) {error("extract", "argument 'layer' cannot have NAs")}
+		stopifnot(length(layer) == length(y))
+		if (is.numeric(layer)) {
+			layer <- round(layer)
+			stopifnot(min(layer) > 0 & max(layer) <= nlyr(x))
+		} else {
+			layer <- match(layer, names(x))
+			if (any(is.na(layer))) error("extract", "names in argument 'layer' do not match names(x)")
+		}
+		useLyr <- TRUE
+	}
+	cn <- names(x)
+	opt <- spatOptions()
+	if ((method == "bilinear") && (NCOL(y) > 1)) {
+		e <- x@ptr$bilinearValues(y[,1], y[,2])		
+	} else {
+		if (NCOL(y) == 2) {
+			y <- cellFromXY(x, y) 
+		}
+		e <- x@ptr$extractCell(y-1)
+	}
+	
+	if (list) {
+		messages(x, "extract")
+		return(e)
+	}
+	e <- do.call(cbind, e)
+	cn <- names(x)
+	nc <- nl
+	if (cells) {
+		cn <- c(cn, "cell")
+		nc <- nc + 1
+		if (NCOL(y) == 2) {
+			e <- cbind(e, cellFromXY(x, y))
+		} else {
+			e <- cbind(e, y)
+		}
+	}
+	if (xy) {
+		cn <- c(cn, "x", "y")
+		nc <- nc + 2
+		if (NCOL(y) == 1) {
+			y <- xyFromCell(x, y)
+		}
+		e <- cbind(e, y)
+	}
+	colnames(e) <- cn
+
+	if (factors) {
+		if (method != "simple") {
+			e <- as.data.frame(e)
+		} else {
+			e <- .makeDataFrame(x, e, TRUE)
+		}
+	}
+
+	if (useLyr) {
+		idx <- cbind(e[,1], layer[e[,1]]+1)
+		ee <- cbind(e[,1,drop=FALSE], names(x)[idx[,2]-1], value=e[idx])
+		colnames(ee)[2] <- "layer"
+		if (ncol(e) > (nl+1)) {
+			cbind(ee, e[,(nl+1):ncol(e), drop=FALSE])
+		} else {
+			ee
+		}
+	} else {
+		e
+	}
+}
+
+setMethod("extract", signature(x="SpatRaster", y="matrix"), 
+function(x, y, ...) { 
+	.checkXYnames(colnames(y))
+	extractCells(x, y, ...)
+})
 
 
 setMethod("extract", signature(x="SpatRaster", y="SpatVector"), 
@@ -216,7 +274,7 @@ function(x, y, fun=NULL, method="simple", list=FALSE, factors=TRUE, cells=FALSE,
 	geo <- geomtype(y)
 	if (geo == "points") {
 		## this was? should be fixed upstream
-		if (nc == nl) {		
+		if (nc == nl) {
 			e <- matrix(e, ncol=nc)
 		} else {
 			e <- matrix(e, ncol=nc, byrow=TRUE)
@@ -256,10 +314,14 @@ function(x, y, fun=NULL, method="simple", list=FALSE, factors=TRUE, cells=FALSE,
 		cncell <- cn =="cell"
 		e[, cncell] <- e[, cncell] + 1
 	}
-	
+
 	if (factors) {
-		id <- data.frame(e[,1,drop=FALSE])
-		e <- cbind(id, .makeDataFrame(x, e[,-1,drop=FALSE], TRUE))
+		if (hasfun || method != "simple") {
+			e <- as.data.frame(e)
+		} else {
+			id <- data.frame(e[,1,drop=FALSE])
+			e <- cbind(id, .makeDataFrame(x, e[,-1,drop=FALSE], TRUE))
+		}
 	}
 
 	if (useLyr) {
@@ -297,25 +359,6 @@ function(x, i, j, ... , drop=FALSE) {
 setMethod("[", c("SpatVector", "SpatExtent", "missing"),
 function(x, i, j, ... , drop=FALSE) {
 	x[as.polygons(i)]
-})
-
-
-setMethod("extract", signature(x="SpatRaster", y="matrix"), 
-function(x, y, ...) { 
-	.checkXYnames(colnames(y))
-	#if (length(list(...)) == 0) {
-	#	i <- cellFromXY(x, y)
-	#	r <- cbind(1:length(i), x[i])
-	#	colnames(r) <- c("ID", names(x))
-	#} else {
-	y <- vect(y)
-	e <- extract(x, y, ...)
-	if (NCOL(e) > 1) {
-		e[, -1, drop=FALSE]
-	} else {
-		e
-	}
-	#}
 })
 
 
@@ -417,14 +460,26 @@ function(x, i, j, ..., drop=TRUE) {
 
 setMethod("[", c("SpatRaster", "SpatRaster", "missing"),
 function(x, i, j, ..., drop=TRUE) {
-	x <- x[ext(i), drop=drop]
-	if (!drop) {
-		if (compareGeom(x, i, crs=FALSE, stopOnError=FALSE)) {
-			x <- mask(x, i)
+
+	if (!compareGeom(x, i, crs=FALSE, stopOnError=FALSE)) {
+		return (x[ext(i), drop=drop])
+	}
+	if (drop) {
+		if (is.bool(i)) {
+			i <- as.logical(values(i))
+		} else {
+			i <- !is.na(values(i))
+		}
+		values(x)[i,]
+	} else {
+		if (is.bool(i)) {
+			mask(x, i, maskvalues=FALSE)
+		} else {
+			mask(x, i)
 		}
 	}
-	x
 })
+
 
 setMethod("[", c("SpatRaster", "SpatExtent", "missing"),
 function(x, i, j, ..., drop=FALSE) {
@@ -437,7 +492,6 @@ function(x, i, j, ..., drop=FALSE) {
 })
 
 
-
 setMethod("extract", c("SpatVector", "SpatVector"),
 function(x, y, ...) {
 	r <- relate(y, x, "within")
@@ -448,7 +502,7 @@ function(x, y, ...) {
 	if (is.list(e)) {
 		e <- lapply(1:length(e), function(i) {
 			if (length(e[[i]]) == 0) {
-				cbind(i, NA)	
+				cbind(i, NA)
 			} else {
 				cbind(i, e[[i]])
 			}
@@ -458,7 +512,7 @@ function(x, y, ...) {
 		e <- cbind(1:nrow(y), e)
 	}
 	if (ncol(x) > 0) {
-		d <- as.data.frame(x)	
+		d <- as.data.frame(x)
 		e <- data.frame(id.x=e[,1], d[e[,2], ,drop=FALSE])
 		rownames(e) <- NULL
 	} else {

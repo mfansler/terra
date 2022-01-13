@@ -18,19 +18,20 @@ setMethod("density", signature(x="SpatRaster"),
 		x <- spatSample(x, maxcells, method="regular", as.raster=TRUE)
 		res <- list()
 		nl <- nlyr(x)
+		if (missing(main)) {
+			main=names(x) 
+		} else {
+			main <- rep(main, length.out=nl)
+		}
+
 		if (nl==1) {
-			res[[1]] <- .one.density(x, plot=plot, ...)
+			res[[1]] <- .one.density(x, plot=plot, maxcells=maxcells, main=main, ...)
 		} else {
 
 			if (nl > 16) {
 			warn("density", "only the first 16 layers are plotted")
 				nl <- 16
 				x <- x[[1:16]]
-			}
-			if (missing(main)) {
-				main=names(x) 
-			} else {
-				main <- rep(main, length.out=nl)
 			}
 			nc <- ceiling(sqrt(nl))
 			nr <- ceiling(nl / nc)
@@ -189,7 +190,7 @@ setMethod("text", signature(x="SpatRaster"),
 			labels <- as.data.frame(x)[,1]
 			p <- as.points(x, values=TRUE)
 		} else {
-			p <- as.points(x, values=FALSE, na.rm=FALSE)		
+			p <- as.points(x, values=FALSE, na.rm=FALSE)
 		}
 		xy <- geom(p)[, c("x", "y")]
 		if (is.factor(labels)) {
@@ -226,7 +227,7 @@ setMethod("text", signature(x="SpatVector"),
 		xy <- geom(centroids(x))[,c("x","y"),drop=FALSE]
 		if (halo) {
 			.halo(xy[,1], xy[,2], labels, ...)
-		} else {	
+		} else {
 			text(xy[,1], xy[,2], labels, ...)
 		}
 	}
@@ -300,12 +301,12 @@ setMethod("barplot", "SpatRaster",
 
 
 shade <- function(slope, aspect, angle=45, direction=0, normalize=FALSE, filename="", ...) {
-	
+
 	x <- c(slope[[1]], aspect[[1]])
 
 	direction <- direction[1] * pi/180
 	zenith <- (90 - angle[1]) * pi/180
-	
+
 	if (normalize) {
 		fun <- function(slp, asp) { 
 			shade <- cos(slp) * cos(zenith) + sin(slp) * sin(zenith) * cos(direction-asp) 
@@ -315,6 +316,6 @@ shade <- function(slope, aspect, angle=45, direction=0, normalize=FALSE, filenam
 	} else {
 		fun <- function(slp, asp) { cos(slp) * cos(zenith) + sin(slp) * sin(zenith) * cos(direction-asp) }
 	}
-	lapp(x, fun=fun, filename=filename, wopt=list(...))		
+	lapp(x, fun=fun, filename=filename, wopt=list(...))
 }
 

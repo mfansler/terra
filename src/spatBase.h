@@ -19,7 +19,6 @@
 #include <algorithm>
 #include <string>
 #include <cmath>
-//#include "spatMessages.h"
 
 #ifndef standalone
 	#define useRcpp
@@ -46,6 +45,9 @@
 
 class SpatMessages {
 	public:
+	
+		virtual ~SpatMessages(){}
+
 		bool has_error = false;
 		bool has_warning = false;
 		std::string error;
@@ -102,12 +104,19 @@ class SpatOptions {
 	private:
 		std::string tempdir = "";
 		bool todisk = false;
+		double memmax = -1;
 		double memfrac = 0.6;
 		double tolerance = 0.1;
 		
 	public:
+		SpatOptions();
+		SpatOptions(const SpatOptions &opt);
+		SpatOptions deepCopy();
+		virtual ~SpatOptions(){}
+
 		unsigned ncopies = 4;
 		unsigned minrows = 1;
+		bool threads=false;
 		std::string def_datatype = "FLT4S";
 		std::string def_filetype = "GTiff";
 		//std::string def_bandorder = "BIL";
@@ -122,7 +131,9 @@ class SpatOptions {
 		int statistics = 1;
 		bool datatype_set = false;
 		//bool ncdfcopy = false;
-
+		unsigned char value_type = 0;
+		unsigned pid=0;
+		
 		std::string datatype = "";
 		//std::string bandorder = "";
 		std::string filetype = "";
@@ -130,16 +141,13 @@ class SpatOptions {
 		std::vector<std::string> gdal_options;
 		std::vector<std::string> names;
 
-		SpatOptions();
-		SpatOptions(const SpatOptions &opt);
-		//SpatOptions deepCopy(const SpatOptions &opt);
-		SpatOptions deepCopy();
-
 		// permanent
 		bool get_todisk();
 		void set_todisk(bool b);
 		double get_memfrac();
 		void set_memfrac(double d);
+		double get_memmax();
+		void set_memmax(double d);
 		std::string get_tempdir();
 		void set_tempdir(std::string d);
 		double get_tolerance();
@@ -196,12 +204,10 @@ class SpatOptions {
 class SpatExtent {
 	public:
 		double xmin, xmax, ymin, ymax;
-		// #include <limits>
-		//double inf = std::numeric_limits<double>::infinity();
-		//double neginf = -std::numeric_limits<double>::infinity();
-//		SpatExtent() {xmin = inf; xmax = neginf; ymin = inf; ymax = neginf;}
 		SpatExtent() {xmin = -180; xmax = 180; ymin = -90; ymax = 90;}
 		SpatExtent(double _xmin, double _xmax, double _ymin, double _ymax) {xmin = _xmin; xmax = _xmax; ymin = _ymin; ymax = _ymax;}
+		virtual ~SpatExtent(){}
+
 
 		SpatExtent align(double d, std::string snap);
 
@@ -267,6 +273,8 @@ class SpatExtent {
 
 class SpatSRS {
 	public:
+		virtual ~SpatSRS(){}
+
 //		SpatSRS(std::string s);
 		std::string proj4, wkt;
 		bool set(std::string txt, std::string &msg);

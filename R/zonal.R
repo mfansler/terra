@@ -67,7 +67,7 @@ setMethod("global", signature(x="SpatRaster"),
 		}
 
 		if (inherits(txtfun, "character")) { 
-			if (txtfun %in% c("max", "min", "mean", "sum", "range", "rms", "sd", "sdpop")) {
+			if (txtfun %in% c("max", "min", "mean", "sum", "range", "rms", "sd", "sdpop", "notNA", "isNA")) {
 				na.rm <- isTRUE(list(...)$na.rm)
 				ptr <- x@ptr$global(txtfun, na.rm, opt)
 				messages(ptr, "global")
@@ -81,15 +81,15 @@ setMethod("global", signature(x="SpatRaster"),
 		nl <- nlyr(x)
 		res <- list()
 		for (i in 1:nl) {
-			res[[i]] <- fun(values(x[[i]]), ...)
+			res[[i]] <- fun(values(x[[i]]) , ...)
 		}
 		res <- do.call(rbind,res)
 		res <- data.frame(res)
-		if (ncol(res) > 1) {
-			colnames(res) <- paste0("global_", 1:ncol(res))
-		} else {
+
+		if ((ncol(res) == 1) && (colnames(res) == "res")) {
 			colnames(res) <- "global"
 		}
+
 		rownames(res) <- nms
 		res
 	}

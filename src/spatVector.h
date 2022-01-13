@@ -29,6 +29,8 @@ enum SpatGeomType { points, lines, polygons, unknown };
 
 class SpatHole {
 	public:
+		virtual ~SpatHole(){}
+
 		std::vector<double> x, y;
 		SpatExtent extent;
 		//constructors
@@ -40,6 +42,7 @@ class SpatHole {
 
 class SpatPart {
 	public:
+		virtual ~SpatPart(){}
 		std::vector<double> x, y; //, z;
 		std::vector< SpatHole > holes; // polygons only
 		SpatExtent extent;
@@ -62,13 +65,16 @@ class SpatPart {
 
 class SpatGeom {
 	public:
-		SpatGeomType gtype = unknown;
-		std::vector<SpatPart> parts;
-		SpatExtent extent;
 		//constructors
 		SpatGeom();
 		SpatGeom(SpatGeomType g);
 		SpatGeom(SpatPart p);
+		virtual ~SpatGeom(){}
+
+		SpatGeomType gtype = unknown;
+		std::vector<SpatPart> parts;
+		SpatExtent extent;
+
 		//methods
 		bool unite(SpatGeom g);
 		bool addPart(SpatPart p);
@@ -82,6 +88,9 @@ class SpatGeom {
 		//double length_lonlat(double a, double f);
 		unsigned size() { return parts.size(); };
 		void remove_duplicate_nodes(int digits);
+		size_t ncoords();
+		std::vector<std::vector<double>> coordinates();
+
 };
 
 
@@ -102,6 +111,7 @@ class SpatVector {
 		SpatVector(SpatExtent e, std::string crs);
 		SpatVector(std::vector<double> x, std::vector<double> y, SpatGeomType g, std::string crs);
 		SpatVector(std::vector<std::string> wkt);
+		virtual ~SpatVector(){}
 
 		SpatGeom window; // for point patterns, must be polygon
 
@@ -112,6 +122,9 @@ class SpatVector {
 		unsigned nxy();
 
 		SpatVector deepCopy() {return *this;}
+		void reserve(size_t n) {
+			geoms.reserve(n);
+		}	
 
 		SpatExtent getExtent();
 //		bool is_geographic();
@@ -145,6 +158,7 @@ class SpatVector {
 		std::vector<std::string> getGeometryWKT();
 		void computeExtent();
 
+		size_t ncoords();
 		std::vector<std::vector<double>> coordinates();
 
 		SpatVector project(std::string crs);
@@ -157,13 +171,15 @@ class SpatVector {
 		SpatVector remove_rows(std::vector<unsigned> range);
 
 		void setGeometry(std::string type, std::vector<unsigned> gid, std::vector<unsigned> part, std::vector<double> x, std::vector<double> y, std::vector<unsigned> hole);
-		void setPointsGeometry(std::vector<double> x, std::vector<double> y);
+		void setPointsGeometry(std::vector<double> &x, std::vector<double> &y);
+		void setPointsDF(SpatDataFrame &x, std::vector<unsigned> geo, std::string crs);
 
 		std::vector<double> area(std::string unit, bool transform, std::vector<double> mask);
 
 		std::vector<double> length();
 		std::vector<double> distance(SpatVector x, bool pairwise);
 		std::vector<double> distance(bool sequential);
+		std::vector<double> linedistLonLat(SpatVector pts);
 
 		std::vector<std::vector<size_t>> knearest(size_t k);
 
@@ -236,7 +252,10 @@ class SpatVector {
 //ogr 
 		std::vector<bool> is_valid();
 		SpatVector make_valid();
+
 //geos
+		SpatVector make_valid2();
+
 		std::vector<bool> geos_isvalid();
 		std::vector<std::string> geos_isvalid_msg();
 		std::vector<std::string> wkt();
@@ -261,7 +280,7 @@ class SpatVector {
         SpatVector buffer(std::vector<double> d, unsigned quadsegs);
 		SpatVector point_buffer(std::vector<double>	 d, unsigned quadsegs, bool no_multipolygons);
 
-		SpatVector centroid();
+		SpatVector centroid(bool check_lonlat);
 		SpatVector crop(SpatExtent e);
 		SpatVector crop(SpatVector e);
 		SpatVector voronoi(SpatVector e, double tolerance, int onlyEdges);		
@@ -270,6 +289,7 @@ class SpatVector {
 		SpatVector intersect(SpatVector v);
 		SpatVector unite(SpatVector v);
 		SpatVector unite();
+		SpatVector erase_agg(SpatVector v);
 		SpatVector erase(SpatVector v);
 		SpatVector erase();
 		SpatVector gaps();		
@@ -295,7 +315,9 @@ class SpatVector {
 
 		SpatVector cbind(SpatDataFrame d);
 		void fix_lonlat_overflow();
-
+		SpatVector cross_dateline(bool &fixed);
+		SpatVector densify(double interval, bool adjust);
+		SpatVector round(int digits);
 };
 
 
@@ -306,6 +328,8 @@ class SpatVectorCollection {
 		std::vector<SpatVector> v;
 
 	public:
+		virtual ~SpatVectorCollection(){}
+	
 		SpatMessages msg;
 		void setError(std::string s) { msg.setError(s); }
 		void addWarning(std::string s) { msg.addWarning(s); }
