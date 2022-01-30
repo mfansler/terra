@@ -124,7 +124,7 @@ SpatRaster SpatRaster::rasterizeLyr(SpatVector x, double value, double backgroun
 		out = geometry(1);
 	}
 
-	GDALDataset *vecDS = x.write_ogr("", "lyr", "Memory", true, std::vector<std::string>());
+	GDALDataset *vecDS = x.write_ogr("", "lyr", "Memory", false, true, std::vector<std::string>());
 	if (x.hasError()) {
 		out.setError(x.getError());
 		return out;
@@ -250,7 +250,10 @@ SpatRaster SpatRaster::rasterize(SpatVector x, std::string field, std::vector<do
 				values[i] = f.v[i];
 			}
 			if (!add && !update) {
-				out.setLabels(0, f.labels);
+				std::vector<long> u(f.labels.size());
+				std::iota(u.begin(), u.end(), 0);
+				std::vector<std::string> nms = getNames();
+				out.setLabels(0, u, f.labels, field);
 			}
 			if (add) {
 				add = false;
@@ -271,7 +274,7 @@ SpatRaster SpatRaster::rasterize(SpatVector x, std::string field, std::vector<do
 		recycle(values, nGeoms);
 	}
 
-	GDALDataset *vecDS = x.write_ogr("", "lyr", "Memory", true, std::vector<std::string>());
+	GDALDataset *vecDS = x.write_ogr("", "lyr", "Memory", false, true, std::vector<std::string>());
 	if (x.hasError()) {
 		out.setError(x.getError());
 		return out;
@@ -393,7 +396,7 @@ std::vector<double> SpatRaster::rasterizeCells(SpatVector &v, bool touches, Spat
     SpatOptions ropt(opt);
 	SpatRaster r = geometry(1);
 	SpatExtent e = getExtent();
-	e.intersect(v.getExtent());
+	e = e.intersect(v.getExtent());
 	if ( !e.valid() ) {
 		std::vector<double> out(1, NAN);
 		return out;
@@ -431,7 +434,7 @@ void SpatRaster::rasterizeCellsWeights(std::vector<double> &cells, std::vector<d
 	std::vector<unsigned> fact = {10, 10};
 	SpatExtent e = getExtent();
 	SpatExtent ve = v.getExtent();
-	e.intersect(ve);
+	e = e.intersect(ve);
 	if ( !e.valid() ) {
 		return;
 	}

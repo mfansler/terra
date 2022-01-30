@@ -1,5 +1,12 @@
 #if (!isGeneric("#")) { setGeneric("#", function(x, ...) standardGeneric("#")) }
 
+if (!isGeneric("query")) {setGeneric("query", function(x, ...) standardGeneric("query"))}
+
+if (!isGeneric("set.values")) {setGeneric("set.values", function(x, ...) standardGeneric("set.values"))}
+if (!isGeneric("set.ext")) {setGeneric("set.ext", function(x, ...) standardGeneric("set.ext"))}
+if (!isGeneric("set.names")) {setGeneric("set.names", function(x, ...) standardGeneric("set.names"))}
+
+
 if (!isGeneric("math")) { setGeneric("math", function(x, ...) standardGeneric("math")) }
 
 if (!isGeneric("all.equal")) { setGeneric("all.equal", function(target, current, ...) standardGeneric("all.equal")) }
@@ -16,7 +23,7 @@ if (!isGeneric("focalCor")) { setGeneric("focalCor", function(x, ...) standardGe
 
 if (!isGeneric("clearance")) {setGeneric("clearance", function(x, ...) standardGeneric("clearance"))}
 if (!isGeneric("width")) {setGeneric("width", function(x, ...) standardGeneric("width"))}
-if (!isGeneric("simplify")) {setGeneric("simplify", function(x, ...) standardGeneric("simplify"))}
+if (!isGeneric("simplifyGeom")) {setGeneric("simplifyGeom", function(x, ...) standardGeneric("simplifyGeom"))}
 if (!isGeneric("mergeLines")) {setGeneric("mergeLines", function(x, ...) standardGeneric("mergeLines"))}
 if (!isGeneric("mergeTime")) {setGeneric("mergeTime", function(x, ...) standardGeneric("mergeTime"))}
 if (!isGeneric("fillTime")) {setGeneric("fillTime", function(x, ...) standardGeneric("fillTime"))}
@@ -48,6 +55,7 @@ if (!isGeneric("delauny")) {setGeneric("delauny", function(x, ...) standardGener
 if (!isGeneric("voronoi")) {setGeneric("voronoi", function(x, ...) standardGeneric("voronoi"))}
 if (!isGeneric("convHull")) {setGeneric("convHull", function(x, ...) standardGeneric("convHull"))}
 if (!isGeneric("minRect")) {setGeneric("minRect", function(x, ...) standardGeneric("minRect"))}
+if (!isGeneric("is.related")) {setGeneric("is.related", function(x, y, ...) standardGeneric("is.related"))}
 if (!isGeneric("relate")) {setGeneric("relate", function(x, y, ...) standardGeneric("relate"))}
 if (!isGeneric("intersect")) {setGeneric("intersect", function(x, y) standardGeneric("intersect"))}
 
@@ -121,11 +129,13 @@ if (!isGeneric("project")) {setGeneric("project", function(x,...) standardGeneri
 if (!isGeneric("wrap")) {setGeneric("wrap", function(x, ...) standardGeneric("wrap"))}
 if (!isGeneric("cats")) { setGeneric("cats", function(x, ...) standardGeneric("cats")) }
 if (!isGeneric("setCats")) { setGeneric("setCats", function(x, ...) standardGeneric("setCats")) }
+if (!isGeneric("categories")) { setGeneric("categories", function(x, ...) standardGeneric("categories")) }
+if (!isGeneric("set.cats")) { setGeneric("set.cats", function(x, ...) standardGeneric("set.cats")) }
 if (!isGeneric("as.raster")) { setGeneric("as.raster", function(x, ...) standardGeneric("as.raster"))}
 if (!isGeneric("rast") ) { setGeneric("rast", function(x, ...) standardGeneric("rast")) }
 if (!isGeneric("rev") ) { setGeneric("rev", function(x) standardGeneric("rev")) }
 if (!isGeneric("sds") ) { setGeneric("sds", function(x, ...) standardGeneric("sds")) }
-if (!isGeneric("src") ) { setGeneric("src", function(x, ...) standardGeneric("src")) }
+if (!isGeneric("sprc") ) { setGeneric("sprc", function(x, ...) standardGeneric("sprc")) }
 if (!isGeneric("svc") ) { setGeneric("svc", function(x, ...) standardGeneric("svc")) }
 if (!isGeneric("sel")) {setGeneric("sel", function(x, ...) standardGeneric("sel"))}
 if (!isGeneric("segregate")) {setGeneric("segregate", function(x, ...) standardGeneric("segregate"))}
@@ -159,6 +169,7 @@ if (!isGeneric("as.list")) { setGeneric("as.list", function(x, ...) standardGene
 if (!isGeneric("as.factor")) {setGeneric("as.factor", function(x) standardGeneric("as.factor"))}
 
 if (!isGeneric("atan2")) { setGeneric("atan2", function(y, x) standardGeneric("atan2"))}
+if (!isGeneric("atan_2")) { setGeneric("atan_2", function(y, x, ...) standardGeneric("atan_2"))}
 if (!isGeneric("barplot")) {setGeneric("barplot", function(height,...) standardGeneric("barplot"))}
 #if (!isGeneric("bndbox")) {setGeneric("bndbox", function(obj) standardGeneric("bndbox"))}
 if (!isGeneric("boundaries")) {	setGeneric("boundaries", function(x, ...) standardGeneric("boundaries"))}

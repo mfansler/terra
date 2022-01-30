@@ -1,4 +1,5 @@
 
+
 .cpp_funs <- c("sum", "mean", "median", "modal", "which", "which.min", "which.max", "min", "max", "prod", "any", "all", "sd", "std", "first")
 
 setMethod("sapp", signature(x="SpatRaster"), 
@@ -44,8 +45,12 @@ function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 			error("app", "additional arguments cannot be a SpatRaster")
 		}
 	}
-# figure out the shape of the output by testing with one row
-	v <- readValues(x, round(0.51*nrow(x)), 1, 1, nc, mat=TRUE)
+# figure out the shape of the output by testing with up to 13 cells
+	teststart <- max(1, 0.5 * nc - 6)
+	testend <- min(teststart + 12, nc)
+	ntest <- 1 + testend - teststart 
+	
+	v <- readValues(x, round(0.51*nrow(x)), 1, teststart, ntest, mat=TRUE)
 	usefun <- FALSE
 	if (nl==1) {
 		r <- fun(v, ...)
@@ -71,12 +76,12 @@ function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 	}
 	trans <- FALSE
 	if (NCOL(r) > 1) {
-		#? if ((ncol(r) %% nc) == 0) {
-		if (ncol(r) == nc) {
+		#? if ((ncol(r) %% ntest) == 0) {
+		if (ncol(r) == ntest) {
 			nlyr(out) <- nrow(r)
 			trans <- TRUE
 			nms <- rownames(r)
-		} else if (nrow(r) == nc) {
+		} else if (nrow(r) == ntest) {
 			nlyr(out) <- ncol(r)
 			nms <- colnames(r)
 		} else {
@@ -86,10 +91,10 @@ function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 			wopt$names <- nms
 		}
 	} else {
-		if ((length(r) %% nc) != 0) {
+		if ((length(r) %% ntest) != 0) {
 			error("app", "the number of values returned by 'fun' is not appropriate")
 		} else {
-			nlyr(out) <- length(r) / nc
+			nlyr(out) <- length(r) / ntest
 		}
 	}
 
@@ -233,7 +238,6 @@ function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 			opt <- spatOptions(filename, overwrite, wopt=wopt)
 			narm <- isTRUE(list(...)$na.rm)
 			r <- rast()
-			opt <- spatOptions()
 			r@ptr <- x@ptr$summary(txtfun, narm, opt)
 			return (messages(r, "app") )
 		}
@@ -255,7 +259,7 @@ function(x, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())  {
 	}
 
 	nc <- (nlyr(x[1]) * length(x)) / nlyr(out)
-	nc <- ifelse(nc > 1, ceil(nc), 1) * 3 
+	nc <- ifelse(nc > 1, ceiling(nc), 1) * 3 
 	b <- writeStart(out, filename, overwrite, wopt=wopt, n=nc)
 
 	if (cores > 1) {

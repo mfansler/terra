@@ -1,4 +1,54 @@
+# version 1.5-17
+
+## bug fixes
+
+- `app<SpatRasterDataset>` ignored the filename. [#498](https://github.com/rspatial/terra/issues/498) by jszhao
+- `vect<data.frame>` failed silently if xy coordinates were integers [#496](https://github.com/rspatial/terra/issues/496) by Márcia Barbosa
+- The output of `aggregate<SpatRaster>` was malformed when `nrow(x) %% fact != 0`. [#492](https://github.com/rspatial/terra/issues/492) by Jean-François Bourdon
+- Integer `NA`s in SpatVector attributes where only recognized on Windows [#491](https://github.com/rspatial/terra/issues/491) by Márcia Barbosa
+- `plot<SpatVector>` failed when using a character variable with many unique values. [#489](https://github.com/rspatial/terra/issues/489) by Márcia Barbosa
+- `rotate` failed on large files. Reported by Ujjawal Singh
+- writing raster files with a color table could lead to a crash [#501](https://github.com/rspatial/terra/issues/501) by Kodi Arfer
+- `crds` replicated the coordinates [#504](https://github.com/rspatial/terra/issues/504) by Murray Efford
+- `as.data.frame<SpatRaster>` returned integers if the file stored values as integers, even if there was a scale/offset that creates decimal numbers [#509](https://github.com/rspatial/terra/issues/509) by Kodi Arfer
+
+
+## enhancements 
+
+- `distance`, `gridDistance`, `direction` and `patches` now process all layers of the input SpatRaster. [#503](https://github.com/rspatial/terra/issues/503) by Chris Haak
+- consistent copy-on-modify behavior in `()<-` methods. in-place updating available with `set.` methods such as `set.names` and `set.values`. [#493](https://github.com/rspatial/terra/issues/493) by Jean Romain and [511](https://github.com/rspatial/terra/issues/511) by Bryan Fuentes
+- much faster writing of GPGK vector data by using a single transaction (following sf) [#460](https://github.com/rspatial/terra/issues/489) by Krzysztof Dyba
+- `aggregate<SpatRaster>` now accepts functions that return more than one value per aggregated cell
+- `writeVector` has new argument `insert` to add a layer to an existing file (e.g. GPKG).
+
+
+## new
+
+- new option `method="weights"` for `spatSample<SpatRaster>`
+- new `mask<SpatVector,SpatVector>` method to select intersecting geometries
+- new method `is.related`
+- `values<SpatRaster>` has new option `na.rm=TRUE`. [#490](https://github.com/rspatial/terra/issues/490) by Henk Harmsen
+- new class `SpatVectorProxy` to provide access to large vector databases that cannot or should not be read into memory in its entirety.
+- new argument `proxy=FALSE` to `vect` to create a SpatVectorProxy object
+- new method `query<SpatVectorProxy>` to extract parts of a SpatVectorProxy
+
+
+## name changes
+
+To avoid name clashes with tidyverse 
+
+- arrow -> north
+- src -> sprc
+- simplify -> simplifyGeom
+
+For consistency 
+
+- setCats -> set.cats
+
+
 # version 1.5-12
+
+Released on 2022-01-13
 
 ## bug fixes
 
@@ -65,7 +115,7 @@ https://github.com/rspatial/terra/issues/333) by Agustin Lobo
 - new method `focal3D` to compute focal values for a three-dimensional (row, column, layer) window
 - new function `makeVRT` to create a vrt file for a file that needs a header to be read.
 - new option `method="stratified"` for `spatSample<SpatRaster>`. [#470](https://github.com/rspatial/terra/issues/470) by Michael Mahoney
-- new general option `memmax` to cap the amount of RAM that terra can use. [#476](https://github.com/rspatial/terra/issues/476) by Matt Strimas-Mackey
+- new general option `memmax` to cap the amount of RAM that terra can be used in raster processing [#476](https://github.com/rspatial/terra/issues/476) by Matt Strimas-Mackey
 - new method `gridDistance` to compute distances traversing a raster, perhaps with obstacles. [#477](https://github.com/rspatial/terra/issues/477) by Márcia Barbosa
 
 
@@ -96,7 +146,6 @@ Released on 2021-11-24
 
 - `focalCpp` takes a C++ function that iterates over cells to speed up computation by avoiding `apply` (see [#318](https://github.com/rspatial/terra/pull/318) by Alex Ilich). 
 - `focalReg` for focal OLS regression models between layers 
-
 
 
 # version 1.4-20

@@ -393,7 +393,7 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 	SpatOptions sopt(opt);
 	if (use_crs || align) {
 		GDALDatasetH hSrcDS;
-		if (!open_gdal(hSrcDS, 0, true, sopt)) {
+		if (!open_gdal(hSrcDS, 0, false, sopt)) {
 			out.setError("cannot create dataset from source");
 			return out;
 		}
@@ -539,7 +539,7 @@ SpatRaster SpatRaster::resample(SpatRaster x, std::string method, bool mask, boo
 
 	if (!do_prj) {
 		SpatExtent e = out.getExtent();
-		e.intersect(getExtent());
+		e = e.intersect(getExtent());
 		if (!e.valid()) {
 			out.addWarning("No spatial overlap");
 			return out;
@@ -806,7 +806,7 @@ SpatVector SpatRaster::polygonize(bool trunc, bool values, bool narm, bool aggre
 
 	std::vector<double> fext;
 	SpatVector fvct;
-	out.read_ogr(poDS, "", "", fext, fvct);
+	out.read_ogr(poDS, "", "", fext, fvct, false);
 	GDALClose(poDS);
 
 	if (aggregate && (out.nrow() > 0)) {

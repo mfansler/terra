@@ -278,8 +278,7 @@ SpatRaster SpatRaster::geometry(long nlyrs, bool properties, bool time, bool uni
 
 
 SpatRaster SpatRaster::deepCopy() {
-	SpatRaster out = *this;
-	return out;
+	return *this;
 }
 
 
@@ -896,7 +895,7 @@ bool SpatRaster::setWindow(SpatExtent x) {
 		return true;
 	}
 
-	e.intersect(x);
+	e = e.intersect(x);
 	if ( !e.valid() ) {
 		setError("extents do not overlap");
 		return false;
@@ -1011,7 +1010,7 @@ SpatRaster SpatRaster::makeCategorical(unsigned layer, SpatOptions &opt) {
 	r.math2("round", 0, fopt);
 
 	std::vector<std::vector<double>> u = r.unique(false, fopt);
-
+/*
 	std::vector<double> id(u[0].size());
 	std::iota(id.begin(), id.end(), 0);
 	std::vector<std::vector<double>> rcl(2);
@@ -1023,7 +1022,16 @@ SpatRaster SpatRaster::makeCategorical(unsigned layer, SpatOptions &opt) {
 	for (size_t i=0; i<s.size(); i++) {
 		s[i] = std::to_string((int)u[0][i]);
 	}
-	r.setLabels(0, s);
+*/
+
+	std::vector<long> uu;
+	std::vector<std::string> s(u[0].size());
+	for (size_t i=0; i<s.size(); i++) {
+		uu[i] = (long)u[0][i];
+		s[i] = std::to_string(uu[i]);
+	}
+	std::vector<std::string> names = r.getNames();
+	r.setLabels(0, uu, s, names[0]);
 
 	if (nlyr() == 1) {
 		return r;
@@ -1073,33 +1081,29 @@ std::vector<bool> SpatRaster::hasCategories() {
 	return b;
 }
 
-bool SpatRaster::isRat() {
-	if ((nlyr() == 1) && source[0].hasCategories[0]) {
-		return source[0].cats[0].vat;
-	}
-	return false;
-}
 
 
 
-bool SpatRaster::setLabels(unsigned layer, std::vector<std::string> labels) {
+bool SpatRaster::setLabels(unsigned layer, std::vector<long> values, std::vector<std::string> labels, std::string name) {
 
 	if (layer > (nlyr()-1)) { 
 		setError("invalid layer number");
 		return(false);
 	}
+	if (values.size() != labels.size()) { 
+		setError("size of values is not the same as the size of labels");
+		return(false);
+	}
+	if (values.size() == 0) { 
+		addWarning("no labels");
+		return(true);
+	}
 
     std::vector<unsigned> sl = findLyr(layer);
 
-	if (labels.size() > 256) {
-		labels.resize(256);
-	} 
-
 	SpatCategories cats;
-	std::vector<long> ids(labels.size());
-	std::iota(ids.begin(), ids.end(), 0);
-	cats.d.add_column(ids, "ID");
-	cats.d.add_column(labels, "category");
+	cats.d.add_column(values, "value");
+	cats.d.add_column(labels, name);
 	cats.index = 1;
 
 	if (source[sl[0]].cats.size() <= sl[1]) {
@@ -1113,21 +1117,17 @@ bool SpatRaster::setLabels(unsigned layer, std::vector<std::string> labels) {
 
 
 
-bool SpatRaster::setCategories(unsigned layer, SpatDataFrame d, unsigned index, bool is_vat) {
+bool SpatRaster::setCategories(unsigned layer, SpatDataFrame d, unsigned index) {
 
 	if (layer > (nlyr()-1)) { 
 		setError("invalid layer number");
 		return(false);
 	}
     std::vector<unsigned> sl = findLyr(layer);
-	if ((d.ncol() > 2) || (d.nrow() > 256)) {
-		is_vat = true;
-	} 
 
 	SpatCategories cats;
 	cats.d = d;
 	cats.index = index;
-	cats.vat = is_vat;
 
 	if (source[sl[0]].cats.size() < sl[1]) {
 		source[sl[0]].cats.resize(sl[1]);
@@ -1179,27 +1179,7 @@ std::vector<std::string> SpatRaster::getLabels(unsigned layer) {
 	if (nc == 0) return out;
 
 	cat.index = cat.index > (nc-1) ? (nc-1) : cat.index;
-
-	SpatDataFrame d;
-	d = cat.d.subset_cols(cat.index);
-
-	std::string dt = d.get_datatype(0);
-	if (dt == "double") {
-		out.reserve( d.nrow() );
-		std::vector<double> x = d.dv[0];
-		for (size_t i=0; i<d.nrow(); i++) {
-			out.push_back(double_to_string(x[i]));
-		}
-	} else if (dt == "long") {
-		out.reserve( d.nrow() );
-		std::vector<long> x = d.iv[0];
-		for (size_t i=0; i<d.nrow(); i++) {
-			out.push_back(std::to_string(x[i]));
-		}
-	} else {
-		out = d.sv[0];
-	}
-
+	out = cat.d.as_string(cat.index);
 	return out;
 }
 

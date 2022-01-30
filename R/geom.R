@@ -201,7 +201,10 @@ setMethod("intersect", signature(x="SpatVector", y="SpatVector"),
 
 setMethod("intersect", signature(x="SpatExtent", y="SpatExtent"), 
 	function(x, y) {
-		x@ptr$intersect(y@ptr)
+		x@ptr = x@ptr$intersect(y@ptr)
+		if (!x@ptr$valid) {
+			return(NULL)
+		}
 		x
 	}
 )
@@ -219,6 +222,14 @@ setMethod("intersect", signature(x="SpatExtent", y="SpatVector"),
 		x * y
 	}
 )
+
+setMethod("mask", signature(x="SpatVector", mask="SpatVector"), 
+	function(x, mask, inverse=FALSE) { 
+		x@ptr <- x@ptr$mask(mask@ptr, inverse)
+		messages(x, "intersect")
+	}
+)
+
 
 #setMethod("intersect", signature(x="SpatRaster", y="SpatRaster"),
 #	function(x, y) {
@@ -420,11 +431,11 @@ setMethod("removeDupNodes", signature(x="SpatVector"),
 )
 
 
-setMethod("simplify", signature(x="SpatVector"), 
+setMethod("simplifyGeom", signature(x="SpatVector"), 
 	function(x, tolerance=0.1) {
 		preserveTopology <- TRUE
 		x@ptr <- x@ptr$simplify(tolerance, preserveTopology)
-		messages(x, "simplify")
+		messages(x, "simplifyGeom")
 	}
 )
 

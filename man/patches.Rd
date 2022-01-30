@@ -26,6 +26,7 @@ Detect patches (clumps). Patches are groups of cells that are surrounded by cell
 SpatRaster. Cell values are patch numbers
 }
 
+
 \seealso{ \code{\link{focal}}, \code{\link{boundaries}} }
 
 \examples{
@@ -64,9 +65,18 @@ values(r)<- round(runif(ncell(r))*0.7)
 rp <- patches(r, directions=8, zeroAsNA=TRUE) 
 plot(rp, type="classes"); text(rp)
 
-### unless you set allowGaps=FALSE
+## unless you set allowGaps=FALSE
 rp <- patches(r, directions=8, zeroAsNA=TRUE, allowGaps=FALSE) 
 plot(rp, type="classes"); text(rp)
+
+### use zonal to remove small patches 
+f <- system.file("ex/elev.tif", package="terra")
+r <- rast(f)
+x <- classify(r, cbind(-Inf, 400, NA))
+y <- patches(x)
+# remove patches smaller than 100 ha
+rz <- zonal(cellSize(y, unit="ha"), y, sum, as.raster=TRUE)
+s <- ifel(rz < 100, NA, y)
 }
 
 \keyword{methods}

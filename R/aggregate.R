@@ -9,28 +9,34 @@
 		fun <- match.fun(fun)
 		if (is.primitive(fun)) {
 			test <- try(deparse(fun)[[1]], silent=TRUE)
-			if (test == '.Primitive(\"sum\")') { fun <- 'sum' 
-			} else if (test == '.Primitive(\"min\")') { fun <- 'min' 
-			} else if (test == '.Primitive(\"max\")') { fun <- 'max' 
-			}
+			test <- gsub('.Primitive\\(\"', "", test)
+			test <- gsub('\")', "", test)
+			if (test %in% c("sum", "min", "max", "prod", "any", "all")) return(test); 
 		} else {
 			depf <- deparse(fun)
 			test1 <- isTRUE(try( depf[2] == 'UseMethod(\"mean\")', silent=TRUE))
 			test2 <- isTRUE(try( fun@generic == "mean", silent=TRUE))
 			if (test1 | test2) { 
-				fun <- "mean" 
+				return("mean")
 			}
 			test1 <- isTRUE(try( depf[2] == 'UseMethod(\"median\")', silent=TRUE))
 			test2 <- isTRUE(try( fun@generic == "median", silent=TRUE))
 			if (test1 | test2) { 
-				fun <- "median" 
+				return("median")
 			}
 			test1 <- isTRUE(try( depf[1] == "function (x, na.rm = FALSE) ", silent=TRUE))
 			test2 <- isTRUE(try( depf[2] == "sqrt(var(if (is.vector(x) || is.factor(x)) x else as.double(x), ", silent=TRUE))
 			test3 <- isTRUE(try( depf[3] == "    na.rm = na.rm))", silent=TRUE))
 			if (test1 && test2 && test3) { 
-				fun <- "sd"
+				return("sd")
 			}
+			if (isTRUE(try( fun@generic == "which.min", silent=TRUE))) {
+				return("which.min")
+			}
+			if (isTRUE(try( fun@generic == "which.max", silent=TRUE))) {
+				return("which.max")
+			}
+			if (isTRUE(depf[3] == "    wh <- .Internal(which(x))")) return("which")			
 		} 
 	}
 	return(fun)
@@ -42,7 +48,7 @@ function(x, fact=2, fun="mean", ..., cores=1, filename="", overwrite=FALSE, wopt
 
 	fun <- .makeTextFun(fun)
 	toc <- FALSE
-	if (class(fun) == "character") { 
+	if (inherits(fun, "character")) { 
 		if (fun %in% c("sum", "mean", "min", "max", "median", "modal", "sd", "sdpop")) {
 			toc <- TRUE
 		} else {
@@ -64,8 +70,29 @@ function(x, fact=2, fun="mean", ..., cores=1, filename="", overwrite=FALSE, wopt
 		opt <- spatOptions()
 		out@ptr <- out@ptr$aggregate(fact, "sum", TRUE, opt)
 		out <- messages(out, "aggregate")
-
 		dims <- x@ptr$get_aggregate_dims(fact)
+
+		vtest <- values(x, dataframe=TRUE, row=1, nrows=dims[1], col=1, ncols=dims[2])
+		vtest <- as.list(vtest)
+		test <- sapply(vtest, fun)
+		dm <- dim(test)
+		do_transpose = FALSE
+		if (!is.null(dm)) {
+			do_transpose = TRUE
+		}
+		if (inherits(test, "list")) {
+			error("aggregate", "fun returns a list")
+		}
+		fun_ret <- 1
+		if (length(test) > nl) {
+			if ((length(test) %% nl) == 0) {
+				fun_ret <- length(test) / nl
+				nlyr(out) <- nlyr(x) * fun_ret
+			} else {
+				error("aggregate", "cannot use this function")
+			}
+		}
+
 		b <- x@ptr$getBlockSize(4, opt$memfrac)
 
 		nr <- max(1, floor(b$nrows[1] / fact[1])) * fact[1]
@@ -75,7 +102,7 @@ function(x, fact=2, fun="mean", ..., cores=1, filename="", overwrite=FALSE, wopt
 		b$row <- c(0, cumsum(nrs))[1:length(nrs)] + 1
 		b$nrows <- nrs
 		b$n <- length(nrs)
-		outnr <- ceiling(b$nrows / fact[1])
+		outnr <- ceiling(b$nrows / fact[1]);
 		outrows  <- c(0, cumsum(outnr))[1:length(outnr)] + 1
 		nc <- ncol(x)
 
@@ -89,6 +116,7 @@ function(x, fact=2, fun="mean", ..., cores=1, filename="", overwrite=FALSE, wopt
 			#f <- function(v, ...) sapply(v, fun, ...)
 		}
 
+		mpl <- prod(dims[5:6]) * fun_ret
 		readStart(x)
 		on.exit(readStop(x))
 		ignore <- writeStart(out, filename, overwrite, wopt=wopt)
@@ -97,8 +125,11 @@ function(x, fact=2, fun="mean", ..., cores=1, filename="", overwrite=FALSE, wopt
 				v <- readValues(x, b$row[i], b$nrows[i], 1, nc)
 				v <- x@ptr$get_aggregates(v, b$nrows[i], dims)
 				v <- parallel::parSapply(cls, v, fun, ...)
-				if (length(v) != outnr[i] * prod(dims[5:6])) {
+				if (length(v) != outnr[i] * mpl) {
 					error("aggregate", "this function does not return the correct number of values")
+				}
+				if (do_transpose) {
+					v <- t(v)
 				}
 				writeValues(out, v, outrows[i], outnr[i])
 			}
@@ -107,8 +138,11 @@ function(x, fact=2, fun="mean", ..., cores=1, filename="", overwrite=FALSE, wopt
 				v <- readValues(x, b$row[i], b$nrows[i], 1, nc)
 				v <- x@ptr$get_aggregates(v, b$nrows[i], dims)
 				v <- sapply(v, fun, ...)
-				if (length(v) != outnr[i] * prod(dims[5:6])) {
+				if (length(v) != outnr[i] * mpl) {
 					error("aggregate", "this function does not return the correct number of values")
+				}
+				if (do_transpose) {
+					v <- t(v)
 				}
 				writeValues(out, v, outrows[i], outnr[i])
 			}

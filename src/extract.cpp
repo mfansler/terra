@@ -604,14 +604,14 @@ std::vector<std::vector<std::vector<double>>> SpatRaster::extractVector(SpatVect
 				}
 			}
 		} else { //multipoint
-			Rcpp::Rcout << "multipoint" << std::endl;
+//			Rcpp::Rcout << "multipoint" << std::endl;
 			for (size_t i=0; i<ng; i++) {
 				SpatVector vv = v.subset_rows(i);
 				SpatDataFrame vd = vv.getGeometryDF();
 				std::vector<double> x = vd.getD(0);
 				std::vector<double> y = vd.getD(1);
 				//srcout = extractXY(x, y, method, cells);
-				Rcpp::Rcout << srcout.size() << " " << srcout[0].size() << std::endl;
+//				Rcpp::Rcout << srcout.size() << " " << srcout[0].size() << std::endl;
 
 				/*
 				for (size_t j=0; j<nl; j++) {
@@ -1015,7 +1015,7 @@ std::vector<double> SpatRaster::extCells(SpatExtent ext) {
 
 	std::vector<double> out;
 	ext = align(ext, "near");
-	ext.intersect(getExtent());
+	ext = ext.intersect(getExtent());
 	if (!ext.valid()) {
 		return(out);
 	}

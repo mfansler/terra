@@ -35,13 +35,16 @@ Rcpp::List getDataFrame(SpatDataFrame* v) {
 		if (itype[i] == 0) {
 			out[i] = v->getD(i);
 		} else if (itype[i] == 1) {
+
 			Rcpp::NumericVector iv = Rcpp::wrap(v->getI(i));
 			for (R_xlen_t j=0; j<iv.size(); j++) {
-				if (iv[j] == -2147483648) {
+				if (iv[j] <= INT32_MIN) {
 					iv[j] = NA_REAL;
 				}
 			}
 			out[i] = iv;
+
+
 		} else {
 			Rcpp::CharacterVector s = Rcpp::wrap(v->getS(i));
 			for (R_xlen_t j=0; j<s.size(); j++) {
@@ -108,6 +111,7 @@ RCPP_EXPOSED_CLASS(SpatRaster)
 RCPP_EXPOSED_CLASS(SpatRasterCollection)
 RCPP_EXPOSED_CLASS(SpatRasterStack)
 RCPP_EXPOSED_CLASS(SpatVector)
+RCPP_EXPOSED_CLASS(SpatVectorProxy)
 RCPP_EXPOSED_CLASS(SpatVectorCollection)
 
 RCPP_MODULE(spat){
@@ -122,6 +126,7 @@ RCPP_MODULE(spat){
     class_<SpatExtent>("SpatExtent")
 		.constructor()
 		.constructor<double, double, double, double>()
+		.method("deepcopy", &SpatExtent::deepCopy, "deepCopy")
 		.property("vector", &SpatExtent::asVector)
 		.property("valid", &SpatExtent::valid)
 		.method("align", &SpatExtent::align, "align")
@@ -235,6 +240,8 @@ RCPP_MODULE(spat){
 		.constructor()
 
 		//.property("names", &SpatVectorCollection::get_names, &SpatVectorCollection::set_names)
+		.method("deepcopy", &SpatVectorCollection::deepCopy, "deepCopy")
+
 		.method("size", &SpatVectorCollection::size, "size")
 		.method("get", &SpatVectorCollection::get, "get")
 		.method("push_back", &SpatVectorCollection::push_back, "push_back")
@@ -253,7 +260,6 @@ RCPP_MODULE(spat){
 		.constructor()
 		.field_readonly("df", &SpatCategories::d, "d")
 		.field("index", &SpatCategories::index, "index")
-		.field("vat", &SpatCategories::vat, "vat")
 	;
 
 
@@ -275,6 +281,12 @@ RCPP_MODULE(spat){
 		.method("shared_paths", &SpatVector::shared_paths, "")
 		.method("snap", &SpatVector::snap, "")
 
+		.field_readonly("is_proxy", &SpatVector::is_proxy )
+		.field_readonly("read_query", &SpatVector::read_query )
+		.field_readonly("read_extent", &SpatVector::read_extent )
+		.field_readonly("geom_count", &SpatVector::geom_count)
+		.field_readonly("source", &SpatVector::source)
+		.field_readonly("layer", &SpatVector::source_layer)
 		.field_readonly("df", &SpatVector::df )
 
 		.method("has_error", &SpatVector::hasError)
@@ -338,7 +350,9 @@ RCPP_MODULE(spat){
 		.method("remove_rows", &SpatVector::remove_rows, "remove_rows")
 		.method("type", &SpatVector::type, "type")
 
-		.method("write", &SpatVector::write, "write")
+		.method("write", &SpatVector::write)
+		.method("delete_layers", &SpatVector::delete_layers)
+		.method("layer_names", &SpatVector::layer_names)
 
 		.method("bienvenue", &SpatVector::bienvenue, "bienvenue")
 		.method("allerretour", &SpatVector::allerretour, "allerretour")
@@ -376,7 +390,9 @@ RCPP_MODULE(spat){
 
 		.method("width", &SpatVector::width)
 		.method("clearance", &SpatVector::clearance)
+		.method("mask", &SpatVector::mask)
 
+		.method("is_related", &SpatVector::is_related)
 		.method("relate_first", &SpatVector::relateFirst)
 		.method("relate_between", ( std::vector<int> (SpatVector::*)(SpatVector, std::string))( &SpatVector::relate ))
 		.method("relate_within", ( std::vector<int> (SpatVector::*)(std::string, bool))( &SpatVector::relate ))
@@ -420,6 +436,14 @@ RCPP_MODULE(spat){
 		//.field_readonly("rotated", &SpatRasterSource::rotated)
 //		.field_readonly("parameters_changed", &SpatRasterSource::parameters_changed)
 //	;
+
+
+    class_<SpatVectorProxy>("SpatVectorProxy")
+		.constructor()
+		.field("v", &SpatVectorProxy::v )
+		.method("deepcopy", &SpatVectorProxy::deepCopy, "deepCopy")
+	;
+
 
 
     class_<SpatRaster>("SpatRaster")
@@ -627,6 +651,7 @@ RCPP_MODULE(spat){
 
 		.method("cover", &SpatRaster::cover, "cover")
 		.method("crop", &SpatRaster::crop, "crop")
+		.method("crop_mask", &SpatRaster::cropmask)
 		.method("cum", &SpatRaster::cum, "cum")
 		.method("disaggregate", &SpatRaster::disaggregate, "disaggregate")
 		.method("expand", &SpatRaster::extend, "extend")
@@ -699,6 +724,8 @@ RCPP_MODULE(spat){
 
     class_<SpatRasterCollection>("SpatRasterCollection")
 		.constructor()
+		.method("deepcopy", &SpatRasterCollection::deepCopy, "deepCopy")
+		
 		.method("has_error", &SpatRasterCollection::has_error)
 		.method("has_warning", &SpatRasterCollection::has_warning)
 		.method("getError", &SpatRasterCollection::getError)
@@ -718,6 +745,7 @@ RCPP_MODULE(spat){
 		.constructor()
 	    .constructor<std::string, std::vector<int>, bool>()
 	    .constructor<SpatRaster, std::string, std::string, std::string>()
+		.method("deepcopy", &SpatRasterStack::deepCopy)
 
 		.method("has_error", &SpatRasterStack::has_error)
 		.method("has_warning", &SpatRasterStack::has_warning)

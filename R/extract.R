@@ -435,6 +435,33 @@ function(x, i, j, ... , drop=TRUE) {
 })
 
 
+setMethod("[", c("SpatRaster", "data.frame", "missing"),
+function(x, i, j, ... , drop=TRUE) {
+	if (ncol(i) == 1) {
+		i <- i[,1]
+	} else if (ncol(i) == 2) {
+		i <- cellFromXY(x, i)
+	} else {
+		error(" [", "cannot extract values with this data.frame")
+	}
+	`[`(x, i, drop=drop)
+})
+
+setMethod("[", c("SpatRaster", "matrix", "missing"),
+function(x, i, j, ... , drop=TRUE) {
+	if (ncol(i) == 1) {
+		i <- i[,1]
+	} else if ((nrow(i) == 1) && (ncol(i) != 2)) {
+		i <- i[1,]
+	} else if (ncol(i) == 2) {
+		i <- cellFromXY(x, i)
+	} else {
+		error(" [", "cannot extract values with a matrix of these dimensions")
+	}
+	`[`(x, i, drop=drop)
+})
+
+
 setMethod("[", c("SpatRaster", "missing", "numeric"),
 function(x, i, j, ... , drop=TRUE) {
 	if (!drop) {
@@ -513,10 +540,10 @@ function(x, y, ...) {
 	}
 	if (ncol(x) > 0) {
 		d <- as.data.frame(x)
-		e <- data.frame(id.x=e[,1], d[e[,2], ,drop=FALSE])
+		e <- data.frame(id.y=e[,1], d[e[,2], ,drop=FALSE])
 		rownames(e) <- NULL
 	} else {
-		colnames(e) <- c("id.x", "id.y")
+		colnames(e) <- c("id.y", "id.x")
 	}
 	e
 })

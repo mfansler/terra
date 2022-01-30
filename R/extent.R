@@ -5,6 +5,7 @@
 
 setMethod("ext", signature(x="SpatExtent"), 
 	function(x){ 
+		x@ptr <- x@ptr$deepcopy()
 		x
 	}
 )
@@ -23,7 +24,7 @@ setMethod("ext", signature(x="missing"),
 	function(x){ 
 		e <- methods::new("SpatExtent")
 		e@ptr <- SpatExtent$new()
-		return(e)
+		e
 	}
 )
 
@@ -74,25 +75,40 @@ setMethod("ext<-", signature("SpatRaster", "SpatExtent"),
 setMethod("ext<-", signature("SpatRaster", "numeric"), 
 	function(x, value) {
 		e <- ext(value)
+		x@ptr <- x@ptr$deepcopy()
 		x@ptr$extent <- e@ptr
 		messages(x, "ext<-")
 	}
 )
 
-
-
-setMethod("ext", signature(x="SpatVector"), 
-	function(x, ...) { 
-		e <- methods::new("SpatExtent")
-		e@ptr <- x@ptr$extent()
-		return(e)
+setMethod("set.ext", signature("SpatRaster"), 
+	function(x, value) {
+		e <- ext(value)
+		x@ptr$extent <- e@ptr
+		messages(x, "set_ext")
 	}
 )
 
 
+setMethod("ext", signature(x="SpatVector"), 
+	function(x) { 
+		e <- methods::new("SpatExtent")
+		e@ptr <- x@ptr$extent()
+		e
+	}
+)
+
+setMethod("ext", signature(x="SpatVectorProxy"), 
+	function(x) { 
+		e <- methods::new("SpatExtent")
+		e@ptr <- x@ptr$v$extent()
+		e
+	}
+)
+
 
 setMethod("ext", signature(x="Extent"), 
-	function(x, ...) {
+	function(x) {
 		ext(as.vector(x))
 	}
 )

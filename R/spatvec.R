@@ -6,6 +6,12 @@ setMethod("geomtype", signature(x="SpatVector"),
 		x@ptr$type()
 	}
 )
+setMethod("geomtype", signature(x="SpatVectorProxy"), 
+	function(x){ 
+		x@ptr$v$type()
+	}
+)
+
 
 setMethod("datatype", signature(x="SpatVector"), 
 	function(x){ 
@@ -89,31 +95,54 @@ setMethod("dim", signature(x="SpatVector"),
 	}
 )
 
+setMethod("dim", signature(x="SpatVectorProxy"), 
+	function(x){ 
+		c(x@ptr$v$geom_count, x@ptr$v$ncol())
+	}
+)
+
 
 as.data.frame.SpatVector <- function(x, row.names=NULL, optional=FALSE, geom=NULL, ...) {
 	d <- .getSpatDF(x@ptr$df, ...)
 	# fix empty names 
 	colnames(d) <- x@ptr$names
 	if (!is.null(geom)) {
-		geom <- match.arg(toupper(geom), c("WKT", "HEX"))
-		g <- geom(x, wkt=geom=="WKT", hex=geom=="HEX")
-		if (nrow(d) > 0) {
-			d$geometry <- g
+		geom <- match.arg(toupper(geom), c("WKT", "HEX", "XY"))
+		if (geom == "XY") {
+			if (!grepl("points", geomtype(x))) {
+				error("as.data.frame", 'geom="XY" is only valid for point geometries')
+			}
+			if (nrow(d) > 0) {
+				d <- cbind(d, crds(x))
+			} else {
+				d <- data.frame(crds(x), ...)
+			}
 		} else {
-			d <- data.frame(geometry=g, stringsAsFactors=FALSE, ...)
+			g <- geom(x, wkt=geom=="WKT", hex=geom=="HEX")
+			if (nrow(d) > 0) {
+				d$geometry <- g
+			} else {
+				d <- data.frame(geometry=g, stringsAsFactors=FALSE, ...)
+			}
 		}
 	}
 	d
 }
-
 setMethod("as.data.frame", signature(x="SpatVector"), as.data.frame.SpatVector)
 
 
-setMethod("as.list", signature(x="SpatVector"), 
-	function(x, geom=NULL) {
-		as.list(as.data.frame(x, geom=geom))
-	}
-)
+get.data.frame <- function(x) {
+	v <- vect()
+	v@ptr <- x@ptr$v
+	d <- as.data.frame(v)
+	d[0,,drop=FALSE]
+}
+
+
+as.list.SpatVector <- function(x, geom=NULL, ...) {
+	as.list(as.data.frame(x, geom=geom))
+}
+setMethod("as.list", signature(x="SpatVector"), as.list.SpatVector)
 
 
 

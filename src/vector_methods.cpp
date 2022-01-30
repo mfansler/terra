@@ -26,7 +26,7 @@
 std::vector<bool> SpatVector::is_valid() {
 	std::vector<bool> out;
 	out.reserve(nrow());
-	GDALDataset* src = write_ogr("", "layer", "Memory", true, std::vector<std::string>());
+	GDALDataset* src = write_ogr("", "layer", "Memory", false, true, std::vector<std::string>());
 	OGRLayer *inLayer = src->GetLayer(0);
 	inLayer->ResetReading();
 	OGRFeature *inFeature;
@@ -41,7 +41,7 @@ std::vector<bool> SpatVector::is_valid() {
 
 SpatVector SpatVector::make_valid() {
 	SpatVector out;
-	GDALDataset* src = write_ogr("", "layer", "Memory", true, std::vector<std::string>());
+	GDALDataset* src = write_ogr("", "layer", "Memory", false, true, std::vector<std::string>());
 	OGRLayer *inLayer = src->GetLayer(0);
 	inLayer->ResetReading();
 	OGRFeature *inFeature;
@@ -60,7 +60,7 @@ SpatVector SpatVector::make_valid() {
 	}
 	std::vector<double> fext;
 	SpatVector fvct;
-	out.read_ogr(src, "", "", fext, fvct);
+	out.read_ogr(src, "", "", fext, fvct, false);
 	GDALClose(src);
 	return out;
 }

@@ -104,7 +104,13 @@ class SpatVector {
 		SpatDataFrame df;
 		//std::vector<std::string> crs;
 		SpatSRS srs;
-
+		bool is_proxy = false;
+		std::string read_query = "";
+		std::vector<double> read_extent;
+		std::string source = "";
+		std::string source_layer = "";
+		size_t geom_count = 0;
+		
 		SpatVector();
 		//SpatVector(const SpatVector &x);
 		SpatVector(SpatGeom g);
@@ -191,16 +197,18 @@ class SpatVector {
 		SpatVector set_holes(SpatVector x, size_t i);
 		SpatVector remove_duplicate_nodes(int digits);
 
-		bool read(std::string fname, std::string layer, std::string query, std::vector<double> extent, SpatVector filter);
+		bool read(std::string fname, std::string layer, std::string query, std::vector<double> extent, SpatVector filter, bool as_proxy);
 		
-		bool write(std::string filename, std::string lyrname, std::string driver, bool overwrite, std::vector<std::string>);
+		bool write(std::string filename, std::string lyrname, std::string driver, bool append, bool overwrite, std::vector<std::string>);
 		
 #ifdef useGDAL
-		GDALDataset* write_ogr(std::string filename, std::string lyrname, std::string driver, bool overwrite, std::vector<std::string> options);
+		GDALDataset* write_ogr(std::string filename, std::string lyrname, std::string driver, bool append, bool overwrite, std::vector<std::string> options);
 		GDALDataset* GDAL_ds();
-		bool read_ogr(GDALDataset *poDS, std::string layer, std::string query, std::vector<double> extent, SpatVector filter);
+		bool read_ogr(GDALDataset *poDS, std::string layer, std::string query, std::vector<double> extent, SpatVector filter, bool as_proxy);
 		SpatVector fromDS(GDALDataset *poDS);
 		bool ogr_geoms(std::vector<OGRGeometryH> &ogrgeoms, std::string &message);		
+		bool delete_layers(std::string filename, std::vector<std::string> layers, bool return_error);		
+		std::vector<std::string> layer_names(std::string filename);		
 #endif
 
 // attributes
@@ -292,10 +300,12 @@ class SpatVector {
 		SpatVector erase_agg(SpatVector v);
 		SpatVector erase(SpatVector v);
 		SpatVector erase();
+		SpatVector mask(SpatVector x, bool inverse);
 		SpatVector gaps();		
 		SpatVector cover(SpatVector v, bool identity);
 		SpatVectorCollection split(std::string field);
 		SpatVector symdif(SpatVector v);
+		std::vector<bool> is_related(SpatVector v, std::string relation);
 		std::vector<int> relate(SpatVector v, std::string relation);
 		std::vector<int> relate(std::string relation, bool symmetrical);
 		std::vector<int> relateFirst(SpatVector v, std::string relation);
@@ -329,7 +339,8 @@ class SpatVectorCollection {
 
 	public:
 		virtual ~SpatVectorCollection(){}
-	
+		SpatVectorCollection deepCopy() { return *this; }
+
 		SpatMessages msg;
 		void setError(std::string s) { msg.setError(s); }
 		void addWarning(std::string s) { msg.addWarning(s); }
@@ -371,5 +382,16 @@ class SpatVectorCollection {
 		
 		SpatVector append();
 		
+};
+
+
+
+class SpatVectorProxy {
+	public:
+		SpatVector v;
+		SpatVectorProxy(){}
+		virtual ~SpatVectorProxy(){}
+		SpatVectorProxy deepCopy() {return *this;}
+		SpatVector query_filter(std::string query, std::vector<double> extent, SpatVector filter);
 };
 

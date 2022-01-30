@@ -84,7 +84,7 @@ get_filetype <- function(filename) {
 }
 
 setMethod("writeVector", signature(x="SpatVector", filename="character"), 
-function(x, filename, filetype=NULL, layer=NULL, overwrite=FALSE, options="ENCODING=UTF-8") {
+function(x, filename, filetype=NULL, layer=NULL, insert=FALSE, overwrite=FALSE, options="ENCODING=UTF-8") {
 	filename <- trimws(filename)
 	if (filename == "") {
 		error("writeVector", "provide a filename")
@@ -93,6 +93,8 @@ function(x, filename, filetype=NULL, layer=NULL, overwrite=FALSE, options="ENCOD
 		filetype <- get_filetype(filename)
 	}
 	if (is.null(layer)) layer <- tools::file_path_sans_ext(basename(filename))
+	layer <- trimws(layer)
+	
 	if (is.null(options)) { options <- ""[0] }
 
 	if (filetype == "ESRI Shapefile") {
@@ -113,7 +115,7 @@ function(x, filename, filetype=NULL, layer=NULL, overwrite=FALSE, options="ENCOD
 			names(x) <- nms
 		}
 	}
-	success <- x@ptr$write(filename, layer, filetype, overwrite[1], options)
+	success <- x@ptr$write(filename, layer, filetype, insert[1], overwrite[1], options)
 	messages(x, "writeVector")
 	invisible(TRUE)
 }

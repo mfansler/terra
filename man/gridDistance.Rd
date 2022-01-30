@@ -32,8 +32,8 @@ Distances are computed by summing local distances between cells, which are conne
 \seealso{See \code{\link[terra]{distance}} for "as the crow flies" distance} 
 
 
-\details{
-If the SpatRaster to be processed is big, it will be processed in chunks. This may lead to errors in the case of complex objects spread over different chunks (meandering rivers, for instance). 
+\note{
+If the SpatRaster to be processed is big, it will be processed in chunks. This may lead to errors in the case of complex objects that cannot be traversed are spread over different chunks (meandering rivers, for instance). 
 }
 
 \value{SpatRaster}

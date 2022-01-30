@@ -49,7 +49,7 @@ Also see the methods in section VIII
     \code{\link{merge}} \tab Combine SpatRasters with different extents (but same origin and resolution) \cr
     \code{\link{mosaic}} \tab Combine SpatRasters with different extents using a function for overlapping cells \cr
     \code{\link{crop}} \tab Select a geographic subset of a SpatRaster \cr
-    \code{\link{extend}} \tab Enlarge a SpatRaster \cr
+    \code{\link{extend}} \tab Add rows and/or columns to a SpatRaster \cr
     \code{\link{trim}} \tab Trim a SpatRaster by removing exterior rows and/or columns that only have NAs\cr
     \code{\link{aggregate}} \tab Combine cells of a SpatRaster to create larger cells \cr
     \code{\link{disagg}} \tab Subdivide cells \cr
@@ -373,6 +373,7 @@ We use the term "attributes" for the tabular data (data.frame) associated with v
   \code{\link{click}} \tab identify attributes by clicking on a map\cr
   \code{\link{merge}} \tab Join a table with a SpatVector \cr
   \code{\link{as.data.frame}} \tab get attributes as a data.frame\cr
+  \code{\link{as.list}} \tab get attributes as a list\cr
   \code{\link{values}} \tab Get the attributes of a SpatVector \cr
   \code{\link{values<-}} \tab Set new attributes to the geometries of a SpatRaster \cr
   
@@ -398,7 +399,7 @@ We use the term "attributes" for the tabular data (data.frame) associated with v
   \code{\link{width}} \tab the minimum diameter of the geometries \cr
   \code{\link{clearance}} \tab the minimum clearance of the geometries \cr
   \code{\link{sharedPaths}} \tab shared paths (arcs) between line or polygon geometries\cr
-  \code{\link{simplify}} \tab simplify geometries\cr
+  \code{\link{simplifyGeom}} \tab simplify geometries\cr
   \code{\link{gaps}} \tab find gaps between polygon geometries \cr
   \code{\link{fillHoles}} \tab get or remove the polygon holes\cr
   \code{\link{makeNodes}} \tab create nodes on lines \cr
@@ -492,7 +493,7 @@ You can coerce SpatRasters to Raster* objects after loading the \code{raster} pa
     \code{\link{image}} \tab Alternative to plot to make a map with a SpatRaster \cr
     \code{\link{plotRGB}} \tab Combine three layers (red, green, blue channels) into a single "real color" plot \cr
     \code{\link{sbar}} \tab Add a scalebar to a map\cr
-    \code{\link{arrow}} \tab Add a north arrow to a map\cr
+    \code{\link{north}} \tab Add a north arrow to a map\cr
     \code{\link{inset}} \tab Add a small inset (overview) map\cr	
     \code{\link{dots}} \tab Make a dot-density map \cr
     \code{\link{cartogram}} \tab Make a cartogram \cr
@@ -603,7 +604,7 @@ Also note that even if function names are the same in \code{terra} and \code{ras
 ---------------------------------------------------------------------------------------------------------------------}
 
 \section{Author}{
-Except where indicated otherwise, the methods and functions in this package were written by Robert Hijmans. The configuration scripts were written by Roger Bivand for \code{rgdal} and \code{sf}. Some of the C++ code for GDAL/GEOS was adapted from code by Edzer Pebesma for \code{sf}. The progress bar code is by Karl Forner (RcppProgress). Jeroen Ooms provided the compiled GDAL and GEOS libraries for installation on windows}
+Except where indicated otherwise, the methods and functions in this package were written by Robert Hijmans. The configuration scripts were written by Roger Bivand for \code{rgdal} and \code{sf}. Some of the C++ code for GDAL/GEOS was adapted from code by Edzer Pebesma for \code{sf}. The gridDistance method was based on code by Jacob van Etten. The progress bar code is by Karl Forner (RcppProgress). Jeroen Ooms provided the compiled GDAL and GEOS libraries for installation on windows}
 
 \section{Acknowledgments}{
 This package is an attempt to climb on the shoulders of giants (GDAL, PROJ, GEOS, NCDF, GeographicLib, Rcpp, R). Many people have contributed by asking questions or \href{https://github.com/rspatial/terra}{raising issues}. Feedback and suggestions by Márcia Barbosa, Kendon Bell, Jean-Luc Dupouey, Krzysztof Dyba, Alex Ilich, Jakub Nowosad, Gerald Nelson, and Michael Sumner have been especially helpful.

@@ -192,7 +192,9 @@ void compute_aggregates(const std::vector<double> &in, std::vector<double> &out,
 	size_t dy = dim[0], dx = dim[1], dz = dim[2];
 //	size_t bpC = dim[3];
 // adjust for chunk
-	size_t bpC = std::ceil(double(nr) / dim[0]);
+//	size_t bpC = std::ceil(double(nr) / dim[0]);
+	size_t bpC = std::ceil((double)nr / (double)dim[0]);
+
 	size_t bpR = dim[4];
 	size_t bpL = bpR * bpC;
 
@@ -307,8 +309,9 @@ SpatRaster SpatRaster::aggregate(std::vector<unsigned> fact, std::string fun, bo
 	for (size_t i =0; i<bs.n; i++) {
 		bs.row[i] = i * fact[0];
 	}
-	size_t lastrow = bs.row[bs.n - 1] + bs.nrows[bs.n - 1] + 1;
+	size_t lastrow = bs.row[bs.n - 1] + bs.nrows[bs.n - 1]; // + 1;
 	if (lastrow < nrow()) {
+		
 		bs.row.push_back(lastrow);
 		bs.nrows.push_back(std::min(bs.nrows[bs.n-1], nrow()-lastrow));
 		bs.n += 1;
@@ -336,11 +339,13 @@ SpatRaster SpatRaster::aggregate(std::vector<unsigned> fact, std::string fun, bo
 	}
 
 	size_t nc = ncol();
+	//size_t outnc = out.ncol();
 	for (size_t i = 0; i < bs.n; i++) {
         std::vector<double> vin, v;
 		readValues(vin, bs.row[i], bs.nrows[i], 0, nc);
 		compute_aggregates(vin, v, bs.nrows[i], nc, nlyr(), fact, agFun, narm);
 		if (!out.writeValues(v, i, 1)) return out;
+		//if (!out.writeValuesRect(v, i, 1, 0, outnc)) return out;		
 	}
 	out.writeStop();
 	readStop();
@@ -1673,7 +1678,7 @@ SpatRaster SpatRaster::rotate(bool left, SpatOptions &opt) {
 				b.insert(b.end(), a.begin()+s1, a.begin()+e1);
 			}
 		}
-		if (!out.writeValues(b, out.bs.row[i], nrow())) return out;
+		if (!out.writeBlock(b, i)) return out;
 	}
 	out.writeStop();
 	readStop();
@@ -1688,7 +1693,7 @@ bool SpatRaster::shared_basegeom(SpatRaster &x, double tol, bool test_overlap) {
 	if (!about_equal(yres(), x.yres(), yres() * tol)) return false; 
 	if (test_overlap) {
 		SpatExtent e = x.getExtent();
-		e.intersect(getExtent());
+		e = e.intersect(getExtent());
 		if (!e.valid()) return false;
 	}
 	return true;
@@ -1877,7 +1882,7 @@ SpatRaster SpatRaster::crop(SpatExtent e, std::string snap, SpatOptions &opt) {
 		out.setError("invalid extent");
 		return out;
 	} 
-	e.intersect(out.getExtent());
+	e = e.intersect(out.getExtent());
 	if ( !e.valid() ) {
 		out.setError("extents do not overlap");
 		return out;
@@ -1936,6 +1941,13 @@ SpatRaster SpatRaster::crop(SpatExtent e, std::string snap, SpatOptions &opt) {
 
 	return(out);
 }
+
+SpatRaster SpatRaster::cropmask(SpatVector v, std::string snap, SpatOptions &opt) {
+	SpatOptions copt(opt);
+	SpatRaster out = crop(v.extent, snap, copt);
+	return out.mask(v, false, NAN, false, opt);
+}
+
 
 SpatRaster SpatRaster::flip(bool vertical, SpatOptions &opt) {
 
@@ -2208,7 +2220,7 @@ SpatRaster SpatRasterCollection::mosaic(std::string fun, SpatOptions &opt) {
 		SpatRasterStack s;
 		for (size_t j=0; j<n; j++) {
 			e = ds[j].getExtent();
-			e.intersect(eout);
+			e = e.intersect(eout);
 			if ( e.valid_notequal() ) {
 				SpatRaster r = ds[j].crop(eout, "near", sopt);
 				//SpatExtent ec = r.getExtent();
@@ -3013,8 +3025,11 @@ SpatRaster SpatRaster::reclassify(std::vector<std::vector<double>> rcl, unsigned
 					s.push_back(double_to_string(rcl[0][i-1]) + " – " + double_to_string(rcl[0][i]));
 				}
 			}
+			std::vector<long> u(s.size());
+			std::iota(u.begin(), u.end(), 0);
+			std::vector<std::string> nms = getNames();
 			for (size_t i=0; i<out.nlyr(); i++) {
-				out.setLabels(i, s);
+				out.setLabels(i, u, s, nms[i]);
 			}
 		}
 		nr = rcl[0].size();
@@ -3332,9 +3347,10 @@ SpatRaster SpatRaster::clumps(int directions, bool zeroAsNA, SpatOptions &opt) {
 	
 	if (nlyr() > 1) {
 		SpatOptions ops(opt);
-		std::string filename = opt.get_filename();
-		ops.set_filenames({""});
 		std::vector<std::string> nms = getNames();
+		if (ops.names.size() == nms.size()) {
+			nms = opt.names;
+		}
 		for (size_t i=0; i<nlyr(); i++) {
 			std::vector<unsigned> lyr = {(unsigned)i};
 			ops.names = {nms[i]};
@@ -3342,7 +3358,7 @@ SpatRaster SpatRaster::clumps(int directions, bool zeroAsNA, SpatOptions &opt) {
 			x = x.clumps(directions, zeroAsNA, ops);
 			out.addSource(x, false);
 		}
-		if (filename != "") {
+		if (opt.get_filename() != "") {
 			out = out.writeRaster(opt);
 		}
 		return out;
@@ -3454,21 +3470,12 @@ bool SpatRaster::replaceCellValues(std::vector<double> &cells, std::vector<doubl
 				for (size_t k=0; k<cs; k++) {
 					source[i].values[off + cells[k]] = v[koff + k];
 				}
-				std::vector<double> vv(v.begin()+koff, v.begin()+koff+cs); 
-				if (source[i].hasRange[j]) {
-					std::vector<double> xv = {vmin(vv, true), source[i].range_min[j]};
-					source[i].range_min[j] = vmin(xv, true);
-					xv = {vmax(vv, true), source[i].range_max[j]};
-					source[i].range_max[j] = vmax(xv, true);
-				} else {
-					source[i].range_min[j] = vmin(vv, true);
-					source[i].range_max[j] = vmax(vv, true);
-				}
 			}
+			source[i].setRange();
 		}
 	} else {
-		double minv = vmin(v, true);
-		double maxv = vmax(v, true);
+		//double minv = vmin(v, true);
+		//double maxv = vmax(v, true);
 		for (size_t i=0; i<ns; i++) {
 			size_t nl = source[i].nlyr;
 			for (size_t j=0; j<nl; j++) {
@@ -3476,16 +3483,8 @@ bool SpatRaster::replaceCellValues(std::vector<double> &cells, std::vector<doubl
 				for (size_t k=0; k<cs; k++) {
 					source[i].values[off + cells[k]] = v[k];
 				}
-				if (source[i].hasRange[j]) {
-					std::vector<double> xv = {minv, source[i].range_min[j]};
-					source[i].range_min[j] = vmin(xv, true);
-					xv = {maxv, source[i].range_max[j]};
-					source[i].range_max[j] = vmax(xv, true);
-				} else {
-					source[i].range_min[j] = minv;
-					source[i].range_max[j] = maxv;
-				}
 			}
+			source[i].setRange();
 		}
 	}
 	return true;

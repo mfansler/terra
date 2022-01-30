@@ -5,6 +5,17 @@
 #	}
 #)
 
+character_crs <- function(crs, caller="") {
+	if (is.na(crs)) {
+		""
+	} else if (!inherits(crs, "character")) {
+		warn(caller, "argument 'crs' should be a character value")
+		as.character(crs)
+	} else {
+		crs
+	}
+}
+
 
 setMethod("as.vector", signature(x="SpatVector"), 
 	function(x, mode="any") {
@@ -26,7 +37,7 @@ setMethod("vect", signature(x="missing"),
 )
 
 setMethod("vect", signature(x="character"), 
-	function(x, layer="", query="", extent=NULL, filter=NULL, crs="") {
+	function(x, layer="", query="", extent=NULL, filter=NULL, crs="", proxy=FALSE) {
 		p <- methods::new("SpatVector")
 		s <- substr(x[1], 1, 5)
 		if (s %in% c("POINT", "MULTI", "LINES", "POLYG")) {
@@ -37,9 +48,14 @@ setMethod("vect", signature(x="character"),
 		} else {
 			p@ptr <- SpatVector$new()
 			x <- normalizePath(x)
+			proxy <- isTRUE(proxy)
+			#if (proxy) query <- ""
 			if (is.null(filter)) {
 				filter <- vect()@ptr
 			} else {
+				if (proxy) {
+					error("vect", "you cannot use 'filter' when proxy=TRUE")
+				}
 				filter <- filter@ptr
 			}
 			if (is.null(extent)) {
@@ -47,9 +63,16 @@ setMethod("vect", signature(x="character"),
 			} else {
 				extent <- as.vector(ext(extent))
 			}
-			p@ptr$read(x, layer, query, extent, filter)
+			p@ptr$read(x, layer, query, extent, filter, proxy)
 			if (isTRUE(crs != "")) {
 				crs(p) <- crs
+			}
+			if (proxy) {
+				messages(p, "vect")
+				pp <- methods::new("SpatVectorProxy")
+				pp@ptr <- SpatVectorProxy$new()
+				pp@ptr$v <- p@ptr
+				return(pp)
 			}
 		}
 		messages(p, "vect")
@@ -113,10 +136,11 @@ setMethod("vect", signature(x="matrix"),
 		type <- tolower(type)
 		type <- match.arg(tolower(type), c("points", "lines", "polygons"))
 		stopifnot(NCOL(x) > 1)
-
+		
+		crs <- character_crs(crs, "vect")
 		p <- methods::new("SpatVector")
 		p@ptr <- SpatVector$new()
-		crs(p) <- ifelse(is.na(crs), "", as.character(crs))
+		crs(p) <- crs 
 
 		nr <- nrow(x)
 		if (nr == 0) {
@@ -126,7 +150,7 @@ setMethod("vect", signature(x="matrix"),
 		if (ncol(x) == 2) { 
 			lonlat <- .checkXYnames(colnames(x))
 			if (type == "points") {
-				p@ptr$setPointsXY(x[,1], x[,2])
+				p@ptr$setPointsXY(as.double(x[,1]), as.double(x[,2]))
 			} else {
 				p@ptr$setGeometry(type, rep(1, nr), rep(1, nr), x[,1], x[,2], rep(FALSE, nr))
 			}
@@ -272,17 +296,28 @@ setMethod("$<-", "SpatVector",
 
 
 
+
 setMethod("vect", signature(x="data.frame"), 
 	function(x, geom=c("lon", "lat"), crs=NA) {
 		if (!all(geom %in% names(x))) {
 			error("vect", "the variable name(s) in argument `geom` are not in `x`")
 		}
+		crs <- character_crs(crs, "vect")
 		if (length(geom) == 2) {
 			geom <- match(geom[1:2], names(x))
+			cls <- sapply(x[, geom], class)
+			if (cls[1] == "integer") {
+				x[,geom[1]] = as.numeric(x[,geom[1]])
+			}
+			if (cls[2] == "integer") {
+				x[,geom[2]] = as.numeric(x[,geom[2]])
+			}	
 			p <- methods::new("SpatVector")
 			p@ptr <- SpatVector$new()
 			x <- .makeSpatDF(x)
-			p@ptr$setPointsDF(x, geom-1, ifelse(is.na(crs), "", crs))
+			
+			p@ptr$setPointsDF(x, geom-1, crs)
+			messages(p, "vect")
 			return(p)
 		} else if (length(geom) == 1) {
 			v <- vect(unlist(x[,geom]), crs=crs)
@@ -301,7 +336,85 @@ setMethod("vect", signature(x="list"),
 		x <- x@ptr$append()
 		v <- methods::new("SpatVector")
 		v@ptr <- x 
-		messages(v)
+		messages(v, "vect")
 	}
 )
+
+
+setMethod("query", signature(x="SpatVectorProxy"), 
+	function(x, start=1, n=nrow(x), vars=NULL, where=NULL, extent=NULL, filter=NULL) {
+		f <- x@ptr$v$source
+		layer <- x@ptr$v$layer
+		e <- x@ptr$v$read_extent
+		if (is.null(extent)) {
+			if (length(e) == 4) {
+				extent = ext(e);
+			}
+		} else {
+			if (length(e) == 4) {
+				extent = intersect(ext(e), extent);
+				if (is.null(extent)) {
+					error("query", "extent does not intersect with x")
+				}
+			}
+		}
+		if (is.null(vars)) {
+			vars <- "*"
+		} else {
+			vars <- na.omit(unique(vars))
+			nms <- names(x)
+			if (!all(vars %in% nms)) {
+				error("query", "not all vars are variable names")
+			} else if (length(vars) < length(nms))  {
+				vars <- paste(vars, collapse=", ")
+			}
+		}
+
+		qy <- ""
+		if (!is.null(where)) {
+			qy <- paste("SELECT", vars, "FROM", layer, "WHERE", where[1]) 
+		}
+
+		nr <- nrow(x)
+		start <- start-1
+		if (start > 0) {
+			if (qy == "") {
+				qy <- paste("SELECT", vars, "FROM", layer)
+			} 
+			if (n >= (nr-start)) {
+				qy <- paste(qy, "OFFSET", start)
+			} else {
+				n <- min(n, nr-start)
+				qy <- paste(qy, layer, "LIMIT", n, "OFFSET", start)
+			}
+		} else if (n < nr) {
+			if (qy == "") {
+				qy <- paste("SELECT", vars, "FROM", layer)
+			} 
+			n <- min(n, nr)
+			qy <- paste(qy, "LIMIT", n)		
+		}
+		
+		if ((qy != "") && (x@ptr$v$read_query != "")) {
+			error("query", "A query was used to create 'x'; you can only subset it with extent or filter")
+		}
+		
+		vect(f, layer, query=qy, extent=extent, filter=filter, crs="", FALSE)
+	}
+)
+
+
+vector_layers <- function(filename, delete="", return_error=FALSE) {
+	p <- SpatVector$new()
+	if (any(delete != "")) {
+		delete <- trimws(delete)
+		ok <- p$delete_layers(filename, delete, return_error[1])
+		messages(p, "vector_layers")
+		invisible(ok)
+	} else {
+		out <- p$layer_names(filename)
+		messages(p, "vector_layers")
+		out
+	}
+}
 

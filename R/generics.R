@@ -162,6 +162,14 @@ setMethod("atan2", signature(y="SpatRaster", x="SpatRaster"),
 	}
 )
 
+setMethod("atan_2", signature(y="SpatRaster", x="SpatRaster"),
+	function(y, x, filename="", ...) { 
+		opt <- spatOptions(filename=filename, ...)
+		y@ptr <- y@ptr$atan2(x@ptr, opt)
+		messages(y, "atan_2")
+	}
+)
+
 
 setMethod("boundaries", signature(x="SpatRaster"), 
 	function(x, classes=FALSE, inner=TRUE, directions=8, falseval=0, filename="", ...) {
@@ -384,10 +392,14 @@ function(x, from, to, filename="", ...) {
 }
 
 setMethod("crop", signature(x="SpatRaster", y="ANY"), 
-	function(x, y, snap="near", filename="", ...) {
+	function(x, y, snap="near", mask=FALSE, filename="", ...) {
 		opt <- spatOptions(filename, ...)
-		y <- .getExt(y, method="crop")
-		x@ptr <- x@ptr$crop(y@ptr, snap[1], opt)
+		if (mask && inherits(y, "SpatVector")) {
+			x@ptr <- x@ptr$crop_mask(y@ptr, snap[1], opt)
+		} else {
+			y <- .getExt(y, method="crop")
+			x@ptr <- x@ptr$crop(y@ptr, snap[1], opt)
+		}
 		messages(x, "crop")
 	}
 )
@@ -588,11 +600,12 @@ setMethod("project", signature(x="SpatRaster"),
 				x@ptr <- x@ptr$resample(y@ptr, method, mask[1], TRUE, opt)			
 			}
 		} else {
-			if (!is.character(y)) {
+			if (inherits(y, "SpatRaster")) {
+				y <- crs(y)
+			} else if (!is.character(y)) {
 				warn("project,SpatRaster", "crs should be a character value")
 				y <- as.character(crs(y))
 			}
-			#x@ptr <- x@ptr$warpcrs(y, method, opt)
 			if (gdal) {
 				x@ptr <- x@ptr$warp(SpatRaster$new(), y, method, mask, FALSE, opt)
 			} else {
