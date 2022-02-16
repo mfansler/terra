@@ -47,7 +47,11 @@ setMethod("vect", signature(x="character"),
 			crs(p) <- crs
 		} else {
 			p@ptr <- SpatVector$new()
-			x <- normalizePath(x)
+			nx <- try(normalizePath(x, mustWork=TRUE), silent=TRUE)
+			if (!inherits(nx, "try-error")) { # skip html
+				x <- nx
+				x <- enc2utf8(x)
+			}
 			proxy <- isTRUE(proxy)
 			#if (proxy) query <- ""
 			if (is.null(filter)) {
@@ -241,6 +245,7 @@ setReplaceMethod("[", c("SpatVector", "missing", "ANY"),
 setReplaceMethod("[[", c("SpatVector", "character", "missing"),
 	function(x, i, j, value) {
 
+		x@ptr <- x@ptr$deepcopy()
 		if (is.null(value)) {
 			for (name in i) {
 				if (name %in% names(x)) {

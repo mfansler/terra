@@ -219,8 +219,29 @@ bool get_output_bounds(const GDALDatasetH &hSrcDS, std::string srccrs, const std
 }
 */
 
-GDALResampleAlg getAlgo(std::string m) {
-	GDALResampleAlg alg;
+bool getAlgo(GDALResampleAlg &alg, std::string m) {
+
+	if (m=="sum") {
+#if GDAL_VERSION_MAJOR >= 3 && GDAL_VERSION_MINOR >= 1
+		alg = GRA_Sum;
+		return true;
+	}
+#else
+		return false;
+	}
+#endif
+
+	if (m=="rms") {
+#if GDAL_VERSION_MAJOR >= 3 && GDAL_VERSION_MINOR >= 3
+		alg = GRA_RMS;
+		return true;
+	}
+#else
+		return false;
+	}
+#endif
+
+
 	if ( m == "near" ) { 
 		alg = GRA_NearestNeighbour;
 	} else if (m=="bilinear") {
@@ -231,10 +252,8 @@ GDALResampleAlg getAlgo(std::string m) {
 		alg = GRA_CubicSpline; 
 	} else if (m=="lanczos") {
 		alg = GRA_Lanczos;
-	} else if (m=="mean") {
+	} else if (m=="average") {
 		alg = GRA_Average;
-//	} else if (m=="sum") {
-//		alg = GRA_Sum;
 	} else if (m=="mode") {
 		alg = GRA_Mode; 
 	} else if (m=="max") {
@@ -249,13 +268,14 @@ GDALResampleAlg getAlgo(std::string m) {
 		alg = GRA_Q3;
 	} else { 
 		alg = GRA_NearestNeighbour;
+		return false;
 	}
-	return alg;
+	return true;
 }
 
 
 bool is_valid_warp_method(const std::string &method) {
-	std::vector<std::string> m { "near", "bilinear", "cubic", "cubicspline", "lanczos", "average", "mode", "max", "min", "med", "q1", "q3", "sum" };
+	std::vector<std::string> m { "near", "bilinear", "cubic", "cubicspline", "lanczos", "average", "mode", "max", "min", "med", "q1", "q3", "sum", "rms"};
 	return (std::find(m.begin(), m.end(), method) != m.end());
 }
 
@@ -268,7 +288,15 @@ bool set_warp_options(GDALWarpOptions *psWarpOptions, GDALDatasetH &hSrcDS, GDAL
 	}
 	int nbands = srcbands.size();
 
-	GDALResampleAlg a = getAlgo(method);
+	GDALResampleAlg a;
+	if (!getAlgo(a, method)) {
+		if (method=="sum" || method=="rms") {
+			msg = method + " not available in your version of GDAL";			
+		} else {
+			msg = "unknown resampling algorithm";
+		}
+		return false;
+	}
 
     // Setup warp options.
     psWarpOptions->hSrcDS = hSrcDS;
@@ -355,6 +383,7 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 		out.source[0].cats = getCategories();
 		out.rgb = rgb;
 		out.rgblyrs = rgblyrs;
+		out.rgbtype = rgbtype;
 	}
 	if (hasTime()) {
 		out.source[0].hasTime = true;

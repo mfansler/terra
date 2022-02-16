@@ -210,7 +210,8 @@ setMethod("add<-", signature("SpatRaster", "SpatRaster"),
 		if (x@ptr$same(value@ptr)) {
 			x@ptr <- x@ptr$deepcopy() 
 		}
-		x@ptr$addSource(value@ptr, FALSE)
+		opt <- spatOptions()
+		x@ptr$addSource(value@ptr, FALSE, opt)
 		messages(x, "add")
 	}
 )
@@ -292,9 +293,10 @@ setMethod("c", signature(x="SpatRaster"),
 		hv <- hasValues(x)
 		dots <- list(...)
 		x@ptr <- x@ptr$deepcopy()
+		opt <- spatOptions()
 		for (i in dots) {
 			if (inherits(i, "SpatRaster")) {
-				x@ptr$addSource(i@ptr, warn)
+				x@ptr$addSource(i@ptr, warn, opt)
 				if (x@ptr$messages$has_error) {
 					messages(x, "c")
 					return()
@@ -580,7 +582,11 @@ setMethod("project", signature(x="SpatRaster"),
 	function(x, y, method, mask=FALSE, align=FALSE, gdal=TRUE, filename="", ...)  {
 	  
 		if (missing(method)) {
-			method <- ifelse(is.factor(x)[1], "near", "bilinear")
+			if (is.factor(x)[1] || isTRUE(x@ptr$rgb)) {
+				method <- "near"
+			} else {
+				method <- "bilinear"
+			}
 		} else {
 			method <- method[1]
 		}

@@ -78,6 +78,88 @@ SpatRaster SpatRaster::selectHighest(size_t n, bool low, SpatOptions &opt) {
 }
 */
 
+
+SpatExtent SpatRaster::ext_from_rc(int_64 r1, int_64 r2, int_64 c1, int_64 c2) { 
+	SpatExtent e = getExtent();
+	double xrs = xres();
+	double yrs = yres();
+	int_64 nr = nrow();
+	int_64 nc = ncol();
+	c1 = std::min(std::max(c1, (int_64)0), nc);
+	c2 = std::min(std::max(c2,  (int_64)0), nc);
+	if (c1 > c2) {
+		std::swap(c1, c2);
+	}
+	r1 = std::min(std::max(r1, (int_64)0), nr);
+	r2 = std::min(std::max(r2, (int_64)0), nr);
+	if (r1 > r2) {
+		std::swap(r1, r2);
+	}
+
+	double xn = xFromCol(c1) - 0.5 * xrs;
+	double xx = xFromCol(c2) + 0.5 * xrs;
+	double yx = yFromRow(r1) + 0.5 * yrs;
+	double yn = yFromRow(r2) - 0.5 * yrs;
+
+	return SpatExtent(xn, xx, yn, yx);
+}
+
+
+SpatExtent SpatRaster::ext_from_cell(double cell) { 
+	std::vector<double> cells = {cell};
+	std::vector<std::vector<int_64>> rc = rowColFromCell(cells);
+	return ext_from_rc(rc[0][0], rc[0][0], rc[1][0], rc[1][0]); 
+}
+
+std::vector<std::string> SpatRaster::make_tiles(SpatRaster x, bool expand, bool narm, std::string filename, SpatOptions &opt) {
+
+	std::vector<std::string> ff;
+	if (!hasValues()) {
+		setError("input raster has no values");
+		return ff;
+	}
+	x = x.geometry(1, false, false, false);
+	SpatExtent e = getExtent();
+	if (expand) {
+		x = x.extend(e, "out", opt);
+	}
+	x = x.crop(e, "out", opt);
+	
+	std::vector<size_t> d(x.ncell());
+	std::iota(d.begin(), d.end(), 1);
+
+	std::string fext = getFileExt(filename);
+	std::string f = noext(filename);
+	ff.reserve(d.size());
+	size_t nl = nlyr();
+	for (size_t i=0; i<d.size(); i++) {
+		std::string fout = f + std::to_string(d[i]) + fext;
+		SpatExtent exi = x.ext_from_cell(i); 
+		opt.set_filenames({fout});
+		SpatRaster out = crop(exi, "near", opt);
+		if (out.hasError()) {
+			setError(out.getError());
+			return ff;
+		}
+		if ( out.hasValues() ) {
+			if (narm) {
+				std::vector<double> rmin = out.range_min();
+				size_t cnt = 0;
+				for (double &v : rmin) {
+					if (std::isnan(v)) cnt++;
+				}
+				if (cnt == nl) {
+					remove(fout.c_str());
+					continue;
+				}
+			}
+			ff.push_back(fout);
+		}
+	}
+	return ff;
+}
+
+
 bool SpatRaster::get_aggregate_dims(std::vector<unsigned> &fact, std::string &message ) {
 
 	unsigned fs = fact.size();
@@ -1737,7 +1819,7 @@ SpatRaster SpatRaster::cover(SpatRaster x, std::vector<double> values, SpatOptio
 			return x.deepCopy();
 		} else {
 			SpatExtent e = getExtent();
-			return x.extend(e, opt);
+			return x.extend(e, "near", opt);
 		}
 	}
 
@@ -1820,10 +1902,10 @@ SpatRaster SpatRaster::cover(SpatRaster x, std::vector<double> values, SpatOptio
 
 
 
-SpatRaster SpatRaster::extend(SpatExtent e, SpatOptions &opt) {
+SpatRaster SpatRaster::extend(SpatExtent e, std::string snap, SpatOptions &opt) {
 
 	SpatRaster out = geometry(nlyr(), true);
-	e = out.align(e, "near");
+	e = out.align(e, snap);
 	SpatExtent extent = getExtent();
 	e.unite(extent);
 
@@ -2224,7 +2306,7 @@ SpatRaster SpatRasterCollection::mosaic(std::string fun, SpatOptions &opt) {
 			if ( e.valid_notequal() ) {
 				SpatRaster r = ds[j].crop(eout, "near", sopt);
 				//SpatExtent ec = r.getExtent();
-				r = r.extend(eout, sopt);
+				r = r.extend(eout, "near", sopt);
 				//SpatExtent ee = r.getExtent();
 				if (!s.push_back(r, "", "", "", false)) {
 					out.setError("internal error: " + s.getError());
@@ -2271,6 +2353,7 @@ SpatRaster SpatRasterCollection::morph(SpatRaster &x, SpatOptions &opt) {
 
 	out.source.resize(0);
 	SpatRaster g = x.geometry();
+	SpatOptions topt(opt);
 	for (size_t i=0; i<n; i++) {
 		if (g.compare_geom(ds[i], false, false, 0.01, false, true, true, false)) {
 			out.source.insert(out.source.end(), ds[i].source.begin(), ds[i].source.end());
@@ -2284,8 +2367,8 @@ SpatRaster SpatRasterCollection::morph(SpatRaster &x, SpatOptions &opt) {
 				call = call && hasCats[j];
 			}
 			std::string method = call ? "near" : "bilinear";
-			SpatRaster temp = ds[i].warper(g, "", method, false, false, opt);
-			out.addSource(temp, false);
+			SpatRaster temp = ds[i].warper(g, "", method, false, false, topt);
+			out.addSource(temp, false, topt);
 		}
 	}
 
@@ -3356,7 +3439,7 @@ SpatRaster SpatRaster::clumps(int directions, bool zeroAsNA, SpatOptions &opt) {
 			ops.names = {nms[i]};
 			SpatRaster x = subset(lyr, ops);
 			x = x.clumps(directions, zeroAsNA, ops);
-			out.addSource(x, false);
+			out.addSource(x, false, ops);
 		}
 		if (opt.get_filename() != "") {
 			out = out.writeRaster(opt);

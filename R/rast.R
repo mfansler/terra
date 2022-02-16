@@ -36,6 +36,11 @@ new_rast <- function(nrows=10, ncols=10, nlyrs=1, xmin=0, xmax=1, ymin=0, ymax=1
 			names(r) <- names
 		}
 		if (!missing(vals)) {
+			if (length(vals) == 1) {
+				if (is.na(vals[1])) {
+					vals <- as.numeric(NA)
+				}
+			}
 			values(r) <- vals
 		}
 		if (!missing(time)) {
@@ -90,8 +95,9 @@ setMethod("rast", signature(x="list"),
 		}
 		# start with an empty raster (alternatively use a deep copy)
 		out <- rast(x[[1]])
+		opt <- spatOptions()
 		for (i in 1:length(x)) {
-			out@ptr$addSource(x[[i]]@ptr, FALSE)
+			out@ptr$addSource(x[[i]]@ptr, FALSE, opt)
 		}
 		out <- messages(out, "rast")
 		lnms <- names(x)
@@ -168,6 +174,7 @@ setMethod("rast", signature(x="character"),
 		}
 		r <- methods::new("SpatRaster")
 		f <- .fullFilename(x)
+		f <- enc2utf8(f)
 		#subds <- subds[1]
 		if (is.null(opts)) opts <- ""[0]
 		if (length(subds) == 0) subds = 0
@@ -380,7 +387,7 @@ setMethod("rast", signature(x="matrix"),
 			r <- .rastFromXYZ(x, crs=crs, digits=digits, extent=extent)
 		} else {
 			if (is.null(extent)) {
-				r <- rast(nrows=nrow(x), ncols=ncol(x), crs=crs, extent=ext(c(0, 1, 0, 1)))
+				r <- rast(nrows=nrow(x), ncols=ncol(x), extent=ext(c(0, ncol(x), 0, nrow(x))), crs=crs)
 			} else {
 				r <- rast(nrows=nrow(x), ncols=ncol(x), crs=crs, extent=extent)
 			}
@@ -394,7 +401,7 @@ setMethod("rast", signature(x="matrix"),
 setMethod("rast", signature(x="data.frame"),
 	function(x, type="xyz", crs="", digits=6, extent=NULL) {
 		if (type == "xyz") {
-			r <- .rastFromXYZ(x, crs=crs, digits=digits, extent=extent)
+			.rastFromXYZ(x, crs=crs, digits=digits, extent=extent)
 		} else {
 			rast(as.matrix(x), type=type, crs=crs, digits=digits, extent=extent)
 		}

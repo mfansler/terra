@@ -40,7 +40,7 @@ std::vector<double> rcValue(std::vector<double> &d, const int& nrow, const int& 
 
 
 
-std::vector<double> SpatRaster::focal_values(std::vector<unsigned> w, double fillvalue, int row, int nrows, SpatOptions &ops) {
+std::vector<double> SpatRaster::focal_values(std::vector<unsigned> w, double fillvalue, int_64 row, int_64 nrows, SpatOptions &ops) {
 
 	if (nlyr() > 1) {
 		std::vector<unsigned> lyr = {0};
@@ -53,58 +53,66 @@ std::vector<double> SpatRaster::focal_values(std::vector<unsigned> w, double fil
 		std::vector<double> d;
 		return(d);
 	}
+	const bool global = is_global_lonlat();
 
-	int wr = w[0] / 2;
-	int nr = nrow();
-	int nc = ncol();
-	wr = std::min(wr, nr-1);
+	int_64 nr = nrow();
+	nrows = std::min(nrows, nr - row + 1);
+	
+	int_64 nc = ncol();
+	int_64 wr = w[0] / 2;
+	int_64 wc = w[1] / 2;
+	//may be unexptected
+	//wr = std::min(wr, nr-1);
+	//wc = std::min(wc, nc-1);
 
-	int startrow = row-wr;
+	int_64 startrow = row-wr;
 	startrow = startrow < 0 ? 0 : startrow;
-	int startoff = row-startrow;
+	int_64 startoff = row-startrow;
 
-	int readnrows = nrows+startoff+wr;
-	int endoff = wr;
+	nrows = nrows < 1 ? 1 : nrows;
+	int_64 readnrows = nrows+startoff+wr;
+	int_64 endoff = wr;
 	if ((startrow+readnrows) > nr ) {
 		readnrows = nr-startrow;
 		endoff = readnrows - (nrows+startoff);
 	}
-	std::vector<double> d;
-	readValues(d, startrow, readnrows, 0, nc);
 
-//	get_focal(f, d, nrows, nc, w[0], w[1], offset, endoff, fillvalue);
-//  get_focal(std::vector<double> &out, const std::vector<double> &d, int nrow, int ncol, int wrows, int wcols, int startoff, int endoff,  double fill) {
-
-	int wc = w[1] / 2;
-	wr = std::min(wr, std::max(1, nrows-1));
-	wc = std::min(wc, nc-1);
+// ??
+	//wr = std::min(wr, std::max((int_64)1, nrows-1));
 
 	size_t n = nrows * nc * w[0] * w[1];
-	std::vector<double> out(n, fillvalue);
-	int nrmax = nrows + startoff + endoff - 1;
+	int_64 nrmax = nrows + startoff + endoff - 1;
 	//int nrmax = d.size() / ncol - 1;
-	int f = 0;
-	const bool global = is_global_lonlat();
+	size_t f = 0;
 
-	for (int r=0; r < nrows; r++) {
-		for (int c=0; c < nc; c++) {
-			for (int i = -wr; i <= wr; i++) {
-				int row = r+startoff+i;
+	std::vector<double> d;
+	readValues(d, startrow, readnrows, 0, nc);
+	std::vector<double> out(n, fillvalue);
+
+//Rcpp::Rcout << "sr " << startrow << " so " << startoff << " rnr " << readnrows << " wr " << wr << " wc " << wc << " nrows " << nrows << std::endl; 
+
+
+	for (int_64 r=0; r < nrows; r++) {
+		for (int_64 c=0; c < nc; c++) {
+			for (int_64 i = -wr; i <= wr; i++) {
+				int_64 row = r+startoff+i;
 				if ((row < 0) || (row > nrmax)) {
 					f += w[1];
 				} else {
-					unsigned bcell = row * nc;
-					for (int j = -wc; j <= wc; j++) {
-						int col = c + j;
+					size_t bcell = row * nc;
+					for (int_64 j = -wc; j <= wc; j++) {
+						int_64 col = c + j;
 						if ((col >= 0) && (col < nc)) {
-							out[f] = d[bcell+col];
+							size_t idx = bcell+col;
+							out[f] = d[idx];
 						} else if (global) {
 							if (col < 0) {
 								col = nc + col;
 							} else if (col >= nc) {
 								col = col - nc;
 							} 
-							out[f] = d[bcell+col]; 
+							size_t idx = bcell+col;
+							out[f] = d[idx]; 
 						}
 						f++;
 					}

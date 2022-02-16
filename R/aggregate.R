@@ -93,7 +93,7 @@ function(x, fact=2, fun="mean", ..., cores=1, filename="", overwrite=FALSE, wopt
 			}
 		}
 
-		b <- x@ptr$getBlockSize(4, opt$memfrac)
+		b <- blockSize(x, 4)
 
 		nr <- max(1, floor(b$nrows[1] / fact[1])) * fact[1]
 		nrs <- rep(nr, floor(nrow(x)/nr))
@@ -190,8 +190,8 @@ aggregate_attributes <- function(d, by, fun=NULL, ...) {
 		}
 	}
 
-	dn <- aggregate(d[, by,drop=FALSE], d[, by, drop=FALSE], length)
-	colnames(dn)[2] = "agg_n"
+	dn <- aggregate(d[, by[1],drop=FALSE], d[, by, drop=FALSE], length)
+	colnames(dn)[ncol(dn)] = "agg_n"
 	if (NCOL(da)>1) {
 		dn <- merge(da, dn, by=by)
 	}
@@ -201,35 +201,60 @@ aggregate_attributes <- function(d, by, fun=NULL, ...) {
 
 setMethod("aggregate", signature(x="SpatVector"),
 	function(x, by=NULL, dissolve=TRUE, fun="mean", ...) {
-		if (length(by) > 1) {
-			# to be fixed
-			error("aggregate", "this method can only aggregate by one variable")
-		}
-		if (is.numeric(by[1])) {
-			 i <- round(by)
-			 if ((i > 0) & (i <= ncol(x))) {
-				 by <- names(x)[i]
-			 } else {
-				 error("aggregate", "invalid column number supplied: ", by)
-			 }
-		}
-
 		if (is.null(by)) {
 			x$aggregate_by_variable = 1;
 			x@ptr <- x@ptr$aggregate("aggregate_by_variable", dissolve)
 			x$aggregate_by_variable = NULL;
 		} else {
+			if (is.character(by)) {
+				by <- unique(by)
+				iby <- match(by, names(x))
+				if (any(is.na(iby))) {
+					bad <- paste(by[is.na(iby)], collapse=", ")
+					error("aggregate", "invalid name(s) in by: ", bad)					
+				}
+			} else if (is.numeric(by)) {
+				by <- unique(by)
+				iby <- round(by)
+				if (any((iby < 1) | (iby > ncol(x)))) {
+					bad <- iby[(iby < 1) | (iby > ncol(x))]
+					error("aggregate", "invalid column number in by: ", bad)
+				}
+			} else {
+				error("aggregate", "by should be character or numeric")
+			}
+			
 			d <- as.data.frame(x)
+			mvars <- FALSE
+			if (length(iby) > 1) {
+				cvar <- apply(d[, iby], 1, function(i) paste(i, collapse="_"))
+				by <- basename(tempfile())
+				values(x) <- NULL
+				x[[by]] <- cvar 
+				mvars <- TRUE
+			} else {
+				by <- names(x)[iby]	
+			}
+
 			x@ptr <- x@ptr$aggregate(by, dissolve)
-			a <- aggregate_attributes(d, by, fun)
+			messages(x)
+			
+			if (mvars) {
+				d[[by]] <- cvar
+				a <- aggregate_attributes(d, c(by, names(d)[iby]), fun)			
+			} else {
+				a <- aggregate_attributes(d, names(d)[iby], fun)
+			}
+			
 			if (any(is.na(d[[by]]))) {
 				# because NaN and NA are dropped
 				i <- nrow(a)+(1:2)
 				a[i,] <- c(NA, NaN)
-				i <- match(a[[by]], x[[by,drop=TRUE]])
-				i <- i[!is.na(i)]
-			} else {
-				i <- match(a[[by]], x[[by,drop=TRUE]])			
+			}
+			i <- match(x[[by,drop=TRUE]], a[[by]])			
+			i <- i[!is.na(i)]
+			if (mvars) {
+				a[[by]] <- NULL
 			}
 			values(x) <- a[i,]
 		}

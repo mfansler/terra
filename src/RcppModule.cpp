@@ -6,11 +6,19 @@
 //static void SpatRaster_finalizer( SpatRaster* ptr ){
 //}
 
+
 Rcpp::List getBlockSizeR(SpatRaster* r, unsigned n, double frac) { 
 	SpatOptions opt;
 	opt.ncopies = n;
 	opt.set_memfrac(frac);
     BlockSize bs = r->getBlockSize(opt);
+	Rcpp::List L = Rcpp::List::create(Rcpp::Named("row") = bs.row, Rcpp::Named("nrows") = bs.nrows, Rcpp::Named("n") = bs.n);
+	return(L);
+}
+
+
+Rcpp::List getBlockSizeWrite(SpatRaster* r) { 
+    BlockSize bs = r->bs;
 	Rcpp::List L = Rcpp::List::create(Rcpp::Named("row") = bs.row, Rcpp::Named("nrows") = bs.nrows, Rcpp::Named("n") = bs.n);
 	return(L);
 }
@@ -365,8 +373,6 @@ RCPP_MODULE(spat){
 		.method("disaggregate", &SpatVector::disaggregate, "disaggregate")
 		.method("buffer", &SpatVector::buffer, "buffer")
 		.method("centroid", &SpatVector::centroid, "centroid")
-		.method("is_valid", &SpatVector::is_valid, "is_valid")
-		.method("make_valid", &SpatVector::make_valid, "make_valid")
 		.method("make_valid2", &SpatVector::make_valid2)
 		.method("flip", &SpatVector::flip)
 		.method("transpose", &SpatVector::transpose)
@@ -418,6 +424,10 @@ RCPP_MODULE(spat){
 
 
 //    class_<SpatRasterSource>("SpatRasterSource")
+///		.field_readonly("has_scale_offset", &SpatRasterSource::has_scale_offset)
+//		.field_readonly("scale", &SpatRasterSource::scale)
+//		.field_readonly("offset", &SpatRasterSource::offset)
+
 //		.field_readonly("time", &SpatRasterSource::time)
 //		.field("srs", &SpatRasterSource::srs, "srs")
 
@@ -594,7 +604,8 @@ RCPP_MODULE(spat){
 		.method("readAll", &SpatRaster::readAll, "readAll")
 		.method("readValues", &SpatRaster::readValuesR, "readValues")
 		.method("getValues", &SpatRaster::getValues, "getValues")
-		.method("getBlockSize", &getBlockSizeR)
+		.method("getBlockSizeR", &getBlockSizeR)
+		.method("getBlockSizeWrite", &getBlockSizeWrite)
 		.method("same", &sameObject)
 #ifdef useRcpp
 		.method("setValuesRcpp", &SpatRaster::setValuesRcpp)
@@ -639,6 +650,8 @@ RCPP_MODULE(spat){
 		.method("costDistance", &SpatRaster::costDistance)
 		.method("rastDistance", &SpatRaster::distance)
 		.method("rastDirection", &SpatRaster::direction)
+		.method("make_tiles", &SpatRaster::make_tiles)
+		.method("ext_from_rc", &SpatRaster::ext_from_rc)
 
 		.method("vectDisdirRasterize", &SpatRaster::disdir_vector_rasterize) 
 		.method("vectDistanceDirect", &SpatRaster::distance_vector) 

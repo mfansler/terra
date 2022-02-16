@@ -352,7 +352,8 @@ as.data.frame.SpatRaster <- function(x, row.names=NULL, optional=FALSE, xy=FALSE
 	if (is.null(d)) {
 		d <- values(x, dataframe=TRUE, ... )
 	} else {
-		d <- data.frame(d, values(x, dataframe=TRUE), ...)
+		d <- data.frame(d)
+		d <- cbind(d, values(x, dataframe=TRUE), ...)
 	}
 	if (na.rm) {
 		d <- stats::na.omit(d) 
@@ -512,6 +513,25 @@ setAs("Spatial", "SpatVector",
 			v <- vect(g, vtype, crs=crs(from))
 		}
 		return(v)
+	}
+)
+
+
+
+
+setAs("SpatialGrid", "SpatRaster", 
+	function(from){
+		prj <- attr(from@proj4string, "comment")
+		if (is.null(prj)) prj <- from@proj4string@projargs
+		b <- rast(ext=as.vector(t(from@bbox)), crs=prj)
+		if (inherits(from, "SpatialGridDataFrame")) {
+			dim(b) <- c(from@grid@cells.dim[2], from@grid@cells.dim[1], ncol(from@data))		
+			names(b) <- colnames(from@data)
+			b <- setValues(b, as.matrix(from@data))
+		} else {
+			dim(b) <- c(from@grid@cells.dim[2], from@grid@cells.dim[1])		
+		}
+		b
 	}
 )
 

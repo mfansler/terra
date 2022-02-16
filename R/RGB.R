@@ -83,7 +83,7 @@ median_cut <- function(v) {
 }
 
 
-rgb2col <- function(x, value, stretch=NULL, grays=FALSE, filename="", overwrite=FALSE, ...) {
+rgb2col <- function(x, value, stretch=NULL, grays=FALSE, NAzero=FALSE, filename="", overwrite=FALSE, ...) {
 	idx <- RGB(x)
 	if (is.null(idx)) {
 		if (missing(value)) {
@@ -101,13 +101,18 @@ rgb2col <- function(x, value, stretch=NULL, grays=FALSE, filename="", overwrite=
 
 	if (!is.null(stretch)) {
 		if (stretch == "lin") {
-			x <- stretch(x, qmin=0.02, qmax=0.98)
+			x <- stretch(x, minq=0.02, maxq=0.98)
 		} else {
 			x <- stretch(x, histeq=TRUE, scale=255)
 		}
 	}
 
 	if (n == 4) x[[4]] <- x[[4]] * 255
+
+	if (NAzero) {
+		x <- classify(x, cbind(NA, 0))
+	}
+
 
 	if (grays) {
 		opt <- spatOptions(filename, overwrite, ...)
@@ -156,7 +161,7 @@ col2rgb <- function(x, alpha=FALSE, filename="", overwrite=FALSE, ...) {
 
 
 setMethod("colorize", signature(x="SpatRaster"), 
-	function(x, to="hsv", alpha=FALSE, stretch=NULL, grays=FALSE, filename="", overwrite=FALSE, ...) {
+	function(x, to="hsv", alpha=FALSE, stretch=NULL, grays=FALSE, NAzero=FALSE, filename="", overwrite=FALSE, ...) {
 		to <- tolower(to)
 		if (to %in% c("hsi", "hsl", "hsv")) {
 			opt <- spatOptions(filename, overwrite, ...)
@@ -172,7 +177,7 @@ setMethod("colorize", signature(x="SpatRaster"),
 			opt <- spatOptions(filename, overwrite, ...)		
 			x@ptr <- x@ptr$hsx2rgb(to, opt)
 		} else if (to == "col") {
-			return(rgb2col(x, stretch=NULL, grays=FALSE, filename=filename, overwrite=overwrite, ...))
+			return(rgb2col(x, stretch=stretch, grays=grays, NAzero=NAzero, filename=filename, overwrite=overwrite, ...))
 		}
 		messages(x)
 	}
