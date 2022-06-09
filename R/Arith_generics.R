@@ -284,6 +284,15 @@ setMethod("!", signature(x="SpatRaster"),
 	}
 )
 
+setMethod("not.na", signature(x="SpatRaster"),
+	function(x, filename="", ...) {
+		opt <- spatOptions(filename=filename, ...)
+		x@ptr <- x@ptr$not_na(opt)
+		messages(x, "not.na")
+	}
+)
+
+
 setMethod("isTRUE", signature(x="SpatRaster"),
 	function(x) {
 		opt <- spatOptions()
@@ -437,6 +446,39 @@ setMethod("which.lyr", "SpatRaster",
 		messages(x, "which.lyr")
 	}
 )
+
+setMethod("where.max", "SpatRaster",  
+	function(x, list=FALSE) { 
+		opt <- spatOptions()
+		out <- x@ptr$where("max", opt)
+		x <- messages(x, "where.max")
+		if (list) return(x)
+		out <- lapply(1:length(out), function(i) cbind(i, out[[i]]) )
+		out <- do.call(rbind, out)
+		mnmx <- minmax(x)
+		out <- cbind(out, mnmx[2, out[,1]])
+		out[,2] <- out[,2] + 1
+		colnames(out) <- c("layer", "cell", "max")
+		out
+	}
+)
+
+setMethod("where.min", "SpatRaster",  
+	function(x, list=FALSE) { 
+		opt <- spatOptions()
+		out <- x@ptr$where("min", opt)
+		x <- messages(x, "where.min")
+		if (list) return(x)
+		out <- lapply(1:length(out), function(i) cbind(i, out[[i]]) )
+		out <- do.call(rbind, out)
+		mnmx <- minmax(x)
+		out <- cbind(out, mnmx[1,out[,1]])
+		out[,2] <- out[,2] + 1
+		colnames(out) <- c("layer", "cell", "min")
+		out
+	}
+)
+
 
 
 

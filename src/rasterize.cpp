@@ -11,9 +11,199 @@
 #include "recycle.h"
 #include "gdalio.h"
 
-SpatRaster rasterizePoints(SpatVector p, SpatRaster r, std::vector<double> values, double background, SpatOptions &opt) {
-	r.setError("not implemented in C++ yet");
-	return(r);
+
+SpatRaster SpatRaster::rasterizePoints(SpatVector x, std::string fun, std::vector<double> values, double background, SpatOptions &opt) {
+	
+	SpatRaster out = geometry(1, false, false, false);
+	if (!out.writeStart(opt)) {
+		return out;
+	}
+	if (fun != "count" && (values.size() != x.size())) {
+		out.setError("values do not match geometries");
+		return out;
+	}	
+
+	size_t nc = ncol();
+	std::vector<std::vector<double>> pxy = x.coordinates();
+	std::vector<double> cells = cellFromXY(pxy[0], pxy[1]);
+	if (fun == "count") {
+		for (size_t i=0; i < out.bs.n; i++) {
+			double cmin = out.bs.row[i] * nc;
+			double cmax = (out.bs.row[i]+out.bs.nrows[i]) * nc - 1;
+			std::vector<double> v(out.bs.nrows[i] * out.ncol(), 0);
+			for (size_t j=0; j<cells.size(); j++) {
+				if (cells[j] >= cmin && cells[j] <= cmax) {
+					size_t k = cells[j] - cmin; 
+					v[k]++; 
+				}
+			}
+			if (background != 0) {
+				for (size_t j=0; j<v.size(); j++) {
+					if (v[j] == 0) {
+						v[j] = background;
+					}
+				}
+			}
+			if (!out.writeValues(v, out.bs.row[i], out.bs.nrows[i]))  return out;
+		}
+	} else if (fun == "sum") {
+		for (size_t i=0; i < out.bs.n; i++) {
+			double cmin = out.bs.row[i] * nc;
+			double cmax = (out.bs.row[i]+out.bs.nrows[i]) * nc - 1;
+			std::vector<double> v(out.bs.nrows[i] * out.ncol(), 0);
+			for (size_t j=0; j<cells.size(); j++) {
+				if (cells[j] >= cmin && cells[j] <= cmax) {
+					size_t k = cells[j] - cmin; 
+					v[k] += values[j]; 
+				}
+			}
+			if (background != 0) {
+				for (size_t j=0; j<v.size(); j++) {
+					if (v[j] == 0) {
+						v[j] = background;
+					}
+				}
+			}
+			if (!out.writeValues(v, out.bs.row[i], out.bs.nrows[i]))  return out;
+		}
+	} else if (fun == "mean") {
+		for (size_t i=0; i < out.bs.n; i++) {
+			double cmin = out.bs.row[i] * nc;
+			double cmax = (out.bs.row[i]+out.bs.nrows[i]) * nc - 1;
+			std::vector<double> v(out.bs.nrows[i] * out.ncol(), 0);
+			std::vector<double> cnt = v;
+			for (size_t j=0; j<cells.size(); j++) {
+				if (cells[j] >= cmin && cells[j] <= cmax) {
+					size_t k = cells[j] - cmin; 
+					v[k] += values[j]; 
+					cnt[k]++;
+				}
+			}
+			for (size_t j=0; j<cnt.size(); j++) {
+				if (cnt[j] > 0) {
+					v[j] /= cnt[j];
+				}
+			}
+			if (background != 0) {
+				for (size_t j=0; j<v.size(); j++) {
+					if (v[j] == 0) {
+						v[j] = background;
+					}
+				}
+			}
+			if (!out.writeValues(v, out.bs.row[i], out.bs.nrows[i]))  return out;
+		}
+	} else { // "last"
+		for (size_t i=0; i < out.bs.n; i++) {
+			double cmin = out.bs.row[i] * nc;
+			double cmax = (out.bs.row[i]+out.bs.nrows[i]) * nc - 1;
+			std::vector<double> v(out.bs.nrows[i] * out.ncol(), background);
+			for (size_t j=0; j<cells.size(); j++) {
+				if (cells[j] >= cmin && cells[j] <= cmax) {
+					size_t k = cells[j] - cmin; 
+					v[k] = values[j]; 
+				}
+			}
+			if (!out.writeValues(v, out.bs.row[i], out.bs.nrows[i]))  return out;
+		}
+	}
+	out.writeStop();
+	return out;
+}
+
+
+SpatRaster SpatRaster::rasterizeGeom(SpatVector x, std::string unit, std::string fun, SpatOptions &opt) {
+
+	if (x.type() != "points") {
+
+		SpatRaster out = geometry(1, false, false, false);
+		SpatOptions ops(opt);
+
+		std::vector<std::string> ss {"m", "km"};
+		if (std::find(ss.begin(), ss.end(), unit) == ss.end()) {
+			out.setError("invalid unit (not 'm' or 'km')");
+			return out;
+		}
+		if ((x.type() == "lines")) {
+			ss = {"count", "length", "crosses"};
+			if (std::find(ss.begin(), ss.end(), fun) == ss.end()) {
+				out.setError("invalid value for 'fun' (not 'count', 'crosses', or 'length')");
+				return out;
+			}
+		} else {
+			ss = {"area", "count"};
+			if (std::find(ss.begin(), ss.end(), fun) == ss.end()) {
+				out.setError("invalid value for 'fun' (not 'area' or 'count')");
+				return out;
+			}
+		}
+
+		SpatRaster empty = out.geometry();
+		SpatExtent e = out.getExtent();
+		double rsy = out.yres() / 2;
+
+		double m = unit == "m" ? 1 : 1000;
+		if (!x.is_lonlat()) {
+			double tom = x.srs.to_meter();
+			tom = std::isnan(tom) ? 1 : tom;
+			m *= tom;
+		}
+		if (x.type() == "lines") {
+			out.setNames({"length"});
+		} else {
+			out.setNames({"area"});	
+			m *= m;
+		}
+		opt.ncopies = std::max(opt.ncopies, (unsigned)4) * 8;
+		if (!out.writeStart(opt)) {
+			return out;
+		}
+		for (size_t i=0; i < out.bs.n; i++) {
+			e.ymax = yFromRow(out.bs.row[i]) + rsy;
+			e.ymin = yFromRow(out.bs.row[i] + out.bs.nrows[i] - 1) - rsy;
+			SpatRaster tmp = empty.crop(e, "near", ops);
+
+			SpatVector p = tmp.as_polygons(true, false, false, false, false, ops);
+			std::vector<double> v(out.bs.nrows[i] * out.ncol(), 0);
+
+			if (fun == "crosses") {
+				std::vector<int> r = p.relate(x, "crosses");
+				size_t nx = x.size();
+				for (size_t j=0; j< r.size(); j++) {
+					size_t k= j / nx;
+					v[k] += r[j];
+				}
+			} else {
+				std::vector<long> cell(p.size());
+				std::iota(cell.begin(), cell.end(), 0);
+				p.df.add_column(cell, "cell");
+				p = p.intersect(x);
+				std::vector<double> stat;
+				if (x.type() == "lines") {
+					stat = p.length();
+				} else {
+					stat = p.area("m", false, {});
+				}
+				if (fun == "count") {
+					for (size_t j=0; j<stat.size(); j++) {
+						size_t k = p.df.iv[0][j]; 
+						v[k]++; 
+					}
+				} else {
+					for (size_t j=0; j<stat.size(); j++) {
+						size_t k = p.df.iv[0][j]; 
+						v[k] += (stat[j] / m); 
+					}				
+				}
+			}
+			if (!out.writeValues(v, out.bs.row[i], out.bs.nrows[i]))  return out;
+		}
+		out.writeStop();
+		return(out);
+
+	} else {
+		return rasterizePoints(x, "count", {}, 0.0, opt);
+	}
 }
 
 
@@ -113,6 +303,7 @@ bool SpatRaster::getDSh(GDALDatasetH &rstDS, SpatRaster &out, std::string &filen
 
 SpatRaster SpatRaster::rasterizeLyr(SpatVector x, double value, double background, bool touches, bool update, SpatOptions &opt) {
 
+// not working well in some cases. See #552
 	std::string gtype = x.type();
 	SpatRaster out;
 	out.setNames({"ID"});
@@ -229,9 +420,17 @@ SpatRaster SpatRaster::rasterize(SpatVector x, std::string field, std::vector<do
 		}
 	}
 
+	size_t nGeoms = x.size();
+	if (nGeoms == 0) {
+		if (!update) {
+			out = out.init({background}, opt);
+		}
+		return out;
+	}
+
 	if (ispol && touches && add) {
 		add = false;
-		out.addWarning("you cannot use add and touches at the same time");
+		out.addWarning("you cannot use 'sum' and 'touches' at the same time");
 	}
 
 	if (field != "") {
@@ -269,7 +468,7 @@ SpatRaster SpatRaster::rasterize(SpatVector x, std::string field, std::vector<do
 			}
 		}
 	}
-	size_t nGeoms = x.size();
+	
 	if (values.size() != nGeoms) {
 		recycle(values, nGeoms);
 	}
@@ -405,7 +604,7 @@ std::vector<double> SpatRaster::rasterizeCells(SpatVector &v, bool touches, Spat
 	SpatRaster rc = r.crop(e, "out", ropt);
 	std::vector<double> feats(1, 1) ;
     SpatRaster rcr = rc.rasterize(v, "", feats, NAN, touches, false, false, false, false, ropt); 
-	SpatVector pts = rcr.as_points(false, true, ropt);
+	SpatVector pts = rcr.as_points(false, true, false, ropt);
 	std::vector<double> cells;
 	if (pts.size() == 0) {
 		pts = v.as_points(false, true);
@@ -444,7 +643,7 @@ void SpatRaster::rasterizeCellsWeights(std::vector<double> &cells, std::vector<d
 	r = r.rasterize(v, "", feats, NAN, true, false, false, false, false, ropt); 
 	r = r.arith(100.0, "/", false, ropt);
 	r = r.aggregate(fact, "sum", true, ropt);
-	SpatVector pts = r.as_points(true, true, ropt);
+	SpatVector pts = r.as_points(true, true, false, ropt);
 	if (pts.size() == 0) {
 		weights.resize(1);
 		weights[0] = NAN;
@@ -471,7 +670,7 @@ void SpatRaster::rasterizeCellsExact(std::vector<double> &cells, std::vector<dou
 		std::vector<double> feats(1, 1) ;
 		r = r.rasterize(v, "", feats, NAN, true, false, false, false, false, ropt); 
 
-		SpatVector pts = r.as_points(true, true, ropt);
+		SpatVector pts = r.as_points(true, true, false, ropt);
 		if (pts.size() == 0) {
 			weights.resize(1);
 			weights[0] = NAN;
@@ -483,7 +682,7 @@ void SpatRaster::rasterizeCellsExact(std::vector<double> &cells, std::vector<dou
 			std::vector<double> y = vd.getD(1);
 			cells = cellFromXY(x, y);
 
-			SpatVector rv = r.as_polygons(false, false, false, true, ropt);
+			SpatVector rv = r.as_polygons(false, false, false, true, false, ropt);
 			std::vector<double> csize = rv.area("m", true, {});
 			rv.df.add_column(csize, "area");
 			rv.df.add_column(cells, "cells");

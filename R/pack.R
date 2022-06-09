@@ -95,14 +95,17 @@ setMethod("show", signature(object="PackedSpatVector"),
 
 
 
-
-
 setMethod("as.character", signature(x="SpatRaster"), 
 	function(x) {
 		e <- as.vector(ext(x))
-		crs <- crs(x)
-		crs <- ifelse(is.na(crs), ", crs=''", paste0(", crs='", crs, "'"))
-		crs <- gsub("\n[ ]+", "", crs)
+		d <- crs(x, describe=TRUE)
+		if (!(is.na(d$authority) || is.na(d$code))) {
+			crs <- paste0(", crs='", d$authority, ":", d$code, "'")
+		} else {
+			d <- crs(x)
+			crs <- ifelse(d=="", ", crs=''", paste0(", crs='", d, "'"))
+			crs <- gsub("\n[ ]+", "", crs)
+		}
 		nms <- paste0(", names=c('", paste(names(x), collapse="', '"), "')")
 		paste0("rast(", 
 				"ncols=", ncol(x),
@@ -133,7 +136,7 @@ setMethod("wrap", signature(x="SpatRaster"),
 			r@attributes$time <- v
 		} 
 		v <- units(x)
-		if (any(!is.na(v))) {
+		if (all(v != "")) {
 			r@attributes$units <- v
 		} 
 		v <- depth(x)
@@ -170,3 +173,51 @@ setMethod("show", signature(object="PackedSpatRaster"),
 	}
 )
 
+
+
+setMethod("serialize", signature(object="SpatVector"), 
+	function(object, connection, ascii = FALSE, xdr = TRUE, version = NULL, refhook = NULL) {
+		object = wrap(object)
+		serialize(object, connection=connection, ascii = ascii, xdr = xdr, version = version, refhook = refhook)
+	}
+)
+
+
+setMethod("saveRDS", signature(object="SpatVector"), 
+	function(object, file="", ascii = FALSE, version = NULL, compress=TRUE, refhook = NULL) {
+		object = wrap(object)
+		saveRDS(object, file=file, ascii = ascii, version = version, compress=compress, refhook = refhook)
+	}
+)
+
+
+setMethod("serialize", signature(object="SpatRaster"), 
+	function(object, connection, ascii = FALSE, xdr = TRUE, version = NULL, refhook = NULL) {
+		if (!all(inMemory(object))) {
+			opt <- spatOptions()
+			if (object@ptr$canProcessInMemory(opt)) {
+				set.values(object)
+			} else {
+				error("Cannot be loaded into memory which is required for serialize")
+			}
+		}
+		object <- wrap(object)
+		serialize(object, connection=connection, ascii = ascii, xdr = xdr, version = version, refhook = refhook)
+	}
+)
+
+
+setMethod("saveRDS", signature(object="SpatRaster"), 
+	function(object, file="", ascii = FALSE, version = NULL, compress=TRUE, refhook = NULL) {
+		if (!all(inMemory(object))) {
+			opt <- spatOptions()
+			if (object@ptr$canProcessInMemory(opt)) {
+				set.values(object)
+			} else {
+				error("Cannot be loaded into memory which is required for saveRDS")
+			}
+		}
+		object = wrap(object)
+		saveRDS(object, file=file, ascii = ascii, version = version, compress=compress, refhook = refhook)
+	}
+)

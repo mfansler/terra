@@ -5,51 +5,56 @@
 
 
 new_rast <- function(nrows=10, ncols=10, nlyrs=1, xmin=0, xmax=1, ymin=0, ymax=1, crs, extent, resolution, vals, names, time, units) {
-		if (missing(extent)) {
-			e <- c(xmin, xmax, ymin, ymax) 
+
+	ncols <- round(ncols)
+	if (ncols < 1) error("rast", "ncols < 1")
+	nrows <- round(nrows)
+	if (nrows < 1) error("rast", "nrows < 1")
+	
+	if (missing(extent)) {
+		e <- c(xmin, xmax, ymin, ymax) 
+	} else {
+		e <- as.vector(extent)
+	}
+	if ((e[1] >= e[2]) || e[3] >= e[4]) {
+		error("rast,missing", "invalid extent")
+	}
+	if (missing(crs)) {
+		if (e[1] > -360.01 & e[2] < 360.01 & e[3] > -90.01 & e[4] < 90.01) {
+			crs <- "OGC:CRS84"
 		} else {
-			e <- as.vector(extent)
+			crs <- ""
 		}
-		if ((e[1] >= e[2]) || e[3] >= e[4]) {
-			error("rast,missing", "invalid extent")
-		}
+	} else {
+		crs <- character_crs(crs, "rast")
+	}
+	#check_proj4_datum(crs)
+	
+	r <- methods::new("SpatRaster")
+	r@ptr <- SpatRaster$new(c(nrows, ncols, nlyrs), e, crs)
+	r <- messages(r, "rast")
 
-		if (missing(crs)) {
-			if (e[1] > -360.01 & e[2] < 360.01 & e[3] > -90.01 & e[4] < 90.01) {
-				crs <- "OGC:CRS84"
-			} else {
-				crs <- ""
+	if (!missing(resolution)) {
+		res(r) <- resolution
+	}
+	if (!missing(names)) {
+		names(r) <- names
+	}
+	if (!missing(vals)) {
+		if (length(vals) == 1) {
+			if (is.na(vals[1])) {
+				vals <- as.numeric(NA)
 			}
-		} else {
-			crs <- character_crs(crs, "rast")
 		}
-		#check_proj4_datum(crs)
-
-		r <- methods::new("SpatRaster")
-		r@ptr <- SpatRaster$new(c(nrows, ncols, nlyrs), e, crs)
-		r <- messages(r, "rast")
-
-		if (!missing(resolution)) {
-			res(r) <- resolution
-		}
-		if (!missing(names)) {
-			names(r) <- names
-		}
-		if (!missing(vals)) {
-			if (length(vals) == 1) {
-				if (is.na(vals[1])) {
-					vals <- as.numeric(NA)
-				}
-			}
-			values(r) <- vals
-		}
-		if (!missing(time)) {
-			time(r) <- time
-		}
-		if (!missing(units)) {
-			time(r) <- units
-		}
-		r
+		values(r) <- vals
+	}
+	if (!missing(time)) {
+		time(r) <- time
+	}
+	if (!missing(units)) {
+		time(r) <- units
+	}
+	r
 }
 
 
@@ -243,6 +248,9 @@ multi <- function(x, subds=0, xyz=c(1,2,3)) {
 
 setMethod("rast", signature(x="SpatRaster"),
 	function(x, nlyrs=nlyr(x), names, vals, keeptime=TRUE, keepunits=FALSE, props=FALSE) {
+		if (inherits(nlyrs, "SpatRaster")) {
+			error("rast", "use 'c()' to combine SpatRasters")
+		}
 		x@ptr <- x@ptr$geometry(nlyrs, props, keeptime, keepunits)
 		x <- messages(x, "rast")
 		if (!missing(names)) {
@@ -306,7 +314,15 @@ setMethod("rast", signature(x="array"),
 
 setMethod("rast", signature(x="ANY"),
 	function(x, ...) {
-		methods::as(x, "SpatRaster")
+		if (inherits(x, "sf")) {
+			out <- rast(ext(x), ...)
+			if (is.null(list(...)$crs)) {
+				crs(out) <- crs(x)
+			}
+			out
+		} else {
+			methods::as(x, "SpatRaster")
+		}
 	}
 )
 
@@ -370,7 +386,10 @@ setMethod("rast", signature(x="ANY"),
 	cells <- cellFromXY(r, xyz[,1:2])
 	if (d[2] > 2) {
 		names(r) <- ln[-c(1:2)]
-		v <- matrix(NA, nrow=ncell(r), ncol= nlyr(r))
+		v <- try( matrix(NA, nrow=ncell(r), ncol= nlyr(r)) )
+		if (inherits(v, "try-error")) {
+			error(paste("cannot make matrix with ", ncell(r), " rows"))
+		}
 		v[cells, ] <- xyz[, -c(1:2)]
 		values(r) <- v
 	}

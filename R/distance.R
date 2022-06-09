@@ -18,15 +18,38 @@ setMethod("distance", signature(x="SpatRaster", y="missing"),
 	function(x, y, grid=FALSE, filename="", ...) {
 		opt <- spatOptions(filename, ...)
 		if (grid) {
-			if (is.lonlat(x)) {
-				return(gridDistance(x, filename=filename, ...))
-			} else {
-				x@ptr <- x@ptr$gridDistance(opt)
-			}
+			#if (is.lonlat(x)) {
+			#	return(gridDistance(x, filename=filename, ...))
+			#} else {
+			x@ptr <- x@ptr$gridDistance(opt)
+			#}
 		} else {
 			x@ptr <- x@ptr$rastDistance(opt)
 		}
 		messages(x, "distance")
+	}
+)
+
+setMethod("costDistance", signature(x="SpatRaster"), 
+	function(x, target=0, scale=1000, maxiter=50, filename="", ...) {
+		opt <- spatOptions(filename, ...)
+		maxiter <- max(maxiter[1], 2)
+		x@ptr <- x@ptr$costDistance(target[1], scale[1], maxiter, FALSE, opt)
+		messages(x, "costDistance")
+	}
+)
+
+
+setMethod("gridDistance", signature(x="SpatRaster"), 
+	function(x, target=0, scale=1000, maxiter=50, filename="", ...) {
+		opt <- spatOptions(filename, ...)
+		if (is.na(target)) {
+			x@ptr <- x@ptr$gridDistance(opt)
+		} else {
+			maxiter <- max(maxiter[1], 2)
+			x@ptr <- x@ptr$costDistance(target[1], scale[1], maxiter, TRUE, opt)
+		}
+		messages(x, "gridDistance")
 	}
 )
 
@@ -35,6 +58,7 @@ setMethod("distance", signature(x="SpatRaster", y="SpatVector"),
 	function(x, y, filename="", ...) {
 		opt <- spatOptions(filename, ...)
 		if (is.lonlat(x, perhaps=TRUE)) {
+			x <- rast(x)
 			x@ptr <- x@ptr$vectDisdirRasterize(y@ptr, TRUE, TRUE, FALSE, FALSE, opt)
 		} else {
 			x@ptr <- x@ptr$vectDistanceDirect(y@ptr, opt)

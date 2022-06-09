@@ -33,16 +33,20 @@ messages <- function(x, f="") {
 
 
 mem_info <- function(x, n=1) {
+	#print=TRUE
 	n <- max(0,n)
 	opt <- spatOptions()
 	opt$ncopies = n;
 	v <- x@ptr$mem_needs(opt)
+	memmin <- opt$memmin
 	memmax <- opt$memmax
 	#if (print) {
 		gb <- 1024^3 / 8  # 
 		cat("\n------------------------")
 		cat("\nMemory (GB) ")
 		cat("\n------------------------")
+
+		cat(paste("\ncheck threshold :", opt$memmin / gb, " (memmin)"))
 		if (memmax > 0) {
 			cat(paste("\navailable       :",  round(v[2] / gb, 2), "(memmax)"))
 		} else {
@@ -57,6 +61,7 @@ mem_info <- function(x, n=1) {
 		cat("\n------------------------\n")
 	#} 
 	names(v) <- c("needed", "available", "memfrac", "chunksize")
+	invisible(v)
 }
 
 

@@ -24,7 +24,7 @@
 #endif
 
 
-enum SpatGeomType { points, lines, polygons, unknown };
+enum SpatGeomType { points, lines, polygons, unknown, null };
 
 
 class SpatHole {
@@ -178,7 +178,7 @@ class SpatVector {
 
 		void setGeometry(std::string type, std::vector<unsigned> gid, std::vector<unsigned> part, std::vector<double> x, std::vector<double> y, std::vector<unsigned> hole);
 		void setPointsGeometry(std::vector<double> &x, std::vector<double> &y);
-		void setPointsDF(SpatDataFrame &x, std::vector<unsigned> geo, std::string crs);
+		void setPointsDF(SpatDataFrame &x, std::vector<unsigned> geo, std::string crs, bool keepgeom);
 
 		std::vector<double> area(std::string unit, bool transform, std::vector<double> mask);
 
@@ -196,7 +196,7 @@ class SpatVector {
 		SpatVector get_holes();
 		SpatVector set_holes(SpatVector x, size_t i);
 		SpatVector remove_duplicate_nodes(int digits);
-
+		
 		bool read(std::string fname, std::string layer, std::string query, std::vector<double> extent, SpatVector filter, bool as_proxy);
 		
 		bool write(std::string filename, std::string lyrname, std::string driver, bool append, bool overwrite, std::vector<std::string>);
@@ -224,6 +224,9 @@ class SpatVector {
 		template <typename T>
 		bool add_column(std::vector<T> x, std::string name) {
 			return df.add_column(x, name);
+		}
+		bool add_column_bool(std::vector<int> x, std::string name) {
+			return df.add_column_bool(x, name);
 		}
 
 		void remove_df() {
@@ -289,6 +292,8 @@ class SpatVector {
 		SpatVector point_buffer(std::vector<double>	 d, unsigned quadsegs, bool no_multipolygons);
 
 		SpatVector centroid(bool check_lonlat);
+		SpatVector point_on_surface(bool check_lonlat);
+
 		SpatVector crop(SpatExtent e);
 		SpatVector crop(SpatVector e);
 		SpatVector voronoi(SpatVector e, double tolerance, int onlyEdges);		
@@ -328,18 +333,19 @@ class SpatVector {
 		SpatVector cross_dateline(bool &fixed);
 		SpatVector densify(double interval, bool adjust);
 		SpatVector round(int digits);
+		std::vector<unsigned> nullGeoms();
 };
 
 
 
 class SpatVectorCollection {
 
-	private:
-		std::vector<SpatVector> v;
 
 	public:
 		virtual ~SpatVectorCollection(){}
 		SpatVectorCollection deepCopy() { return *this; }
+
+		std::vector<SpatVector> v;
 
 		SpatMessages msg;
 		void setError(std::string s) { msg.setError(s); }
@@ -381,6 +387,7 @@ class SpatVectorCollection {
 		}
 		
 		SpatVector append();
+		SpatVectorCollection from_hex_col(std::vector<std::string> x, std::string srs);
 		
 };
 

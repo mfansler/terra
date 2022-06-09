@@ -146,10 +146,6 @@ bool SpatRaster::differentFilenames(std::vector<std::string> outf, bool &duplica
 
 SpatRaster SpatRaster::writeRaster(SpatOptions &opt) {
 
-// here we could check if we can simple make a copy if
-// a) the SpatRaster is backed by a file
-// b) there are no write options 
-
 	SpatRaster out = geometry(nlyr(), true, true, true);
 	if (!hasValues()) {
 		out.setError("there are no cell values");
@@ -240,7 +236,7 @@ bool SpatRaster::writeStart(SpatOptions &opt) {
 			std::string extension = ".tif";
 			filename = tempFile(opt.get_tempdir(), opt.pid, extension);
 			opt.set_filenames({filename});
-			opt.gdal_options = {"COMPRESS=NONE"};
+			//opt.gdal_options = {"COMPRESS=NONE"};
 		}
 	}
 

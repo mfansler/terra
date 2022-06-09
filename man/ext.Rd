@@ -15,6 +15,7 @@
 \alias{ext,SpatVector-method}
 \alias{ext,SpatVectorProxy-method}
 \alias{ext,SpatRasterDataset-method}
+\alias{ext,SpatRasterCollection-method}
 \alias{ext<-,SpatRaster,SpatExtent-method}
 \alias{ext<-,SpatRaster,numeric-method}
 \alias{ext,numeric-method}
@@ -34,7 +35,7 @@ See \code{\link{set.ext}} to set the extent in place.
 }
 
 \usage{
-\S4method{ext}{SpatRaster}(x)
+\S4method{ext}{SpatRaster}(x, cells=NULL)
 
 \S4method{ext}{SpatVector}(x)
 
@@ -51,6 +52,7 @@ See \code{\link{set.ext}} to set the extent in place.
 
 \arguments{
   \item{x}{SpatRaster}
+  \item{cells}{postive integer (cell) numbers to subset the extent to area covered by these cells}
   \item{value}{SpatExtent, or numeric vector of lenght four (xmin, xmax, ymin, ymax), or a single number with the \code{$} method}  
   \item{name}{charcter, one of xmin, xmax, ymin, or ymax}  
   \item{...}{if \code{x} is a single numeric value, additional numeric values for xmax, ymin, and ymax}  

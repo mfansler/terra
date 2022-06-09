@@ -243,6 +243,42 @@ setMethod("sources", signature(x="SpatRaster"),
 	}
 )
 
+setMethod("sources", signature(x="SpatRasterCollection"), 
+	function(x, nlyr=FALSE, bands=FALSE) {
+		if (nlyr | bands) {
+			x <- lapply(x, function(i) sources(i, nlyr, bands))
+			x <- lapply(1:length(x), function(i) cbind(cid=i, x[[i]]))
+			do.call(rbind, x)
+		} else {
+			sapply(x, sources)
+		}
+	}
+)
+
+setMethod("sources", signature(x="SpatVector"), 
+	function(x) {
+		if (x@ptr$source != "") {
+			if (x@ptr$layer != tools::file_path_sans_ext(basename(x@ptr$source))) {
+				paste0(x@ptr$source, "::", x@ptr$layer)
+			} else {
+				x@ptr$source
+			}
+		} else {
+			""
+		}
+	}
+)
+
+setMethod("sources", signature(x="SpatVectorProxy"), 
+	function(x) {
+		if (x@ptr$v$layer != tools::file_path_sans_ext(basename(x@ptr$v$source))) {
+			paste0(x@ptr$v$source, "::", x@ptr$v$layer)
+		} else {
+			x@ptr$v$source
+		}
+	}
+)
+
 setMethod("hasMinMax", signature(x="SpatRaster"), 
 	function(x) {
 		x@ptr$hasRange
@@ -258,6 +294,7 @@ setMethod("minmax", signature(x="SpatRaster"),
 		r <- rbind(x@ptr$range_min, x@ptr$range_max)
 		r[,!have] <- c(Inf, -Inf)
 		colnames(r) <- names(x)
+		rownames(r) <- c("min", "max")
 		r
 	}
 )
@@ -277,11 +314,24 @@ setMethod("setMinMax", signature(x="SpatRaster"),
 
 
 setMethod("compareGeom", signature(x="SpatRaster", y="SpatRaster"), 
-	function(x, y, ..., lyrs=FALSE, crs=TRUE, warncrs=FALSE, ext=TRUE, rowcol=TRUE, res=FALSE, stopOnError=TRUE) {
+	function(x, y, ..., lyrs=FALSE, crs=TRUE, warncrs=FALSE, ext=TRUE, rowcol=TRUE, res=FALSE, stopOnError=TRUE, messages=FALSE) {
 		dots <- list(...)
 		opt <- spatOptions("")
 		res <- x@ptr$compare_geom(y@ptr, lyrs, crs, opt$tolerance, warncrs, ext, rowcol, res)
-		if (stopOnError) messages(x, "compareGeom")
+		if (stopOnError) {
+			messages(x, "compareGeom")
+		} else {
+			m <- NULL
+			if (x@ptr$has_warning()) { 
+				m <- x@ptr$getWarnings()
+			}
+			if (x@ptr$has_error()) {
+				m <- c(m, x@ptr$getError())
+			}
+			if (!is.null(m) && messages) {
+				message(paste(m, collapse="\n"))
+			}
+		}
 		if (length(dots)>1) {
 			for (i in 1:length(dots)) {
 				bool <- x@ptr$compare_geom(dots[[i]]@ptr, lyrs, crs, warncrs, ext, rowcol, res)
@@ -315,6 +365,10 @@ setMethod("values<-", signature("SpatVector", "data.frame"),
 				x@ptr$add_column_long(value[[i]], nms[i])
 			} else if (types[i] == "character") {
 				x@ptr$add_column_string(value[[i]], nms[i])
+			} else if (types[i] == "logical") {
+				v <- as.integer(value[[i]])
+				v[is.na(v)] <- 2
+				x@ptr$add_column_bool(v, nms[i])
 			} else {
 				att <- as.character(value[[i]])
 				x@ptr$add_column_string(att, nms[i])

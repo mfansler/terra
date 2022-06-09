@@ -163,7 +163,7 @@ SpatRaster SpatRaster::arith(SpatRaster x, std::string oper, SpatOptions &opt) {
 
 	size_t nl = std::max(nlyr(), x.nlyr());
 	SpatRaster out = geometry(nl);
-	if (!(hasValues() & x.hasValues())) {
+	if (!(hasValues() && x.hasValues())) {
 		out.setError("raster has no values"); // or warn and treat as NA?
 		return out;
 	}
@@ -404,7 +404,7 @@ SpatRaster SpatRaster::arith(std::vector<double> x, std::string oper, bool rever
 		if (outnl > innl) {
 			recycle(v, outnl * out.bs.nrows[i] * nc);
 		}
-		std::vector<double> vv;
+		//std::vector<double> vv;
 		unsigned off = out.bs.nrows[i] * nc;
 		for (size_t j=0; j<outnl; j++) {
 			unsigned s = j * off;
@@ -701,11 +701,11 @@ SpatRaster SpatRaster::atan_2(SpatRaster x, SpatOptions &opt) {
 		x.readValues(b, out.bs.row[i], out.bs.nrows[i], 0, ncol());
 		recycle(a, b);
 		std::vector<double> d(a.size());
-		for (size_t i=0; i<a.size(); i++) {
-			if (std::isnan(a[i]) || std::isnan(b[i])) {
-				d[i] = NAN;
+		for (size_t j=0; j<a.size(); j++) {
+			if (std::isnan(a[j]) || std::isnan(b[j])) {
+				d[j] = NAN;
 			} else {
-				d[i] = atan2(a[i], b[i]);
+				d[j] = atan2(a[j], b[j]);
 			}
 		}
 		if (!out.writeBlock(d, i)) return out;
@@ -748,6 +748,7 @@ std::vector<T> operator|(const std::vector<T>& a, const std::vector<T>& b) {
 
 SpatRaster SpatRaster::isnot(SpatOptions &opt) {
 	SpatRaster out = geometry();
+	out.setValueType(3);
 	if (!readStart()) {
 		out.setError(getError());
 		return(out);
@@ -775,6 +776,7 @@ SpatRaster SpatRaster::isnot(SpatOptions &opt) {
 SpatRaster SpatRaster::logic(SpatRaster x, std::string oper, SpatOptions &opt) {
 
 	SpatRaster out = geometry();
+	out.setValueType(3);
 
 	std::vector<std::string> f {"&", "|"}; 
 	if (std::find(f.begin(), f.end(), oper) == f.end()) {
@@ -825,6 +827,7 @@ SpatRaster SpatRaster::logic(SpatRaster x, std::string oper, SpatOptions &opt) {
 SpatRaster SpatRaster::logic(bool x, std::string oper, SpatOptions &opt) {
 
 	SpatRaster out = geometry();
+	out.setValueType(3);
 
 	if (!readStart()) {
 		out.setError(getError());
@@ -954,6 +957,7 @@ SpatRaster SpatRaster::summary_numb(std::string fun, std::vector<double> add, bo
 	}
 
 
+	opt.ncopies = std::max(opt.ncopies, nlyr() * 2);
 	if (!out.writeStart(opt)) {
 		readStop();
 		return out;
@@ -1259,3 +1263,60 @@ SpatRaster SpatRaster::isinfinite(SpatOptions &opt) {
 	out.writeStop();
 	return(out);
 }
+
+
+std::vector<std::vector<double>> SpatRaster::where(std::string what, SpatOptions &opt) {
+
+	unsigned nl = nlyr();
+	std::vector<std::vector<double>> out(nl);
+
+	std::vector<std::string> f {"min", "max"};
+	if (std::find(f.begin(), f.end(), what) == f.end()) {
+		setError("unknown where function");
+		return out;
+	}
+
+  	if (!hasValues()) { 
+		setError("SpatRaster has no values");		
+		return out; 
+	}
+
+	if (!readStart()) {
+		return(out);
+	}
+	BlockSize bs = getBlockSize(opt);
+
+	std::vector<bool> hr = hasRange();
+	bool hasR = true;
+	for (size_t i=0; i<hr.size(); i++) {
+		if (!hr[i]) hasR = false;
+	}
+	if (!hasR) {
+		setRange(opt);
+	}
+
+	std::vector<double> val;
+	if (what == "min") {
+		val = range_min(); 	
+	} else {
+		val = range_max(); 			
+	}
+	for (size_t i=0; i<bs.n; i++) {
+		std::vector<double> v; 
+		readBlock(v, bs, i);
+		size_t lyrsize = bs.nrows[i] * ncol();
+		size_t boff = i * lyrsize;
+		for (size_t j=0; j<nl; j++) {
+			size_t off = j * lyrsize;
+			for (size_t k=off; k<(off+lyrsize); k++) {
+				if (!std::isnan(v[k]) && (v[k] == val[j])) {
+					double cell = k - off + boff;
+					out[j].push_back(cell);
+				}
+			}
+		}
+	}
+	readStop();
+	return(out);
+}
+

@@ -17,6 +17,13 @@ character_crs <- function(crs, caller="") {
 }
 
 
+setMethod("emptyGeoms", signature(x="SpatVector"), 
+	function(x) {
+		x@ptr$nullGeoms() + 1
+	}
+)
+
+
 setMethod("as.vector", signature(x="SpatVector"), 
 	function(x, mode="any") {
 		if (nrow(x) > 0) {
@@ -270,6 +277,10 @@ setReplaceMethod("[[", c("SpatVector", "character", "missing"),
 				ok <- x@ptr$add_column_long(value, name)
 			} else if (is.numeric(value)) {
 				ok <- x@ptr$add_column_double(value, name)
+			} else if (is.logical(value)) {
+				value <- as.integer(value)
+				value[is.na(value)] <- 2
+				ok <- x@ptr$add_column_bool(value, name)
 			} else {
 				ok <- x@ptr$add_column_string(as.character(value), name)
 			}
@@ -303,25 +314,24 @@ setMethod("$<-", "SpatVector",
 
 
 setMethod("vect", signature(x="data.frame"), 
-	function(x, geom=c("lon", "lat"), crs=NA) {
+	function(x, geom=c("lon", "lat"), crs=NA, keepgeom=FALSE) {
 		if (!all(geom %in% names(x))) {
 			error("vect", "the variable name(s) in argument `geom` are not in `x`")
 		}
 		crs <- character_crs(crs, "vect")
 		if (length(geom) == 2) {
 			geom <- match(geom[1:2], names(x))
-			cls <- sapply(x[, geom], class)
-			if (cls[1] == "integer") {
+			if (inherits(x[,geom[1]], "integer")) {
 				x[,geom[1]] = as.numeric(x[,geom[1]])
 			}
-			if (cls[2] == "integer") {
+			if (inherits(x[,geom[2]], "integer")) {
 				x[,geom[2]] = as.numeric(x[,geom[2]])
 			}	
 			p <- methods::new("SpatVector")
 			p@ptr <- SpatVector$new()
 			x <- .makeSpatDF(x)
 			
-			p@ptr$setPointsDF(x, geom-1, crs)
+			p@ptr$setPointsDF(x, geom-1, crs, keepgeom)	
 			messages(p, "vect")
 			return(p)
 		} else if (length(geom) == 1) {

@@ -344,15 +344,15 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 
 	std::string appstr = "APPEND_SUBDATASET=YES";
 	bool append = std::find(opt.gdal_options.begin(), opt.gdal_options.end(), appstr) != opt.gdal_options.end();
-	if (append & (!CSLFetchBoolean( papszMetadata, GDAL_DMD_SUBDATASETS, FALSE))) {
+	if (append && (!CSLFetchBoolean( papszMetadata, GDAL_DMD_SUBDATASETS, FALSE))) {
 		setError("cannot append datasets with this file format");
 		return false;
 	}
-	if (append & opt.get_overwrite()) {
+	if (append && opt.get_overwrite()) {
 		setError("cannot append and overwrite at the same time");
 		return false;
 	}
-	if (file_exists(filename) & (!opt.get_overwrite()) & (!append)) {
+	if (file_exists(filename) && (!opt.get_overwrite()) && (!append)) {
 		setError("file exists. You can use 'overwrite=TRUE' to overwrite it");
 		return false;
 	}
@@ -846,9 +846,19 @@ bool SpatRaster::writeStopGDAL() {
 bool SpatRaster::fillValuesGDAL(double fillvalue) {
 	CPLErr err = CE_None;
 	GDALRasterBand *poBand;
+	int hasNA;
 	for (size_t i=0; i < nlyr(); i++) {
 		poBand = source[0].gdalconnection->GetRasterBand(i+1);
-		err = poBand->Fill(fillvalue);
+		if (std::isnan(fillvalue)) {
+			double naflag = poBand->GetNoDataValue(&hasNA);
+			if (hasNA) {
+				err = poBand->Fill(naflag);
+			} else {
+				err = poBand->Fill(fillvalue);				
+			}
+		} else {
+			err = poBand->Fill(fillvalue);
+		}
 	}
 	if (err != CE_None ) {
 		setError("cannot fill values");

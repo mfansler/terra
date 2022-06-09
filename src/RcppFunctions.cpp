@@ -160,6 +160,25 @@ std::vector<double> geotransform(std::string fname) {
 	return out;
 }
 
+// [[Rcpp::export(name = ".gdal_setconfig")]]
+void gdal_setconfig(std::string option, std::string value) {
+	if (value == "") {
+		CPLSetConfigOption(option.c_str(), NULL);
+	} else { 
+		CPLSetConfigOption(option.c_str(), value.c_str());
+	}
+}
+
+// [[Rcpp::export(name = ".gdal_getconfig")]]
+std::string gdal_getconfig(std::string option) {
+	const char * value = CPLGetConfigOption(option.c_str(), NULL);
+	std::string out = "";
+	if (value != NULL) {
+		out = value;
+	}	
+	return out;
+}
+
 
 // [[Rcpp::export(name = ".gdalinfo")]]
 std::string ginfo(std::string filename, std::vector<std::string> options, std::vector<std::string> oo) {
@@ -386,7 +405,7 @@ std::vector<double> percRank(std::vector<double> x, std::vector<double> y, doubl
 	for (size_t i=0; i<y.size(); i++) {
 		if (std::isnan(y[i]) ) {
 			out.push_back( NAN );
-		} else if ((y[i] < minc) | (y[i] > maxc )) {
+		} else if ((y[i] < minc) || (y[i] > maxc )) {
 			out.push_back( 0 ); 
 		} else {
 			size_t b = 0;
@@ -502,5 +521,3 @@ std::string PROJ_network(bool enable, std::string url) {
 	return s;
 }
 
-
-	

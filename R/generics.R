@@ -345,7 +345,7 @@ function(x, lower=-Inf, upper=Inf, values=TRUE, ...) {
 )
 
 setMethod("classify", signature(x="SpatRaster"), 
-function(x, rcl, include.lowest=FALSE, right=TRUE, othersNA=FALSE, brackets=TRUE, filename="", ...) {
+function(x, rcl, include.lowest=FALSE, right=TRUE, others=NULL, brackets=TRUE, filename="", ...) {
 
 	bylayer = FALSE
 
@@ -357,7 +357,32 @@ function(x, rcl, include.lowest=FALSE, right=TRUE, othersNA=FALSE, brackets=TRUE
 	include.lowest <- as.logical(include.lowest[1])
 
 	opt <- spatOptions(filename, ...)
-    x@ptr <- x@ptr$classify(as.vector(rcl), NCOL(rcl), right, include.lowest, othersNA[1], bylayer[1], brackets[1], opt)
+	if (is.null(others)) {
+		others <- FALSE
+		othersValue <- 0
+	} else {
+		othersValue <- others[1]	
+		others <- TRUE
+	}
+	keepcats <- FALSE
+	if (inherits(rcl[1], "character")) {
+		if (nlyr(x) > 1) {
+			error("classify", "rcl has characters. That is not allowed with multiple layers in x")
+		}
+		if (!is.factor(x)) {
+			error("classify", "rcl has characters but x is not categorical")
+		}
+		if (ncol(rcl) != 2) {
+			error("classify", "rcl has characters. It should have 2 columns")
+		}
+		levs <- cats(x, 1, active=TRUE)[[1]]
+		rc1 <- levs[,1][match(rcl[,1], levs[,2])]
+		rc2 <- levs[,1][match(rcl[,2], levs[,2])]
+		rcl <- cbind(rc1, rc2)[!is.na(rc1), ]
+		keepcats <- TRUE
+	}
+	
+    x@ptr <- x@ptr$classify(as.vector(rcl), NCOL(rcl), right, include.lowest, others, othersValue, bylayer[1], brackets[1], keepcats, opt)
 	messages(x, "classify")
 }
 )
@@ -365,14 +390,47 @@ function(x, rcl, include.lowest=FALSE, right=TRUE, othersNA=FALSE, brackets=TRUE
 setMethod("subst", signature(x="SpatRaster"), 
 function(x, from, to, filename="", ...) {
 	opt <- spatOptions(filename, ...)
+
+	if (inherits(from, "data.frame")) {
+		from <- as.matrix(from)
+	}
+	from <- as.vector(from)
 	if (inherits(to, "data.frame")) {
 		to <- as.matrix(to)
 	}
+	
+	keepcats <- FALSE
+	fromc <- inherits(from[1], "character")
+	toc <- inherits(to[1], "character")
+	if (fromc || toc) {
+		if (!(fromc && toc)) {
+			error("subst", "either both or neither from and to should have character values")
+		}
+		if (!is.factor(x)) {
+			error("subst", "from has characters but x is not categorical")
+		}
+		if (nlyr(x) > 1) {
+			error("subst", "you can only use characters if x has 1 layer")
+		}
+		if (inherits(to, "matrix")) {
+			if (ncol(to) == 1) {
+				to <- as.vector(to)
+			} else if (ncol(to) != nlyr(x)) {
+				to <- as.vector(to[,1])
+				warn("subst", "only the first column of 'to' is used with factors")
+			}
+		}
+		levs <- cats(x, 1, active=TRUE)[[1]]
+		from <- levs[,1][match(from, levs[,2])]
+		to <- levs[,1][match(to, levs[,2])]
+		keepcats <- TRUE		
+	}
+	
 	if (inherits(to, "matrix")) {
 		opt$names = colnames(to)
-		x@ptr <- x@ptr$replaceValues(from, to, ncol(to), opt)
+		x@ptr <- x@ptr$replaceValues(from, to, ncol(to), keepcats, opt)
 	} else {
-		x@ptr <- x@ptr$replaceValues(from, to, -1, opt)
+		x@ptr <- x@ptr$replaceValues(from, to, -1, keepcats, opt)
 	}
 	messages(x, "subst")
 }
@@ -382,9 +440,9 @@ function(x, from, to, filename="", ...) {
 .getExt <- function(y, method="crop") {
 	if (!inherits(y, "SpatExtent")) {
 		e <- try(ext(y), silent=TRUE)
-		if (class(e) == "try-error") { 
+		if (inherits(e, "try-error")) { 
 			e <- try(ext(vect(y)), silent=TRUE)
-			if (class(e) == "try-error") { 
+			if (inherits(e, "try-error")) { 
 				error(method, "cannot get a SpatExtent from y")
 			}
 		}
@@ -579,7 +637,7 @@ setMethod("mask", signature(x="SpatRaster", mask="SpatVector"),
 
 
 setMethod("project", signature(x="SpatRaster"), 
-	function(x, y, method, mask=FALSE, align=FALSE, gdal=TRUE, filename="", ...)  {
+	function(x, y, method, mask=FALSE, align=FALSE, gdal=TRUE, res=NULL, origin=NULL, filename="", ...)  {
 	  
 		if (missing(method)) {
 			if (is.factor(x)[1] || isTRUE(x@ptr$rgb)) {
@@ -606,11 +664,15 @@ setMethod("project", signature(x="SpatRaster"),
 				x@ptr <- x@ptr$resample(y@ptr, method, mask[1], TRUE, opt)			
 			}
 		} else {
-			if (inherits(y, "SpatRaster")) {
-				y <- crs(y)
-			} else if (!is.character(y)) {
-				warn("project,SpatRaster", "crs should be a character value")
+			if (!is.character(y)) {
+				warn("project,SpatRaster", "argument y (the crs) should be a character value")
 				y <- as.character(crs(y))
+			}
+			if (!is.null(res) || !is.null(origin)) {
+				tmp <- project(rast(x), y)
+				if (!is.null(res)) res(tmp) <- res
+				if (!is.null(origin)) origin(tmp) <- origin
+				return(project(x, tmp, method=method, mask=mask, align=align, gdal=gdal, filename=filename, ...))
 			}
 			if (gdal) {
 				x@ptr <- x@ptr$warp(SpatRaster$new(), y, method, mask, FALSE, opt)
@@ -627,11 +689,35 @@ setMethod("project", signature(x="SpatRaster"),
 setMethod("project", signature(x="SpatVector"), 
 	function(x, y)  {
 		if (!is.character(y)) {
-			y <- crs(y)
+			y <- as.character(crs(y))
 		}
 		x@ptr <- x@ptr$project(y)
 		messages(x, "project")
 	}
+)
+
+setMethod("project", signature(x="matrix"),
+    function(x, from, to)  {
+        if (ncol(x) != 2) {
+			error("project", "x must have two columns")
+		}
+        if (missing(from)) {
+			error("project", "'from' cannot be missing")
+		}
+        if (missing(to)) {
+			error("project", "'to' cannot be missing")
+		}
+        if (!is.character(from)) {
+           from <- as.character(crs(from))
+        }
+        if (!is.character(to)) {
+           to <- as.character(crs(to))
+        }
+		v <- vect(x, type="line", crs=from)
+        v@ptr <- v@ptr$project(to)
+        messages(v, "project")
+        crds(v)
+    }
 )
 
 
@@ -909,9 +995,9 @@ setMethod("trans", signature(x="SpatRaster"),
 
 
 setMethod("unique", signature(x="SpatRaster", incomparables="ANY"), 
-	function(x, incomparables=FALSE) {
+	function(x, incomparables=FALSE, na.rm=FALSE) {
 		opt <- spatOptions()
-		u <- x@ptr$unique(incomparables, opt)
+		u <- x@ptr$unique(incomparables, na.rm[1], opt)
 
 		isfact <- is.factor(x)
 		if (any(isfact)) {
@@ -927,6 +1013,10 @@ setMethod("unique", signature(x="SpatRaster", incomparables="ANY"),
 			if (!length(u)) return(u)
 			u <- do.call(data.frame, u)
 			colnames(u) <- names(x)
+		}
+		if (na.rm & (NCOL(u) > 1)) {
+			i <- apply(is.na(u), 1, all)
+			u <- u[-i, drop=FALSE]
 		}
 		u
 	}

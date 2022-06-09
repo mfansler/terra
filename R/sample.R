@@ -159,6 +159,7 @@ sampleStratified <- function(x, size, replace=FALSE, as.df=TRUE, as.points=FALSE
 				cells <- unique(cells)
 			}
 		} else {
+			size <- min(ncell(r), size)
 			cells <- sample(ncell(r), size, replace=replace)
 		}
 	} else { # regular 
@@ -302,7 +303,7 @@ setMethod("spatSample", signature(x="SpatRaster"),
 			}
 			if (values && hasValues(x)) {
 				e <- extract(x, cnrs)
-				e <- set_factors(e, ff, lv, as.df)
+				#e <- set_factors(e, ff, lv, as.df)
 				if (is.null(out)) {
 					out <- e
 				} else {

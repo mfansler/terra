@@ -2,6 +2,8 @@
 //#include "spatRaster.h"
 #include "spatRasterMultiple.h"
 #include <memory> //std::addressof
+#include "NA.h"
+#include "spatTime.h"
 
 //static void SpatRaster_finalizer( SpatRaster* ptr ){
 //}
@@ -43,17 +45,16 @@ Rcpp::List getDataFrame(SpatDataFrame* v) {
 		if (itype[i] == 0) {
 			out[i] = v->getD(i);
 		} else if (itype[i] == 1) {
-
 			Rcpp::NumericVector iv = Rcpp::wrap(v->getI(i));
+			long longNA = NA<long>::value;
 			for (R_xlen_t j=0; j<iv.size(); j++) {
-				if (iv[j] <= INT32_MIN) {
+				if (iv[j] == longNA) {
 					iv[j] = NA_REAL;
 				}
 			}
 			out[i] = iv;
 
-
-		} else {
+		} else if (itype[i] == 2){
 			Rcpp::CharacterVector s = Rcpp::wrap(v->getS(i));
 			for (R_xlen_t j=0; j<s.size(); j++) {
 				if (s[j] == "____NA_+") {
@@ -61,7 +62,26 @@ Rcpp::List getDataFrame(SpatDataFrame* v) {
 				}
 			}
 			out[i] = s;
-
+		} else if (itype[i] == 3){
+			std::vector<int8_t> b = v->getB(i);
+			Rcpp::NumericVector d(b.size());
+			for (size_t j=0; j<b.size(); j++) {
+				if (b[j] > 1) {
+					d[j] = NA_REAL;
+				} else {
+					d[j] = b[j];
+				}
+			}
+			out[i] = d;
+		} else if (itype[i] == 4){
+			//Rcpp::NumericVector tv = Rcpp::wrap(v->getT(i));
+			//SpatTime_t timeNA = NA<SpatTime_t>::value;
+			//for (R_xlen_t j=0; j<tv.size(); j++) {
+			//	if (tv[j] == timeNA) {
+			//		tv[j] = NA_REAL;
+			//	}
+			//}
+			//out[i] = tv;
 		}
 	}
 	out.names() = nms;
@@ -176,6 +196,7 @@ RCPP_MODULE(spat){
 		.property("tempdir", &SpatOptions::get_tempdir, &SpatOptions::set_tempdir )
 		.property("memfrac", &SpatOptions::get_memfrac, &SpatOptions::set_memfrac )
 		.property("memmax", &SpatOptions::get_memmax, &SpatOptions::set_memmax )
+		.property("memmin", &SpatOptions::get_memmin, &SpatOptions::set_memmin )
 		.property("tolerance", &SpatOptions::get_tolerance, &SpatOptions::set_tolerance )
 		.property("filenames", &SpatOptions::get_filenames, &SpatOptions::set_filenames )
 		.property("filetype", &SpatOptions::get_filetype, &SpatOptions::set_filetype )
@@ -225,6 +246,7 @@ RCPP_MODULE(spat){
 		.method("add_column_double", (bool (SpatDataFrame::*)(std::vector<double>, std::string name))( &SpatDataFrame::add_column))
 		.method("add_column_long", (bool (SpatDataFrame::*)(std::vector<long>, std::string name))( &SpatDataFrame::add_column))
 		.method("add_column_string", (bool (SpatDataFrame::*)(std::vector<std::string>, std::string name))( &SpatDataFrame::add_column))
+		.method("add_column_bool", &SpatDataFrame::add_column_bool)
 
 		.method("remove_column", (bool (SpatDataFrame::*)(std::string field))( &SpatDataFrame::remove_column))
 		.method("remove_column", (bool (SpatDataFrame::*)(int i))( &SpatDataFrame::remove_column))
@@ -261,6 +283,8 @@ RCPP_MODULE(spat){
 		.method("has_warning", &SpatVectorCollection::hasWarning)
 		.method("getWarnings", &SpatVectorCollection::getWarnings)
 		.method("getError", &SpatVectorCollection::getError)
+		.method("from_hex_col", &SpatVectorCollection::from_hex_col)
+		
 	;
 
 
@@ -279,7 +303,7 @@ RCPP_MODULE(spat){
 		.method("wkt", &SpatVector::wkt, "")
 		.method("wkb", &SpatVector::wkb, "")
 		.method("hex", &SpatVector::hex, "")
-		.method("from_hex", &SpatVector::from_hex, "")
+		.method("from_hex", &SpatVector::from_hex)
 		.method("make_nodes", &SpatVector::make_nodes, "")
 		.method("boundary", &SpatVector::boundary, "")
 		.method("polygonize", &SpatVector::polygonize, "")
@@ -288,6 +312,7 @@ RCPP_MODULE(spat){
 		.method("simplify", &SpatVector::simplify, "")
 		.method("shared_paths", &SpatVector::shared_paths, "")
 		.method("snap", &SpatVector::snap, "")
+		.method("snapto", &SpatVector::snapto, "")
 
 		.field_readonly("is_proxy", &SpatVector::is_proxy )
 		.field_readonly("read_query", &SpatVector::read_query )
@@ -310,6 +335,7 @@ RCPP_MODULE(spat){
 		.method("add_column_double", (bool (SpatVector::*)(std::vector<double>, std::string name))( &SpatVector::add_column))
 		.method("add_column_long", (bool (SpatVector::*)(std::vector<long>, std::string name))( &SpatVector::add_column))
 		.method("add_column_string", (bool (SpatVector::*)(std::vector<std::string>, std::string name))( &SpatVector::add_column))
+		.method("add_column_bool", &SpatVector::add_column_bool)
 		.method("remove_column", (bool (SpatVector::*)(std::string field))( &SpatVector::remove_column))
 		.method("remove_column", (bool (SpatVector::*)(int i))( &SpatVector::remove_column))
 		.method("remove_df", &SpatVector::remove_df)
@@ -357,6 +383,7 @@ RCPP_MODULE(spat){
 		.method("subset_rows", ( SpatVector (SpatVector::*)(std::vector<int>))( &SpatVector::subset_rows ))
 		.method("remove_rows", &SpatVector::remove_rows, "remove_rows")
 		.method("type", &SpatVector::type, "type")
+		.method("nullGeoms", &SpatVector::nullGeoms)
 
 		.method("write", &SpatVector::write)
 		.method("delete_layers", &SpatVector::delete_layers)
@@ -370,9 +397,10 @@ RCPP_MODULE(spat){
 		.method("aggregate", ( SpatVector (SpatVector::*)(std::string, bool))( &SpatVector::aggregate ))
 		.method("aggregate_nofield", ( SpatVector (SpatVector::*)(bool))( &SpatVector::aggregate ))
 
-		.method("disaggregate", &SpatVector::disaggregate, "disaggregate")
-		.method("buffer", &SpatVector::buffer, "buffer")
-		.method("centroid", &SpatVector::centroid, "centroid")
+		.method("disaggregate", &SpatVector::disaggregate)
+		.method("buffer", &SpatVector::buffer)
+		.method("centroid", &SpatVector::centroid)
+		.method("point_on_surface", &SpatVector::point_on_surface)
 		.method("make_valid2", &SpatVector::make_valid2)
 		.method("flip", &SpatVector::flip)
 		.method("transpose", &SpatVector::transpose)
@@ -657,7 +685,7 @@ RCPP_MODULE(spat){
 		.method("vectDistanceDirect", &SpatRaster::distance_vector) 
 		.method("clamp", &SpatRaster::clamp, "clamp")
 		.method("replaceValues", &SpatRaster::replaceValues, "replace")
-		.method("classify", ( SpatRaster (SpatRaster::*)(std::vector<double>, unsigned, unsigned, bool, bool, bool, bool, SpatOptions&) )( &SpatRaster::reclassify), "reclassify")
+		.method("classify", ( SpatRaster (SpatRaster::*)(std::vector<double>, unsigned, unsigned, bool, bool, double, bool, bool, bool, SpatOptions&) )( &SpatRaster::reclassify), "reclassify")
 		//.method("source_collapse", &SpatRaster::collapse, "collapse")
 		.method("selRange", &SpatRaster::selRange, "selRange")
 		.method("separate", &SpatRaster::separate, "separate")
@@ -689,7 +717,8 @@ RCPP_MODULE(spat){
 		.method("initv", ( SpatRaster (SpatRaster::*)(std::vector<double>, SpatOptions&) )( &SpatRaster::init ), "init value")
 		.method("is_in", &SpatRaster::is_in, "isin")
 		.method("is_in_cells", &SpatRaster::is_in_cells, "isincells")
-		.method("isnan", &SpatRaster::isnan, "isnan")
+		.method("isnan", &SpatRaster::isnan)
+		.method("not_na", &SpatRaster::isnotnan)
 		.method("isfinite", &SpatRaster::isfinite, "isfinite")
 		.method("isinfinite", &SpatRaster::isinfinite, "isinfinite")
 		.method("logic_rast", ( SpatRaster (SpatRaster::*)(SpatRaster, std::string, SpatOptions&) )( &SpatRaster::logic ))
@@ -700,8 +729,10 @@ RCPP_MODULE(spat){
 		.method("math2", &SpatRaster::math2, "math2")
 		.method("modal", &SpatRaster::modal, "modal")
 		.method("quantile", &SpatRaster::quantile, "quantile")
-		.method("rasterize", &SpatRaster::rasterize, "rasterize")
-		.method("rasterizeLyr", &SpatRaster::rasterizeLyr, "rasterizeLyr")
+		.method("rasterize", &SpatRaster::rasterize)
+		.method("rasterizePoints", &SpatRaster::rasterizePoints)
+		.method("rasterizeLyr", &SpatRaster::rasterizeLyr)
+		.method("rasterizeGeom", &SpatRaster::rasterizeGeom)
 		.method("rgb2col", &SpatRaster::rgb2col)
 		.method("rgb2hsx", &SpatRaster::rgb2hsx)
 		.method("hsx2rgb", &SpatRaster::hsx2rgb)
@@ -722,8 +753,9 @@ RCPP_MODULE(spat){
 		.method("summary_numb", &SpatRaster::summary_numb, "summary_numb")
 		.method("transpose", &SpatRaster::transpose, "transpose")
 		.method("trig", &SpatRaster::trig, "trig")
-		.method("trim", &SpatRaster::trim, "trim")
-		.method("unique", &SpatRaster::unique, "unique")
+		.method("trim", &SpatRaster::trim)
+		.method("unique", &SpatRaster::unique)
+		.method("where", &SpatRaster::where)
 		.method("sieve", &SpatRaster::sieveFilter, "sievefilter")
 
 		.method("rectify", &SpatRaster::rectify)
@@ -731,8 +763,8 @@ RCPP_MODULE(spat){
 		.method("warp", &SpatRaster::warper)
 		.method("resample", &SpatRaster::resample)
 		.method("zonal", &SpatRaster::zonal)
-		.method("is_true", &SpatRaster::is_true, "is_TRUE")
-		.method("is_false", &SpatRaster::is_true, "is_TRUE")
+		.method("is_true", &SpatRaster::is_true)
+		.method("is_false", &SpatRaster::is_false)
 	;
 
     class_<SpatRasterCollection>("SpatRasterCollection")

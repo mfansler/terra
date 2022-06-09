@@ -40,7 +40,7 @@ setMethod("is.points", signature(x="SpatVector"),
 
 setMethod("geomtype", signature(x="Spatial"), 
 	function(x){ 
-		type <- sub("spatial", "", as.vector(tolower(class(x))))
+		type <- sub("spatial", "", as.vector(tolower(class(x)[1])))
 		type <- sub("dataframe", "", type)
 		if (type %in% c("grid", "pixels")) type <- "raster"
 		type
@@ -182,12 +182,27 @@ setMethod("fillHoles", signature(x="SpatVector"),
 )
 
 
+
+#setMethod("eliminate", signature(x="SpatVector"), 
+#	function(x, y) {
+#		x@ptr <- x@ptr$eliminate(y@ptr)
+#		messages(x)
+#	}
+#)
+
+
+
 setMethod("centroids", signature(x="SpatVector"), 
-	function(x) {
-		x@ptr <- x@ptr$centroid(TRUE)
+	function(x, inside=FALSE) {
+		if (inside) {
+			x@ptr <- x@ptr$point_on_surface(TRUE)
+		} else {
+			x@ptr <- x@ptr$centroid(TRUE)
+		}
 		messages(x)
 	}
 )
+
 
 
 

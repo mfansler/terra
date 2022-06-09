@@ -4,18 +4,19 @@
 \alias{centroids,SpatVector-method}
 
 
-\title{Get centroids}
+\title{Centroids}
 
 \description{
-Get the centroids for the polygons of a SpatVector
+Get the centroids of polygons or lines, or centroid-like points that are guaranteed to be inside the polygons or on the lines.
 }
 
 \usage{
-\S4method{centroids}{SpatVector}(x)
+\S4method{centroids}{SpatVector}(x, inside=FALSE)
 }
 
 \arguments{
 \item{x}{SpatVector}
+\item{inside}{logical. If \code{TRUE} the points returned are not the true centroids, but they are guaranteed to be inside the polygons or on the lines. True centroids may be outside a polygon (e.g. when a polygon is "bean shaped", and are unlikely to be on their line}
 }
 
 
@@ -26,6 +27,7 @@ Get the centroids for the polygons of a SpatVector
 f <- system.file("ex/lux.shp", package="terra")
 v <- vect(f)
 x <- centroids(v)
+y <- centroids(v, TRUE)
 }
 
 \keyword{spatial}

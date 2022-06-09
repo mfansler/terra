@@ -87,7 +87,31 @@ SpatVector SpatVector::from_hex(std::vector<std::string> x, std::string srs) {
 	SpatVectorCollection coll = coll_from_geos(p, hGEOSCtxt);
 	geos_finish(hGEOSCtxt);
 	SpatVector out = coll.get(0);
+	if (coll.size() > 1) {
+		out.addWarning("not all geometries were transferred, use svc for a geometry collection");
+	}
 	out.setSRS(srs);
+	return out;
+}
+
+
+SpatVectorCollection SpatVectorCollection::from_hex_col(std::vector<std::string> x, std::string srs) {
+	GEOSContextHandle_t hGEOSCtxt = geos_init();
+	size_t n = x.size();
+	std::vector<GeomPtr> p;
+	p.resize(n);
+	for (size_t i = 0; i < n; i++) {
+		const char* cstr = x[i].c_str();
+		size_t len = strlen(cstr);
+		const unsigned char *hex = (const unsigned char *) cstr;
+		GEOSGeometry* r = GEOSGeomFromHEX_buf_r(hGEOSCtxt, hex, len);
+		p[i] = geos_ptr(r, hGEOSCtxt);
+	}
+	SpatVectorCollection out = coll_from_geos(p, hGEOSCtxt);
+	geos_finish(hGEOSCtxt);
+	for (size_t i = 0; i < out.size(); i++) {
+		out.v[i].setSRS(srs);
+	}
 	return out;
 }
 
@@ -994,9 +1018,11 @@ SpatVector SpatVector::intersect(SpatVector v) {
 				}
 			}
 		}
+
+		
 	//SpatVectorCollection coll = coll_from_geos(result, hGEOSCtxt);
 		if (result.size() > 0) {
-			SpatVectorCollection coll = coll_from_geos(result, hGEOSCtxt, ids);
+			SpatVectorCollection coll = coll_from_geos(result, hGEOSCtxt, ids, true, false);
 			out = coll.get(0);
 			out.srs = srs;
 		}
@@ -1861,6 +1887,7 @@ SpatVector SpatVector::gaps() {
 }
 
 
+
 SpatVector SpatVector::nearest_point(SpatVector v, bool parallel) {
 	SpatVector out;
 
@@ -2037,6 +2064,41 @@ SpatVector SpatVector::centroid(bool check_lonlat) {
 	std::vector<GeomPtr> b(size());
 	for (size_t i = 0; i < g.size(); i++) {
 		GEOSGeometry* pt = GEOSGetCentroid_r(hGEOSCtxt, g[i].get());
+		if (pt == NULL) {
+			out.setError("NULL geom");
+			geos_finish(hGEOSCtxt);
+			return out;
+		}
+		b[i] = geos_ptr(pt, hGEOSCtxt);
+	}
+	out = vect_from_geos(b, hGEOSCtxt, "points");
+	geos_finish(hGEOSCtxt);
+
+	out.srs = srs;
+	out.df = df;
+	return out;
+}
+
+
+SpatVector SpatVector::point_on_surface(bool check_lonlat) {
+
+	SpatVector out;
+
+	if (check_lonlat && could_be_lonlat()) {
+		bool changed = false;
+		SpatVector v = cross_dateline(changed);
+		if (changed) {
+			out = v.point_on_surface(false);
+			out.fix_lonlat_overflow();
+			return out;
+		}
+	}
+
+	GEOSContextHandle_t hGEOSCtxt = geos_init();
+	std::vector<GeomPtr> g = geos_geoms(this, hGEOSCtxt);
+	std::vector<GeomPtr> b(size());
+	for (size_t i = 0; i < g.size(); i++) {
+		GEOSGeometry* pt = GEOSPointOnSurface_r(hGEOSCtxt, g[i].get());
 		if (pt == NULL) {
 			out.setError("NULL geom");
 			geos_finish(hGEOSCtxt);

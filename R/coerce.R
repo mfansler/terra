@@ -144,6 +144,11 @@ as.list.SpatRaster <- function(x, ...) {
 }
 setMethod("as.list", signature(x="SpatRaster"), as.list.SpatRaster)
 
+as.list.SpatRasterCollection <- function(x, ...) {
+	lapply(1:length(x), function(i) x[i])
+}
+setMethod("as.list", signature(x="SpatRasterCollection"), as.list.SpatRasterCollection)
+
 
  
 # create a "grDevices::raster" (small r) object for use with the rasterImage function
@@ -175,14 +180,14 @@ setMethod("as.raster", signature(x="SpatRaster"),
  
  
 setMethod("as.polygons", signature(x="SpatRaster"), 
-	function(x, trunc=TRUE, dissolve=TRUE, values=TRUE, na.rm=TRUE, extent=FALSE) {
+	function(x, trunc=TRUE, dissolve=TRUE, values=TRUE, na.rm=TRUE, na.all=FALSE, extent=FALSE) {
 		p <- methods::new("SpatVector")
 		if (extent) {
 			p@ptr <- x@ptr$dense_extent(FALSE, FALSE)
 			x <- messages(x, "as.polygons")
 		} else {
 			opt <- spatOptions()
-			p@ptr <- x@ptr$as_polygons(trunc[1], dissolve[1], values[1], na.rm[1], opt)
+			p@ptr <- x@ptr$as_polygons(trunc[1], dissolve[1], values[1], na.rm[1], na.all[1], opt)
 			x <- messages(x, "as.polygons")
 			if (values) {
 				ff <- is.factor(x)
@@ -226,7 +231,7 @@ setMethod("as.polygons", signature(x="SpatExtent"),
 
 setMethod("as.lines", signature(x="SpatExtent"), 
 	function(x, crs="") {
-		crs <- character_crs(crs, "lines")
+		crs <- character_crs(crs, "as.lines")
 		as.lines(as.polygons(x, crs))
 	}
 )
@@ -264,10 +269,10 @@ setMethod("as.points", signature(x="SpatVector"),
 
 
 setMethod("as.points", signature(x="SpatRaster"), 
-	function(x, values=TRUE, na.rm=TRUE) {
+	function(x, values=TRUE, na.rm=TRUE, na.all=FALSE) {
 		p <- methods::new("SpatVector")
 		opt <- spatOptions()
-		p@ptr <- x@ptr$as_points(values, na.rm, opt)
+		p@ptr <- x@ptr$as_points(values, na.rm, na.all, opt)
 		x <- messages(x, "as.points")
 
 		if (values) {
@@ -415,12 +420,36 @@ setMethod("as.array", signature(x="SpatRaster"),
 	#v <- vect(geom, crs=crs)
 	v <- vect()
 	v@ptr <- v@ptr$from_hex(sf::rawToHex(sf::st_as_binary(geom)), crs)
+	v <- messages(v, "SpatVector from sf")
 	if (ncol(from) > 1) {
 		from[[sfi]] <- NULL
 		values(v) <- as.data.frame(from)
 	}
 	v
 }
+
+.svc_from_sf <- function(from) {
+	sfi <- attr(from, "sf_column")
+	geom <- from[[sfi]]
+	crs <- attr(geom, "crs")$wkt
+	if (is.na(crs)) crs <- ""
+	#geom <- st_as_text(geom)
+	#v <- vect(geom, crs=crs)
+	v <- svc()
+	v@ptr <- v@ptr$from_hex_col(sf::rawToHex(sf::st_as_binary(geom)), crs)
+	#if (ncol(from) > 1) {
+	#	from[[sfi]] <- NULL
+	#	values(v) <- as.data.frame(from)
+	#}
+	v
+}
+
+setAs("sf", "SpatRaster", 
+	function(from) {
+		e <- ext(from)
+		rast(e)
+	}
+)
 
 
 setAs("sf", "SpatVector", 
@@ -484,7 +513,7 @@ setAs("im", "SpatRaster",
 setAs("SpatVector", "Spatial", 
 	function(from) {
 		g <- geom(from, df=TRUE)
-		geom(g, values(from), geomtype(from), crs(from))
+		geom(g, values(from), geomtype(from), as.character(crs(from)))
 	}
 )
 
@@ -508,9 +537,9 @@ setAs("Spatial", "SpatVector",
 			g <- cbind(g[,1,drop=FALSE], part=1:nrow(g), g[,2:3,drop=FALSE])
 		}
 		if (methods::.hasSlot(from, "data")) {
-			v <- vect(g, vtype, from@data, crs(from))
+			v <- vect(g, vtype, from@data, crs(from, TRUE))
 		} else {
-			v <- vect(g, vtype, crs=crs(from))
+			v <- vect(g, vtype, crs=crs(from, TRUE))
 		}
 		return(v)
 	}

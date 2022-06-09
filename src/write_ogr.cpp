@@ -17,20 +17,24 @@
 
 #include "spatVector.h"
 #include "string_utils.h"
+#include <stdexcept>
 
 #ifdef useGDAL
 
 #include "file_utils.h"
 #include "ogrsf_frmts.h"
 
-
 GDALDataset* SpatVector::write_ogr(std::string filename, std::string lyrname, std::string driver, bool append, bool overwrite, std::vector<std::string> options) {
 
     GDALDataset *poDS = NULL;
 	if (filename != "") {
-		if (file_exists(filename) && (!overwrite) && (!append)) {
-			setError("file exists. Use 'overwrite=TRUE' to overwrite it");
-			return(poDS);
+		if (file_exists(filename)) {
+			if ((!overwrite) && (!append)) {
+				setError("file exists. Use 'overwrite=TRUE' to overwrite it");
+				return(poDS);
+			}
+		} else {
+			append = false;
 		}
 		if (nrow() == 0) {
 			setError("no geometries to write");
@@ -39,6 +43,12 @@ GDALDataset* SpatVector::write_ogr(std::string filename, std::string lyrname, st
 	}
 
 	if (append) {	
+	
+		#if GDAL_VERSION_MAJOR < 3
+			setError("GDAL >= 3 required for inserting layers into an existing file");
+			return(poDS);
+		#endif
+		
 		poDS = static_cast<GDALDataset*>(GDALOpenEx(filename.c_str(), GDAL_OF_VECTOR | GDAL_OF_UPDATE,
 				NULL, NULL, NULL ));
 
@@ -98,6 +108,7 @@ GDALDataset* SpatVector::write_ogr(std::string filename, std::string lyrname, st
 
 	std::string s = srs.wkt;
 
+
 	OGRSpatialReference *SRS = NULL;
 	if (s != "") {
 		SRS = new OGRSpatialReference;
@@ -142,29 +153,37 @@ GDALDataset* SpatVector::write_ogr(std::string filename, std::string lyrname, st
 //	if (SRS != NULL) SRS->Release();
 	if (SRS != NULL) OSRDestroySpatialReference(SRS);
 
+
 	std::vector<std::string> nms = get_names();
 	std::vector<std::string> tps = df.get_datatypes();
 	OGRFieldType otype;
 	int nfields = nms.size();
 	size_t ngeoms = size();
 
+
 	for (int i=0; i<nfields; i++) {
+
+		OGRFieldSubType eSubType = OFSTNone;
 		if (tps[i] == "double") {
 			otype = OFTReal;
 		} else if (tps[i] == "long") {
 			otype = OFTInteger64;
+		} else if (tps[i] == "bool") {
+			otype = OFTInteger;
+			eSubType = OFSTBoolean;
 		} else {
 			otype = OFTString;
 		}
 
 		OGRFieldDefn oField(nms[i].c_str(), otype);
+		oField.SetSubType(eSubType);
 		if (otype == OFTString) {
 			oField.SetWidth(32); // needs to be computed
 		}
 		if( poLayer->CreateField( &oField ) != OGRERR_NONE ) {
 			setError( "Field creation failed for: " + nms[i]);
 			return poDS;
-		}
+		}		
 	}
 
 	// use a single transaction as in sf
@@ -194,6 +213,8 @@ GDALDataset* SpatVector::write_ogr(std::string filename, std::string lyrname, st
 				poFeature->SetField(j, df.getDvalue(i, j));
 			} else if (tps[j] == "long") {
 				poFeature->SetField(j, (GIntBig)df.getIvalue(i, j));
+			} else if (tps[j] == "bool") {
+				poFeature->SetField(j, df.getBvalue(i, j));
 			} else {
 				poFeature->SetField(j, df.getSvalue(i, j).c_str());
 			}

@@ -18,6 +18,25 @@ gdalCache <- function(size=NA) {
 	}
 }
 
+getGDALconfig <- function(option) {
+	sapply(option, .gdal_getconfig)
+}
+
+setGDALconfig <- function(option, value="") {
+	value <- rep_len(value, length(option))
+	for (i in 1:length(option)) {
+		if (grepl("=", option[i])) {
+			opt <- trimws(unlist(strsplit(option[i], "="))[1:2])
+			.gdal_setconfig(opt[1], opt[2])
+		} else {
+			.gdal_setconfig(trimws(option[i]), trimws(value[i]))
+		}
+	}
+}
+
+
+
+
 gdal <- function(warn=NA, drivers=FALSE, lib="gdal") {
 	if (!is.na(warn)) {
 		warn <- as.integer(warn)

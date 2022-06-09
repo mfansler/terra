@@ -310,6 +310,8 @@ std::string SpatVector::type(){
 		return "lines";
 	} else if (geoms[0].gtype == polygons) {
 		return "polygons";
+	} else if (geoms[0].gtype == null) {
+		return("null");		
 	} else {
 		return("unknown");
 	}
@@ -346,6 +348,17 @@ void SpatVector::computeExtent() {
 		extent.unite(geoms[i].extent);
 	}
 }
+
+std::vector<unsigned> SpatVector::nullGeoms(){
+	std::vector<unsigned> ids;
+	for (size_t i=0; i<geoms.size(); i++) {
+		if ((geoms[i].gtype == null) || (geoms[i].gtype == unknown)) {
+			ids.push_back(i);
+		}
+	}
+	return ids;
+}
+
 
 
 bool SpatVector::replaceGeom(SpatGeom p, unsigned i) {
@@ -766,7 +779,7 @@ void SpatVector::setPointsGeometry(std::vector<double> &x, std::vector<double> &
 
 
 
-void SpatVector::setPointsDF(SpatDataFrame &x, std::vector<unsigned> geo, std::string crs) {
+void SpatVector::setPointsDF(SpatDataFrame &x, std::vector<unsigned> geo, std::string crs, bool keepgeom) {
 	if (x.nrow() == 0) return;
 	if ((x.itype[geo[0]] != 0) || (x.itype[geo[1]] != 0)) {
 		setError("coordinates must be numeric");
@@ -777,13 +790,15 @@ void SpatVector::setPointsDF(SpatDataFrame &x, std::vector<unsigned> geo, std::s
 		return;			
 	}
 	setPointsGeometry(x.dv[x.iplace[geo[0]]], x.dv[x.iplace[geo[1]]]);
-	setSRS( {crs});
-	if (geo[0] > geo[1]) {
-		x.remove_column(geo[0]);
-		x.remove_column(geo[1]);
-	} else {
-		x.remove_column(geo[1]);
-		x.remove_column(geo[0]);
+	setSRS( {crs} );
+	if (!keepgeom) {
+		if (geo[0] > geo[1]) {
+			x.remove_column(geo[0]);
+			x.remove_column(geo[1]);
+		} else {
+			x.remove_column(geo[1]);
+			x.remove_column(geo[0]);
+		}
 	}
 	df = x;
 }
@@ -795,7 +810,7 @@ SpatVector SpatVector::subset_rows(std::vector<int> range) {
 	int n = nrow();
 	std::vector<unsigned> r;
 	for (size_t i=0; i<range.size(); i++) {
-		if ((range[i] >= 0) & (range[i] < n)) {
+		if ((range[i] >= 0) && (range[i] < n)) {
 			r.push_back(range[i]);
 		}
 	}
@@ -863,7 +878,7 @@ SpatVector SpatVector::subset_cols(std::vector<int> range) {
 	std::vector<unsigned> valid;
 	valid.reserve(range.size());
 	for (size_t i=0; i<range.size(); i++) {
-		if ((range[i] >= 0) & (range[i] < nc)) {
+		if ((range[i] >= 0) && (range[i] < nc)) {
 			valid.push_back(range[i]);
 		}
 	}
