@@ -10,10 +10,11 @@ new_rast <- function(nrows=10, ncols=10, nlyrs=1, xmin=0, xmax=1, ymin=0, ymax=1
 	if (ncols < 1) error("rast", "ncols < 1")
 	nrows <- round(nrows)
 	if (nrows < 1) error("rast", "nrows < 1")
-	
+
 	if (missing(extent)) {
-		e <- c(xmin, xmax, ymin, ymax) 
+		e <- c(xmin, xmax, ymin, ymax)
 	} else {
+		extent <- ext(extent)
 		e <- as.vector(extent)
 	}
 	if ((e[1] >= e[2]) || e[3] >= e[4]) {
@@ -29,7 +30,7 @@ new_rast <- function(nrows=10, ncols=10, nlyrs=1, xmin=0, xmax=1, ymin=0, ymax=1
 		crs <- character_crs(crs, "rast")
 	}
 	#check_proj4_datum(crs)
-	
+
 	r <- methods::new("SpatRaster")
 	r@ptr <- SpatRaster$new(c(nrows, ncols, nlyrs), e, crs)
 	r <- messages(r, "rast")
@@ -65,30 +66,8 @@ setMethod("rast", signature(x="missing"),
 )
 
 
-setMethod("rast", signature(x="stars"),
-	function(x) {
-		x <- from_stars(x)
-		if (inherits(x, "SpatRasterDataset")) {
-			rast(x)
-		} else {
-			x
-		}
-	}
-)
-
-setMethod("rast", signature(x="stars_proxy"),
-	function(x) {
-		x <- from_stars(x)
-		if (inherits(x, "SpatRasterDataset")) {
-			rast(x)
-		} else {
-			x
-		}
-	}
-)
-
 setMethod("rast", signature(x="list"),
-	function(x) {
+	function(x, warn=TRUE) {
 		i <- sapply(x, function(i) inherits(i, "SpatRaster"))
 		if (!all(i)) {
 			if (!any(i)) {
@@ -99,10 +78,13 @@ setMethod("rast", signature(x="list"),
 			}
 		}
 		# start with an empty raster (alternatively use a deep copy)
-		out <- rast(x[[1]])
+		out <- deepcopy(x[[1]])
+		if (length(x) == 1) {
+			return(out)
+		}
 		opt <- spatOptions()
-		for (i in 1:length(x)) {
-			out@ptr$addSource(x[[i]]@ptr, FALSE, opt)
+		for (i in 2:length(x)) {
+			out@ptr$addSource(x[[i]]@ptr, warn, opt)
 		}
 		out <- messages(out, "rast")
 		lnms <- names(x)
@@ -115,7 +97,6 @@ setMethod("rast", signature(x="list"),
 		out
 	}
 )
-
 
 
 setMethod("rast", signature(x="SpatExtent"),
@@ -170,7 +151,7 @@ setMethod("rast", signature(x="SpatVector"),
 }
 
 setMethod("rast", signature(x="character"),
-	function(x, subds=0, lyrs=NULL, opts=NULL) {
+	function(x, subds=0, lyrs=NULL, drivers=NULL, opts=NULL) {
 
 		x <- trimws(x)
 		x <- x[x!=""]
@@ -182,25 +163,27 @@ setMethod("rast", signature(x="character"),
 		f <- enc2utf8(f)
 		#subds <- subds[1]
 		if (is.null(opts)) opts <- ""[0]
+		if (is.null(drivers)) drivers <- ""[0]
 		if (length(subds) == 0) subds = 0
-		if (is.character(subds)) { 
+		if (is.character(subds)) {
 			#r@ptr <- SpatRaster$new(f, -1, subds, FALSE, 0[])
-			r@ptr <- SpatRaster$new(f, -1, subds, FALSE, opts, 0[])
+			r@ptr <- SpatRaster$new(f, -1, subds, FALSE, drivers, opts, 0[])
 		} else {
-			r@ptr <- SpatRaster$new(f, subds-1, "", FALSE, opts, 0[])
+			r@ptr <- SpatRaster$new(f, subds-1, "", FALSE, drivers, opts, 0[])
 		}
 		r <- messages(r, "rast")
 		if (r@ptr$getMessage() == "ncdf extent") {
 			test <- try(r <- .ncdf_extent(r), silent=TRUE)
 			if (inherits(test, "try-error")) {
-				warn("rast", "GDAL did not find an extent. Cells not equally spaced?") 
+				warn("rast", "GDAL did not find an extent. Cells not equally spaced?")
 			}
 		}
 		r <- messages(r, "rast")
-
 		if (crs(r) == "") {
 			if (is.lonlat(r, perhaps=TRUE, warn=FALSE)) {
-				crs(r) <- "OGC:CRS84"
+				if (!isTRUE(all(as.vector(ext(r)) == c(0,1,0,1)))) {
+					crs(r) <- "OGC:CRS84"
+				}
 			}
 		}
 
@@ -214,7 +197,7 @@ setMethod("rast", signature(x="character"),
 )
 
 
-multi <- function(x, subds=0, xyz=c(1,2,3)) {
+multi <- function(x, subds=0, xyz=3:1, drivers=NULL, opts=NULL) {
 
 	x <- trimws(x)
 	x <- x[x!=""]
@@ -223,16 +206,20 @@ multi <- function(x, subds=0, xyz=c(1,2,3)) {
 	}
 	r <- methods::new("SpatRaster")
 	f <- .fullFilename(x)
-	#subds <- subds[1]
-	if (is.character(subds)) { 
-		r@ptr <- SpatRaster$new(f, -1, subds, TRUE, xyz-1)
+	if (is.null(opts)) opts <- ""[0]
+	if (is.null(drivers)) drivers <- ""[0]
+	if (length(subds) == 0) subds = 1
+	subds <- subds[1]
+
+	if (is.character(subds)) {
+		r@ptr <- SpatRaster$new(f, -1, subds, TRUE, drivers, opts, xyz-1)
 	} else {
-		r@ptr <- SpatRaster$new(f, subds-1, "", TRUE, xyz-1)
+		r@ptr <- SpatRaster$new(f, subds-1, ""[0], TRUE, drivers, opts, xyz-1)
 	}
 	if (r@ptr$getMessage() == "ncdf extent") {
 		test <- try(r <- .ncdf_extent(r), silent=TRUE)
 		if (inherits(test, "try-error")) {
-			warn("rast", "GDAL did not find an extent. Cells not equally spaced?") 
+			warn("rast", "GDAL did not find an extent. Cells not equally spaced?")
 		}
 	}
 	r <- messages(r, "rast")
@@ -317,7 +304,8 @@ setMethod("rast", signature(x="ANY"),
 		if (inherits(x, "sf")) {
 			out <- rast(ext(x), ...)
 			if (is.null(list(...)$crs)) {
-				crs(out) <- crs(x)
+				sfi <- attr(x, "sf_column")
+				crs(out) <- attr(x[[sfi]], "crs")$wkt
 			}
 			out
 		} else {
@@ -342,6 +330,9 @@ setMethod("rast", signature(x="ANY"),
 		xyz <- matrix(as.numeric(xyz), ncol=ncol(xyz), nrow=nrow(xyz))
 	}
 	x <- sort(unique(xyz[,1]))
+	if (length(x) == 1) {
+		error("rast", "cannot create a raster geometry from a single x coordinate")
+	}
 	dx <- x[-1] - x[-length(x)]
 
 	rx <- min(dx)
@@ -357,6 +348,9 @@ setMethod("rast", signature(x="ANY"),
 	}
 
 	y <- sort(unique(xyz[,2]))
+	if (length(y) == 1) {
+		error("rast", "cannot create a raster geometry from a single y coordinate")
+	}
 	dy <- y[-1] - y[-length(y)]
 	# probably a mistake to use the line below
 	# Gareth Davies suggested that it be removed
@@ -428,7 +422,29 @@ setMethod("rast", signature(x="data.frame"),
 )
 
 
-setMethod("NAflag<-", signature(x="SpatRaster"), 
+setMethod("rast", signature(x="stars"),
+	function(x) {
+		x <- from_stars(x)
+		if (inherits(x, "SpatRasterDataset")) {
+			rast(x)
+		} else {
+			x
+		}
+	}
+)
+
+setMethod("rast", signature(x="stars_proxy"),
+	function(x) {
+		x <- from_stars(x)
+		if (inherits(x, "SpatRasterDataset")) {
+			rast(x)
+		} else {
+			x
+		}
+	}
+)
+
+setMethod("NAflag<-", signature(x="SpatRaster"),
 	function(x, value)  {
 		value <- as.numeric(value)
 		if (!(x@ptr$setNAflag(value))) {
@@ -438,9 +454,10 @@ setMethod("NAflag<-", signature(x="SpatRaster"),
 	}
 )
 
-setMethod("NAflag", signature(x="SpatRaster"), 
+setMethod("NAflag", signature(x="SpatRaster"),
 	function(x)  {
 		x@ptr$getNAflag()
 	}
 )
+
 

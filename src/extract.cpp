@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2021  Robert J. Hijmans
+// Copyright (c) 2018-2022  Robert J. Hijmans
 //
 // This file is part of the "spat" library
 //
@@ -43,12 +43,12 @@ std::vector<double> SpatRaster::fourCellsFromXY(const std::vector<double> &x, co
 	int_64 mxr = nrow()-1;
 	int_64 mxc = ncol()-1;
 	int_64 r1, r2, c1, c2;
-	std::vector<double> bad = {NAN, NAN, NAN, NAN}; 
+	std::vector<double> bad = {NAN, NAN, NAN, NAN};
 	for (size_t i = 0; i < n; i++) {
 		if (y[i] < ymin || y[i] > ymax || x[i] < xmin || x[i] > xmax) {
 			out.insert(out.end(), bad.begin(), bad.end());
 			continue;
-		} 
+		}
 		if (y[i] == ymin) {
 			r1 = mxr;
 			r2 = mxr;
@@ -102,11 +102,11 @@ double bilinearInt(const double& x, const double& y, const double& x1, const dou
 */
 
 /*
-double bilinearIntold(const double& x, const double& y, 
-                   const double& x1, const double& x2, const double& y1, const double& y2, 
+double bilinearIntold(const double& x, const double& y,
+                   const double& x1, const double& x2, const double& y1, const double& y2,
                    const double& v11, const double& v21, const double& v12, const double& v22) {
 	double d = x2-x1;
-	double h1=NAN; 
+	double h1=NAN;
 	double h2=NAN;
 	if (!std::isnan(v11) && !std::isnan(v21)) {
 		h1 =  linearInt(d, x, x1, x2, v11, v21);
@@ -137,27 +137,25 @@ double bilinearIntold(const double& x, const double& y,
 */
 
 
-std::vector<double> bilinearInt(const double& x, const double& y, 
-                   const double& x1, const double& x2, const double& y1, const double& y2, 
+std::vector<double> bilinearInt(const double& x, const double& y,
+                   const double& x1, const double& x2, const double& y1, const double& y2,
                    double& v11, double& v12, double& v21, double& v22, bool weights) {
 
 	bool n1 = std::isnan(v11);
 	bool n2 = std::isnan(v12);
 	bool n3 = std::isnan(v21);
 	bool n4 = std::isnan(v22);
-	if (std::isnan(x) || std::isnan(y) || (n1 && n2 && n3 && n4)) {
-		if (weights) {
-			std::vector<double> out(4, NAN);
-			return out;
-		} 
-		std::vector<double> out(1, NAN);
-		return out;
-	}
+
 	double dx = (x2 - x1);
 	bool intx = dx > 0;
 	double dy = (y1 - y2);
 	bool inty = dy > 0;
 	double w11, w12, w21, w22;
+
+	if (std::isnan(x) || std::isnan(y) || (n1 && n2 && n3 && n4)) {
+		goto NAN_return;
+	}
+
 	if (weights) {
 		v11 = 1;
 		v12 = 1;
@@ -165,55 +163,138 @@ std::vector<double> bilinearInt(const double& x, const double& y,
 		v22 = 1;
 	}
 
-	if (intx & inty) {
+	if (intx && inty) {
 		double d = dx * dy;
-		if (!(n1 || n2)) {
+		if (!(n1 || n2 || n3 || n4)){
 			w11 = v11 * ((x2 - x) * (y - y2)) / d;
 			w12 = v12 * ((x - x1) * (y - y2)) / d;
-		} else {
-			w11 = n1 ? 0.0 : 0.5 * v11;
-			w12 = n2 ? 0.0 : 0.5 * v12;
-		}
-		if (!(n3 || n4)) {
 			w21 = v21 * ((x2 - x) * (y1 - y)) / d;
 			w22 = v22 * ((x - x1) * (y1 - y)) / d;
+		} else if (!(n1 || n2 || n3)){
+			w11 = v11 * ((x2 - x) * (y - y2)) / d;
+			w12 = v12 * ((x - x1) * (y - y2)) / d;
+			w21 = v21 * ((y1 - y)) / dy;
+			w22 = 0;
+		} else if (!(n1 || n2 || n4)){
+			w11 = v11 * ((x2 - x) * (y - y2)) / d;
+			w12 = v12 * ((x - x1) * (y - y2)) / d;
+			w21 = 0;
+			w22 = v22 * ((y1 - y)) / dy;
+		} else if (!(n1 || n2 || n3)){
+			w11 = v11 * ((x2 - x) * (y - y2)) / d;
+			w12 = v12 * ((x - x1) * (y - y2)) / d;
+			w21 = v21 * ((y1 - y)) / dy;
+			w22 = 0;
+		} else 	if (!(n1 || n3 || n4)){
+			w11 = v11 * ((y - y2)) / dy;
+			w12 = 0;
+			w21 = v21 * ((x2 - x) * (y1 - y)) / d;
+			w22 = v22 * ((x - x1) * (y1 - y)) / d;
+		} else if (!(n2 || n3 || n4)){
+			w11 = 0;
+			w12 = v12 * ((y - y2)) / dy;
+			w21 = v21 * ((x2 - x) * (y1 - y)) / d;
+			w22 = v22 * ((x - x1) * (y1 - y)) / d;
+		} else if (!(n1 || n2 )){
+			w11 = v11 * ((x2 - x)) / dx;
+			w12 = v12 * ((x - x1)) / dx;
+			w21 = 0;
+			w22 = 0;
+		} else if (!(n1 || n3)){
+			w11 = v11 * ((y - y2)) / dy;
+			w12 = 0;
+			w21 = v21 * ((y1 - y)) / dy;
+			w22 = 0;
+		} else if (!(n1 || n4)){
+			w11 = v11 * ((y - y2)) / dy;
+			w12 = 0;
+			w21 = 0;
+			w22 = v22 * ((y1 - y)) / dy;
+		} else if (!(n2 || n3)){
+			w11 = 0;
+			w12 = v12 * ((y - y2)) / dy;
+			w21 = v21 * ((y1 - y)) / dy;
+			w22 = 0;
+		} else if (!(n2 || n4)){
+			w11 = 0;
+			w12 = v12 * ((y - y2)) / dy;
+			w21 = 0;
+			w22 = v22 * ((y1 - y)) / dy;
+		} else if (!(n3 || n4)){
+			w11 = 0;
+			w12 = 0;
+			w21 = v21 * ((x2 - x)) / dx;
+			w22 = v22 * ((x - x1)) / dx;
+		} else if (!n1){
+			w11 = v11;
+			w12 = 0;
+			w21 = 0;
+			w22 = 0;
+		} else if (!n2){
+			w11 = 0;
+			w12 = v12;
+			w21 = 0;
+			w22 = 0;
+		} else if (!n3){
+			w11 = 0;
+			w12 = 0;
+			w21 = v21;
+			w22 = 0;
+		} else if (!n4){
+			w11 = 0;
+			w12 = 0;
+			w21 = 0;
+			w22 = v22;
 		} else {
-			w21 = n3 ? 0.0 : 0.5 * v21;
-			w22 = n4 ? 0.0 : 0.5 * v22;
+			goto NAN_return;
 		}
 	} else if (intx) {
+		w21 = 0.0;
+		w22 = 0.0;
 		if (!(n1 || n2)) {
 			w11 = v11 * (x2 - x) / dx;
 			w12 = v12 * (x - x1) / dx;
+		} else if (!n1) {
+			w11 = v11;
+			w12 = 0.0;
+		} else if (!n2){
+			w11 = 0.0;
+			w12 = v12;
 		} else {
-			w11 = n1 ? 0.0 : v11;
-			w12 = n2 ? 0.0 : v12;
+			goto NAN_return;
 		}
-		w21 = 0;
-		w22 = 0;
 	} else if (inty) {
+		w12 = 0.0;
+		w22 = 0.0;
 		if (!(n1 || n3)) {
 			w11 = v11 * (y - y2) / dy;
 			w21 = v21 * (y1 - y) / dy;
-		} else {
-			w11 = n1 ? 0.0 : v11;
-			w21 = n3 ? 0.0 : v21;
+		} else if (!n1) {
+			w11 = v11;
+			w21 = 0;
+		} else if (!n3) {
+			w11 = 0;
+			w21 = v21;
+		} else{
+			goto NAN_return;
 		}
-		w12 = 0;
-		w22 = 0;
-	} else { 
+	} else {
 		w11 = v11;
-		w21 = 0;
-		w12 = 0;
-		w22 = 0;
+		w21 = 0.0;
+		w12 = 0.0;
+		w22 = 0.0;
 	}
 
 	if (weights) {
-		std::vector<double> out = { w11, w12, w21, w22 };
-		return out;
+		return std::vector<double>{ w11, w12, w21, w22 };
 	}
-	std::vector<double> out = { w11 + w12 + w21 + w22 };
-	return out;
+	return std::vector<double>{ w11 + w12 + w21 + w22 };
+NAN_return:
+	if (weights) {
+		return std::vector<double>(4, NAN);
+	}
+	return std::vector<double>(1, NAN);;
+
 }
 
 
@@ -269,7 +350,7 @@ std::vector<std::vector<double>> SpatRaster::bilinearValues(const std::vector<do
         }
 	} else {
 
- */     
+ */
 		for (size_t i=0; i<n; i++) {
             size_t ii = i * 4;
             for (size_t j=0; j<nlyr(); j++) {
@@ -297,10 +378,10 @@ std::vector<double> SpatRaster::bilinearCells(const std::vector<double> &x, cons
 	std::vector<double> w;
     for (size_t i=0; i<n; i++) {
         size_t ii = i * 4;
-		size_t j=0; 
+		size_t j=0;
         std::vector<double> w = bilinearInt(x[i], y[i], xy[0][ii], xy[0][ii+1], xy[1][ii], xy[1][ii+3], v[j][ii], v[j][ii+1], v[j][ii+2], v[j][ii+3], true);
-		res.insert(res.end(), four.begin()+ii, four.begin()+ii+4); 
-		res.insert(res.end(), w.begin(), w.end()); 
+		res.insert(res.end(), four.begin()+ii, four.begin()+ii+4);
+		res.insert(res.end(), w.begin(), w.end());
     }
 	return res;
 }
@@ -563,6 +644,10 @@ std::vector<double> SpatRaster::extractXYFlat(const std::vector<double> &x, cons
 // <geom<layer<values>>>
 std::vector<std::vector<std::vector<double>>> SpatRaster::extractVector(SpatVector v, bool touches, std::string method, bool cells, bool xy, bool weights, bool exact, SpatOptions &opt) {
 
+	if (!source[0].srs.is_same(v.srs, false)) {
+		addWarning("CRS of raster and vector data do not match");
+	}
+
 	std::string gtype = v.type();
 	if (gtype != "polygons") weights = false;
 
@@ -572,7 +657,7 @@ std::vector<std::vector<std::vector<double>>> SpatRaster::extractVector(SpatVect
     std::vector<std::vector<std::vector<double>>> out(ng, std::vector<std::vector<double>>(nl + cells + 2*xy + (weights || exact)));
 
 	if (!hasValues()) {
-		setError("raster has no value");
+		setError("raster has no values");
 		return out;
 	}
 /*
@@ -673,7 +758,7 @@ std::vector<double> SpatRaster::extractVectorFlat(SpatVector v, bool touches, st
     unsigned ng = v.size();
 
 	if (!hasValues()) {
-		setError("raster has no value");
+		setError("raster has no values");
 		return flat;
 	}
 /*
@@ -692,10 +777,15 @@ std::vector<double> SpatRaster::extractVectorFlat(SpatVector v, bool touches, st
 	std::vector<std::vector<double>> srcout;
 	if (gtype == "points") {
 		if (method != "bilinear") method = "simple";
-		SpatDataFrame vd = v.getGeometryDF();
-		//if (vd.nrow() == ng) {  // single point geometry
+			SpatDataFrame vd = v.getGeometryDF();
+			//if (vd.nrow() == ng) {  // single point geometry
 			std::vector<double> x = vd.getD(0);
 			std::vector<double> y = vd.getD(1);
+			std::vector<std::vector<double>> xycells;
+			if (xy) {
+				std::vector<double> cellxy = cellFromXY(x, y);
+				xycells = xyFromCell(cellxy);
+			}
 			if (!cells & !xy & !weights) {
 				return( extractXYFlat(x, y, method, cells));
 			} else {
@@ -708,8 +798,8 @@ std::vector<double> SpatRaster::extractVectorFlat(SpatVector v, bool touches, st
 						flat.push_back( srcout[j][i] );
 					}
 					if (xy) {
-						flat.push_back(x[i]);
-						flat.push_back(y[i]);
+						flat.push_back(xycells[0][i]);
+						flat.push_back(xycells[1][i]);
 					}
 				}
 			}
@@ -915,7 +1005,7 @@ std::vector<double> SpatRaster::extractCellFlat(std::vector<double> &cell) {
 					for (size_t k=0; k<n; k++) {
 						if (!is_NA(wcell[k]) && wcell[k] >= 0 && wcell[k] < nc) {
 							out[off2+k] = source[src].values[j + wcell[k]] ;
-						} 
+						}
 					}
 				} else {
 					for (size_t k=0; k<n; k++) {
@@ -1034,7 +1124,7 @@ std::vector<double> SpatRaster::extCells(SpatExtent ext) {
 	out.reserve((r[1]-r[0]) * (c[1]-c[0]));
 	for (int_64 i=r[0]; i <= r[1]; i++) {
 		for (int_64 j=c[0]; j <= c[1]; j++) {
-			out.push_back(i*nc+j); 
+			out.push_back(i*nc+j);
 		}
 	}
 	return out;

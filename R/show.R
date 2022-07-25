@@ -16,10 +16,11 @@ printDF <- function(x, n=6, first=FALSE) {
 	}
 	d <- dim(x)
 
-	cls <- sapply(x, class)
+	cls <- sapply(x, function(i){ a = class(i); a[length(a)]})
 	cls <- gsub("integer", "int", cls)
 	cls <- gsub("numeric", "num", cls)
 	cls <- gsub("character", "chr", cls)
+	cls <- gsub("factor", "fact", cls)
 	cls <- paste0("<", cls, ">")
 	cls <- data.frame(rbind(class=cls))
 	names(cls) <- NULL
@@ -41,7 +42,7 @@ printDF <- function(x, n=6, first=FALSE) {
 			}
 		}
 	}
-
+	x <- data.frame(lapply(x, as.character), check.names=FALSE)
 	x <- rbind(x[1,,drop=FALSE], x)
 	x[1,] <- cls
 	if (nrow(x) < d[1]) {
@@ -64,30 +65,30 @@ printDF <- function(x, n=6, first=FALSE) {
 }
 
 
-setMethod ("show" , "Rcpp_SpatDataFrame", 
+setMethod ("show" , "Rcpp_SpatDataFrame",
 	function(object) {
 		cat("class       :" , class(object), "\n")
 		object <- .getSpatDF(object)
 		d <- dim(object)
-		cat("dimensions  : ", d[1], ", ", d[2], "  (nrow, ncol)\n", sep="" ) 
+		cat("dimensions  : ", d[1], ", ", d[2], "  (nrow, ncol)\n", sep="" )
 		n <- 6
 		if (d[1] > 6) {
-			cat("values (head)\n") 
+			cat("values (head)\n")
 		} else {
-			cat("values\n") 
+			cat("values\n")
 		}
 		printDF(object)
 	}
 )
 
-setMethod ("show" , "Rcpp_SpatCategories", 
+setMethod ("show" , "Rcpp_SpatCategories",
 	function(object) {
 		show(object$df)
 	}
 )
 
 
-setMethod ("show" , "SpatExtent", 
+setMethod ("show" , "SpatExtent",
 	function(object) {
 		e <- as.vector(object)
 		e <- paste(e, collapse=", ")
@@ -95,11 +96,15 @@ setMethod ("show" , "SpatExtent",
 	}
 )
 
-setMethod ("show" , "SpatVectorCollection", 
+setMethod ("show" , "SpatVectorCollection",
 	function(object) {
 		cat(" class       :", class(object), "\n")
 		cat(" length      :", length(object), "\n")
-		for (i in 1:length(object)) {
+		n <- nn <- length(object)
+		if (n > 15) {
+			nn <- 15
+		}
+		for (i in 1:nn) {
 			v <- object[i]
 			if (i==1) {
 				cat(" geometry    : ", geomtype(v), " (", nrow(v) , ")\n", sep="")
@@ -107,16 +112,25 @@ setMethod ("show" , "SpatVectorCollection",
 				cat("               ", geomtype(v), " (", nrow(v) , ")\n", sep="")
 			}
 		}
+		if (n > nn) {
+			cat("               ", "   and ", n-nn, "more\n", sep="")			
+		}
+		nms <- names(object)
+		if (length(nms) > 10) {
+			nms <- c(nms[1:9], "...")
+		}
+		nms <- paste(nms, collapse=", ")
+		cat(" names       :", nms, "\n")
 	}
 )
 
-setMethod ("show" , "SpatVector", 
+setMethod ("show" , "SpatVector",
 	function(object) {
 		e <- as.vector(ext(object))
 		d <- dim(object)
 		cat(" class       :", class(object), "\n")
 		cat(" geometry    :", geomtype(object), "\n")
-		cat(" dimensions  : ", d[1], ", ", d[2], "  (geometries, attributes)\n", sep="" ) 
+		cat(" dimensions  : ", d[1], ", ", d[2], "  (geometries, attributes)\n", sep="" )
 		cat(" extent      : ", e[1], ", ", e[2], ", ", e[3], ", ", e[4], "  (xmin, xmax, ymin, ymax)\n", sep="")
 		if (object@ptr$source != "") {
 			if (object@ptr$layer != tools::file_path_sans_ext(basename(object@ptr$source))) {
@@ -135,13 +149,13 @@ setMethod ("show" , "SpatVector",
 )
 
 
-setMethod ("show" , "SpatVectorProxy", 
+setMethod ("show" , "SpatVectorProxy",
 	function(object) {
 		e <- as.vector(ext(object))
 		d <- dim(object)
 		cat(" class       : SpatVectorProxy\n")
 		cat(" geometry    :", geomtype(object), "\n")
-		cat(" dimensions  : ", d[1], ", ", d[2], "  (geometries, attributes)\n", sep="" ) 
+		cat(" dimensions  : ", d[1], ", ", d[2], "  (geometries, attributes)\n", sep="" )
 		cat(" extent      : ", e[1], ", ", e[2], ", ", e[3], ", ", e[4], "  (xmin, xmax, ymin, ymax)\n", sep="")
 		if (object@ptr$v$layer != tools::file_path_sans_ext(basename(object@ptr$v$source))) {
 			cat(" source      : ", basename(object@ptr$v$source), " (", object@ptr$v$layer, ")\n", sep="")
@@ -154,13 +168,13 @@ setMethod ("show" , "SpatVectorProxy",
 	}
 )
 
-setMethod ("show" , "SpatRaster", 
+setMethod ("show" , "SpatRaster",
 	function(object) {
 
 		cat("class       :" , class(object), "\n")
 
 		d <- dim(object)
-		cat("dimensions  : ", d[1], ", ", d[2], ", ", d[3], "  (nrow, ncol, nlyr)\n", sep="" ) 
+		cat("dimensions  : ", d[1], ", ", d[2], ", ", d[3], "  (nrow, ncol, nlyr)\n", sep="" )
 		#cat ("ncell       :" , ncell(object), "\n")
 
 		xyres <- res(object)
@@ -196,7 +210,7 @@ setMethod ("show" , "SpatRaster",
 			}
 			lnmx <- 60 / min(mnr, length(ln))
 			b <- nchar(ln) > (lnmx+2)
-			if (any(b)) {
+			if (isTRUE(any(b))) {
 				mid <- floor(lnmx/2)
 				ln[b] <- paste(substr(ln[b], 1, mid), "~", substr(ln[b], nchar(ln[b])-mid+1, nchar(ln[b])), sep="")
 			}
@@ -216,7 +230,7 @@ setMethod ("show" , "SpatRaster",
 
 			f <- gsub("\"", "", f)
 			sources <- rep("memory", length(m))
-			sources[!m] <- f[!m] 
+			sources[!m] <- f[!m]
 
 			if (nsr > 1) {
 				mxsrc <- 3
@@ -235,15 +249,15 @@ setMethod ("show" , "SpatRaster",
 				cat("source      :", sources[1], "\n")
 			}
 			rgb <- RGB(object)
-			if (!is.null(rgb)) {				 
+			if (!is.null(rgb)) {				
 				cat(paste("colors", toupper(object@ptr$rgbtype), " :"), paste(rgb, collapse=", "), "\n")
 			}
 			hasct <- object@ptr$hasColors()
 			if (any(hasct)) {
-				cat("color table :", paste(which(hasct), collapse=", "), "\n")			
+				cat("color table :", paste(which(hasct), collapse=", "), "\n")
 			}
 
-		
+
 			varnms <- varnames(object)
 			fnms <- tools::file_path_sans_ext(f)
 			if (any(fnms != varnms) && all(varnms != "")) {
@@ -298,13 +312,13 @@ setMethod ("show" , "SpatRaster",
 						if (i > mnr) break
 						if (isf[i]) {
 							cats <- cats(object, i, TRUE)[[1]]
-							j <- match(c(minv[i], maxv[i]), cats[,1])
+							j <- match(r[,i], cats[,1])
 							cats <- cats[j, 2]
 							if (length(cats) > 0) {
 								minv[i] <- cats[1]
 								maxv[i] <- cats[2]
 							}
-						} 
+						}
 					}
 				}
 				u8 <- Encoding(ln) == "UTF-8"
@@ -332,9 +346,7 @@ setMethod ("show" , "SpatRaster",
 				if (ncol(m) == 1) {
 					if (is.factor(object)) {
 						g <- cats(object)[[1]]
-						if (ncol(g) > 2) {
-							cat("categories  :", paste(colnames(g)[-1], collapse=", "), "\n")
-						}
+						cat("categories  :", paste(colnames(g)[-1], collapse=", "), "\n")
 					}
 					cat("name        :", paste(m[1,], collapse=", "), "\n")
 					cat("min value   :", paste(m[2,], collapse=", "), "\n")
@@ -363,13 +375,33 @@ setMethod ("show" , "SpatRaster",
 		}
 
 		if (object@ptr$hasTime) {
+			label <- "time        "
 			rtim <- range(time(object))
+			tims <- object@ptr$timestep
+			if (tims == "yearmonths") {
+				rtim <- format_ym(rtim)
+				label <- "time (ymnts)"
+			} else if (tims == "months") {
+				rtim <- month.abb[rtim]
+				label <- "time (mnts) "
+			} else if (tims == "years") {
+				label <- "time (years)"
+			} else if (tims == "days") {
+				label <- "time (days) "
+			} else if (tims == "raw") {
+				label <- "time (raw)  "
+			}
 			utim <- unique(rtim)
 			if (length(utim) > 1) {
-				cat("time        :", paste(rtim, collapse=" to "), "\n")
+				ptim <- paste0(label, ": ", paste(rtim, collapse=" to "))
 			} else {
-				cat("time        :", as.character(utim), "\n")
+				ptim <- paste0(label, ": ", as.character(utim))
 			}
+			if (tims == "seconds") {
+				tz <- format(utim[1], format="%Z")
+				ptim <- paste(ptim, tz)
+			}
+			cat(ptim, "\n")
 		}
 
 		# else {
@@ -395,26 +427,26 @@ setMethod ("show" , "SpatRaster",
 		}
 	}
 	sources <- rep("memory", length(m))
-	sources[!m] <- f[!m] 
+	sources[!m] <- f[!m]
 	unique(sources)
 }
 
 
-setMethod("show" , "SpatRasterDataset", 
+setMethod("show" , "SpatRasterDataset",
 	function(object) {
 
 		cat("class       :" , class(object), "\n")
 		ns <- length(object)
-		cat("subdatasets :", ns, "\n") 
+		cat("subdatasets :", ns, "\n")
 		if (ns == 0) return()
 
 		d <- dim(object)
-		cat("dimensions  :", paste(d, collapse=", "), "(nrow, ncol)\n") 
+		cat("dimensions  :", paste(d, collapse=", "), "(nrow, ncol)\n")
 		nss <- nlyr(object)
 		if (length(nss) > 10) {
 			nss = c(as.character(nss[1:9], "..."))
 		}
-		cat("nlyr        :", paste(nss, collapse=", "), "\n") 
+		cat("nlyr        :", paste(nss, collapse=", "), "\n")
 
 
 		xyres <- res(object)
@@ -439,21 +471,21 @@ setMethod("show" , "SpatRasterDataset",
 
 
 
-setMethod("show" , "SpatRasterCollection", 
+setMethod("show" , "SpatRasterCollection",
 	function(object) {
 		cat("class       :" , class(object), "\n")
 		nr <- length(object)
-		cat("length      :", nr, "\n") 
+		cat("length      :", nr, "\n")
 	}
 )
 
 
 
 
-setMethod ("head" , "SpatVector", 
+setMethod ("head" , "SpatVector",
 	function(x, n=6L, ...) {
 		nn <- min(n, nrow(x))
-		if (nn > 0) { 
+		if (nn > 0) {
 			x <- x[1:nn, ]
 		} else {
 			x <- x[0,]
@@ -463,18 +495,18 @@ setMethod ("head" , "SpatVector",
 )
 
 
-setMethod ("tail" , "SpatVector", 
+setMethod ("tail" , "SpatVector",
 	function(x, n=6L, ...) {
 		nrx <- nrow(x)
 		nn <- min(n, nrx)
-		if (nn > 0) { 
+		if (nn > 0) {
 			start <- nrx - nn + 1
 			x <- x[start:nrx, ]
 		} else {
 			x <- x[0,]
 		}
 		x <- as.data.frame(x)
-		if (nn > 0) { 
+		if (nn > 0) {
 			rownames(x) <- start:nrx
 		}
 		x
@@ -482,14 +514,14 @@ setMethod ("tail" , "SpatVector",
 )
 
 
-setMethod ("head" , "SpatRaster", 
+setMethod ("head" , "SpatRaster",
 	function(x, n=6L, ...) {
 		utils::head(x[1:n], n=n, ...)
 	}
 )
 
 
-setMethod ("tail" , "SpatRaster", 
+setMethod ("tail" , "SpatRaster",
 	function(x, n=6L, ...) {
 		nc = ncell(x)
 		utils::tail(x[(nc-n+1):nc], n=n, ...)

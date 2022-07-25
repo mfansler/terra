@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2021  Robert J. Hijmans
+// Copyright (c) 2018-2022  Robert J. Hijmans
 //
 // This file is part of the "spat" library.
 //
@@ -18,11 +18,15 @@
 #include "spatVector.h"
 #include "string_utils.h"
 #include <stdexcept>
+#include "NA.h"
+
 
 #ifdef useGDAL
 
 #include "file_utils.h"
 #include "ogrsf_frmts.h"
+
+
 
 GDALDataset* SpatVector::write_ogr(std::string filename, std::string lyrname, std::string driver, bool append, bool overwrite, std::vector<std::string> options) {
 
@@ -42,19 +46,19 @@ GDALDataset* SpatVector::write_ogr(std::string filename, std::string lyrname, st
 		}
 	}
 
-	if (append) {	
-	
+	if (append) {
+
 		#if GDAL_VERSION_MAJOR < 3
 			setError("GDAL >= 3 required for inserting layers into an existing file");
 			return(poDS);
 		#endif
-		
+
 		poDS = static_cast<GDALDataset*>(GDALOpenEx(filename.c_str(), GDAL_OF_VECTOR | GDAL_OF_UPDATE,
 				NULL, NULL, NULL ));
 
 		std::vector<std::string> lyrnms;
-		
-		size_t n = poDS->GetLayerCount();			
+
+		size_t n = poDS->GetLayerCount();
 		for (size_t i=0; i<n; i++) {
 			OGRLayer *poLayer = poDS->GetLayer(i);
 			if (poLayer != NULL) {
@@ -84,10 +88,10 @@ GDALDataset* SpatVector::write_ogr(std::string filename, std::string lyrname, st
 		if (!CSLFetchBoolean( papszMetadata, GDAL_DCAP_CREATE, FALSE)) {
 			setError("cannot create a "+ driver + " dataset");
 			return poDS;
-		}	
+		}
 		poDS = poDriver->Create(filename.c_str(), 0, 0, 0, GDT_Unknown, NULL );
 	}
-	
+
     if( poDS == NULL ) {
         setError("Creation of output dataset failed" );
         return poDS;
@@ -112,7 +116,7 @@ GDALDataset* SpatVector::write_ogr(std::string filename, std::string lyrname, st
 	OGRSpatialReference *SRS = NULL;
 	if (s != "") {
 		SRS = new OGRSpatialReference;
-		OGRErr err = SRS->SetFromUserInput(s.c_str()); 
+		OGRErr err = SRS->SetFromUserInput(s.c_str());
 #if GDAL_VERSION_NUM >= 2050000
 		SRS->SetAxisMappingStrategy(OAMS_TRADITIONAL_GIS_ORDER);
 #endif
@@ -178,31 +182,34 @@ GDALDataset* SpatVector::write_ogr(std::string filename, std::string lyrname, st
 		OGRFieldDefn oField(nms[i].c_str(), otype);
 		oField.SetSubType(eSubType);
 		if (otype == OFTString) {
-			oField.SetWidth(32); // needs to be computed
+			size_t w = 10;
+			w = std::max(w, df.strwidth(i));
+			oField.SetWidth(w); 
 		}
 		if( poLayer->CreateField( &oField ) != OGRERR_NONE ) {
 			setError( "Field creation failed for: " + nms[i]);
 			return poDS;
-		}		
+		}
 	}
 
 	// use a single transaction as in sf
-	// makes a big difference for gpkg by avoiding many INSERTs	
+	// makes a big difference for gpkg by avoiding many INSERTs
 	bool can_do_transaction = poDS->TestCapability(ODsCTransactions); // == TRUE);
 	bool transaction = false;
-	if (can_do_transaction) { 
-		transaction = (poDS->StartTransaction() == OGRERR_NONE); 
-		if (! transaction) { 
+	if (can_do_transaction) {
+		transaction = (poDS->StartTransaction() == OGRERR_NONE);
+		if (! transaction) {
 			setError("transaction failed");
-			return poDS; 
-		} 
+			return poDS;
+		}
 	}
 	// chunks
-	
+
 	if (nGroupTransactions == 0) {
 		nGroupTransactions = 50000;
 	}
 	size_t gcntr = 0;
+	long longNA = NA<long>::value;
 
 	for (size_t i=0; i<ngeoms; i++) {
 
@@ -210,13 +217,33 @@ GDALDataset* SpatVector::write_ogr(std::string filename, std::string lyrname, st
         poFeature = OGRFeature::CreateFeature( poLayer->GetLayerDefn() );
 		for (int j=0; j<nfields; j++) {
 			if (tps[j] == "double") {
-				poFeature->SetField(j, df.getDvalue(i, j));
+				double dval = df.getDvalue(i, j);
+				if (!std::isnan(dval)) {
+					poFeature->SetField(j, df.getDvalue(i, j));
+				}
 			} else if (tps[j] == "long") {
-				poFeature->SetField(j, (GIntBig)df.getIvalue(i, j));
+				long ival = df.getIvalue(i, j);
+				if (ival != longNA) {
+					poFeature->SetField(j, (GIntBig)ival);
+				}
 			} else if (tps[j] == "bool") {
 				poFeature->SetField(j, df.getBvalue(i, j));
+			} else if (tps[j] == "time") {
+				SpatTime_t tval = df.getTvalue(i, j);
+				if (tval != longNA) {
+					poFeature->SetField(j, (GIntBig)tval);
+				}
+			} else if (tps[j] == "factor") {
+				SpatFactor f = df.getFvalue(i, j);
+				if (f.v[0] != 0) {
+					std::string s = f.getLabel(0);
+					poFeature->SetField(j, f.getLabel(0).c_str());
+				}
 			} else {
-				poFeature->SetField(j, df.getSvalue(i, j).c_str());
+				std::string s = df.getSvalue(i, j);
+				if (s != df.NAS) {
+					poFeature->SetField(j, df.getSvalue(i, j).c_str());
+				}
 			}
 		}
 		//r++;
@@ -313,17 +340,17 @@ GDALDataset* SpatVector::write_ogr(std::string filename, std::string lyrname, st
 				setError("transaction commit failed");
 			}
 			gcntr = 0;
-			transaction = (poDS->StartTransaction() == OGRERR_NONE); 
-			if (! transaction) { 
+			transaction = (poDS->StartTransaction() == OGRERR_NONE);
+			if (! transaction) {
 				setError("transaction failed");
-				return poDS; 
-			} 
+				return poDS;
+			}
 		}
     }
 	if (transaction && (gcntr>0) && (poDS->CommitTransaction() != OGRERR_NONE)) {
 		poDS->RollbackTransaction();
 		setError("transaction commit failed");
-	} 
+	}
 	return poDS;
 }
 
@@ -340,7 +367,7 @@ bool SpatVector::write(std::string filename, std::string lyrname, std::string dr
     if (poDS != NULL) GDALClose( poDS );
 	if (hasError()) {
 		return false;
-	} 
+	}
 	return true;
 
 }
@@ -401,7 +428,7 @@ bool SpatDataFrame::write_dbf(std::string filename, bool overwrite, SpatOptions 
 
 		OGRFieldDefn oField(nms[i].c_str(), otype);
 		if (otype == OFTString) {
-			oField.SetWidth(32); // needs to be computed
+			oField.SetWidth(50); // needs to be computed
 		}
 		if( poLayer->CreateField( &oField ) != OGRERR_NONE ) {
 			setError( "Field creation failed for: " + nms[i]);
@@ -459,7 +486,7 @@ bool SpatVector::delete_layers(std::string filename, std::vector<std::string> la
 	if (filename == "") {
 		setError("empty filename");
 		return false;
-	}	
+	}
 	if (!file_exists(filename)) {
 		setError("file does not exist");
 		return false;
@@ -475,12 +502,12 @@ bool SpatVector::delete_layers(std::string filename, std::vector<std::string> la
     }
 
 	std::string fails;
-	
+
 	size_t n = poDS->GetLayerCount();
 	for (int i =(n-1); i > 0; i--) {
 		size_t m = layers.size();
 		if (m == 0) break;
-		
+
 		OGRLayer *poLayer = poDS->GetLayer(i);
 		if (poLayer == NULL) continue;
 		std::string lname = poLayer->GetName();
@@ -496,7 +523,7 @@ bool SpatVector::delete_layers(std::string filename, std::vector<std::string> la
 					if (fails.size() > 0) {
 						fails += ", " + layers[j];
 					} else {
-						fails = layers[j];						
+						fails = layers[j];
 					}
 				}
 				layers.erase(layers.begin() + j);
@@ -519,3 +546,4 @@ bool SpatVector::delete_layers(std::string filename, std::vector<std::string> la
 }
 
 #endif
+

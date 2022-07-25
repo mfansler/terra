@@ -1,3 +1,20 @@
+// Copyright (c) 2018-2022  Robert J. Hijmans
+//
+// This file is part of the "spat" library.
+//
+// spat is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 2 of the License, or
+// (at your option) any later version.
+//
+// spat is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with spat. If not, see <http://www.gnu.org/licenses/>.
+
 #include "spatBase.h"
 #include <fstream>
 #include <random>
@@ -33,7 +50,7 @@ std::vector<std::string> read_text(std::string filename) {
 			}
 		}
 		f.close();
-	} 
+	}
 	return s;
 }
 
@@ -98,7 +115,7 @@ bool path_exists(std::string path) {
 	stat(path.c_str(), &info );
 	if(info.st_mode & S_IFDIR) {
 		return true;
-	} 
+	}
 	return false;
 }
 
@@ -117,7 +134,7 @@ bool canWrite(std::string filename) {
 
 std::string get_path(const std::string filename) {
 	size_t found = filename.find_last_of("/\\");
-	std::string result = filename.substr(0, found); 
+	std::string result = filename.substr(0, found);
 	return result;
 }
 
@@ -143,7 +160,7 @@ bool can_write(std::string filename, bool overwrite, std::string &msg) {
 				if (file_exists(f)) {
 					remove(f.c_str());
 				}
-			}		
+			}
 		} else {
 			msg = "file exists";
 			return false;

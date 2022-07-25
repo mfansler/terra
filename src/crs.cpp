@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2021  Robert J. Hijmans
+// Copyright (c) 2018-2022  Robert J. Hijmans
 //
 // This file is part of the "spat" library.
 //
@@ -209,6 +209,7 @@ bool SpatSRS::set(std::string txt, std::string &msg) {
 	wkt="";
 	proj4="";
 	lrtrim(txt);
+
 	if (txt == "") {
 		return true;
 	} else {
@@ -221,13 +222,13 @@ bool SpatSRS::set(std::string txt, std::string &msg) {
 		}
 		if (! wkt_from_spatial_reference(srs, wkt, msg)) {
 			delete srs;
-			msg = "can't  get wkt from srs";
+			msg = "can't get wkt from srs";
 			return false;
 		};
 		if (! prj_from_spatial_reference(srs, proj4, msg)) {
 			delete srs;
-			msg = "can't  get proj4 from srs";
-			return false;
+			msg = "can't get proj4 from srs";
+			//return false;
 		};
 		delete srs;
 		return true;
@@ -290,7 +291,7 @@ SpatMessages transform_coordinates(std::vector<double> &x, std::vector<double> &
 		}
 	}
 
-	OCTDestroyCoordinateTransformation(poCT); 
+	OCTDestroyCoordinateTransformation(poCT);
 	if (failcount > 0) {
 		m.addWarning(std::to_string(failcount) + " failed transformations");
 	}
@@ -301,6 +302,7 @@ SpatMessages transform_coordinates(std::vector<double> &x, std::vector<double> &
 SpatVector SpatVector::project(std::string crs) {
 
 	SpatVector s;
+	s.reserve(size());
 
     #ifndef useGDAL
 		s.setError("GDAL is not available");

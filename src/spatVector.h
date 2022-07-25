@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2020  Robert J. Hijmans
+// Copyright (c) 2018-2022  Robert J. Hijmans
 //
 // This file is part of the "spat" library.
 //
@@ -68,7 +68,7 @@ class SpatGeom {
 		//constructors
 		SpatGeom();
 		SpatGeom(SpatGeomType g);
-		SpatGeom(SpatPart p);
+		SpatGeom(SpatPart p, SpatGeomType type);
 		virtual ~SpatGeom(){}
 
 		SpatGeomType gtype = unknown;
@@ -90,7 +90,10 @@ class SpatGeom {
 		void remove_duplicate_nodes(int digits);
 		size_t ncoords();
 		std::vector<std::vector<double>> coordinates();
-
+		void computeExtent();
+		void reserve(size_t n) {
+			parts.reserve(n);
+		}
 };
 
 
@@ -228,11 +231,27 @@ class SpatVector {
 		bool add_column_bool(std::vector<int> x, std::string name) {
 			return df.add_column_bool(x, name);
 		}
+		bool add_column_time(std::vector<SpatTime_t> x, std::string name, std::string step, std::string zone) {
+			return df.add_column_time(x, name, step, zone);
+		}
+		bool add_column_factor(SpatFactor x, std::string name) {
+			return df.add_column(x, name);
+		}
 
 		void remove_df() {
 			SpatDataFrame empty;
 			df = empty;
 		};
+		
+		bool set_df(SpatDataFrame x) {
+			if (x.nrow() != nrow()) {
+				setError("nrow dataframe does not match nrow geometry");
+				return false;
+			}
+			df = x;
+			return true;
+		};
+
 
 		bool remove_column(std::string field) {
 			return df.remove_column(field);
@@ -280,8 +299,10 @@ class SpatVector {
 		SpatVector line_merge();
 		SpatVector simplify(double tolerance, bool preserveTopology);
 		SpatVector shared_paths();
+		SpatVector shared_paths(SpatVector x);
 		SpatVector snap(double tolerance);
 		SpatVector snapto(SpatVector y, double tolerance);
+		SpatVector thin(double threshold);
 
 		SpatVector allerretour();
 		SpatVectorCollection bienvenue();
@@ -297,9 +318,9 @@ class SpatVector {
 		SpatVector crop(SpatExtent e);
 		SpatVector crop(SpatVector e);
 		SpatVector voronoi(SpatVector e, double tolerance, int onlyEdges);		
-		SpatVector delauny(double tolerance, int onlyEdges);		
+		SpatVector delaunay(double tolerance, int onlyEdges);		
 		SpatVector hull(std::string htype, std::string by="");
-		SpatVector intersect(SpatVector v);
+		SpatVector intersect(SpatVector v, bool values);
 		SpatVector unite(SpatVector v);
 		SpatVector unite();
 		SpatVector erase_agg(SpatVector v);
@@ -307,9 +328,11 @@ class SpatVector {
 		SpatVector erase();
 		SpatVector mask(SpatVector x, bool inverse);
 		SpatVector gaps();		
-		SpatVector cover(SpatVector v, bool identity);
+		SpatVector cover(SpatVector v, bool identity, bool expand);
 		SpatVectorCollection split(std::string field);
 		SpatVector symdif(SpatVector v);
+		SpatVector set_precision(double gridSize);
+
 		std::vector<bool> is_related(SpatVector v, std::string relation);
 		std::vector<int> relate(SpatVector v, std::string relation);
 		std::vector<int> relate(std::string relation, bool symmetrical);
@@ -346,6 +369,9 @@ class SpatVectorCollection {
 		SpatVectorCollection deepCopy() { return *this; }
 
 		std::vector<SpatVector> v;
+		std::vector<std::string> names;
+		std::vector<std::string> getNames() { return names;}
+		bool setNames(std::vector<std::string> nms, bool make_valid=false);
 
 		SpatMessages msg;
 		void setError(std::string s) { msg.setError(s); }
@@ -356,7 +382,12 @@ class SpatVectorCollection {
 		std::string getError() { return msg.getError();}
 
 		size_t size() { return v.size(); }
-		void push_back(SpatVector x) { v.push_back(x); };
+		void reserve(size_t n) { v.reserve(n); names.reserve(n); }
+		void resize(size_t n) { v.resize(n); names.resize(n); }
+		void push_back(SpatVector x) {
+			v.push_back(x); 
+			names.push_back("");
+		};
 		bool replace(SpatVector x, size_t i) { 
 			if (i < size()) {
 				v[i] = x; 

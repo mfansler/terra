@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2021  Robert J. Hijmans
+// Copyright (c) 2018-2022  Robert J. Hijmans
 //
 // This file is part of the "spat" library.
 //
@@ -78,8 +78,9 @@ SpatRaster SpatRaster::combineSources(SpatRaster x, bool warn) {
 		out.addWarning("you cannot add SpatRaster with no values to one that has values");
 		return(out);
 	}
+	out.checkTime(x);
 	out.source.insert(out.source.end(), x.source.begin(), x.source.end());
-    // to make names unique (not great of called several times
+    // to make names unique (not great if called several times
 	//out.setNames(out.getNames());
 	return(out);
 }
@@ -97,9 +98,38 @@ void SpatRaster::combine(SpatRaster x) {
 		return;
 	}
 
+	checkTime(x);
 	source.insert(source.end(), x.source.begin(), x.source.end());
 	//setNames(getNames());
 	return;
+}
+
+
+void SpatRaster::checkTime(SpatRaster &x) {
+	if (!hasTime()) {
+		std::vector<int_64> time;
+		x.setTime(time, "remove", "");
+		return;
+	}
+	if (!x.hasTime()) {
+		std::vector<int_64> time;
+		setTime(time, "remove", "");
+		return;
+	}
+	std::string s = source[0].timestep;
+	std::string xs = x.source[0].timestep;
+	if (s == xs) return;
+	if ((s == "days") && (xs == "seconds")) {
+		x.source[0].timestep = "days";
+	} else if ((s == "seconds") && (xs == "days")) {
+		for (size_t i=0; i<source.size(); i++) {
+			source[i].timestep = "days";
+		}
+	} else {
+		std::vector<int_64> time;
+		setTime(time, "remove", "");
+		x.setTime(time, "remove", "");
+	}
 }
 
 void SpatRaster::addSource(SpatRaster x, bool warn, SpatOptions &opt) {
@@ -117,15 +147,16 @@ void SpatRaster::addSource(SpatRaster x, bool warn, SpatOptions &opt) {
 		} else {
 			source = x.source;
 			if (warn) {
-				addWarning("the first raster was empty and ignored");
+				addWarning("the first raster was empty and was ignored");
 			}
 		}
 		return;
 	}
-	if (!x.hasValues()) {
-		x = x.init({NAN}, opt);
-	}
 	if (compare_geom(x, false, false, 0.1)) {
+		if (!x.hasValues()) {
+			x = x.init({NAN}, opt);
+		}
+		checkTime(x);
         source.insert(source.end(), x.source.begin(), x.source.end());
 	}
 }
@@ -252,7 +283,7 @@ bool SpatRasterSource::in_order() {
 		if (layers[i] != i) {
 			return false;
 		}
-	} 
+	}
 	return true;
 }
 
@@ -302,7 +333,7 @@ SpatRasterSource SpatRasterSource::subset(std::vector<unsigned> lyrs) {
     }
 	if (all) {
 		return *this ;
-	} 
+	}
 
 	SpatRasterSource out;
 	if (memory) {
@@ -324,10 +355,10 @@ SpatRasterSource SpatRasterSource::subset(std::vector<unsigned> lyrs) {
 		out.hasValues = hasValues;
 		//out.filename = filename;
 		//out.driver = driver;
-		//out.valueType = valueType; 
+		//out.valueType = valueType;
 		//out.hasNAflag = hasNAflag;
 		//out.NAflag = NAflag;
-	} else { 
+	} else {
 		//no values, deep copy is cheap
 		out = *this;
 		out.resize(0);
@@ -399,7 +430,7 @@ SpatRaster SpatRaster::subset(std::vector<unsigned> lyrs, SpatOptions &opt) {
     lyrs = validLayers(lyrs, nlyr());
 
 	if (lyrs.size() == 0) {
-		out.setError("no (valid) layer references");
+		out.setError("no (valid) layer selected");
 		return(out);
 	} else if (lyrs.size() != oldsize) {
         out.addWarning("ignored " + std::to_string(oldsize - lyrs.size()) + " invalid layer reference(s)");

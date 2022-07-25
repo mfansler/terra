@@ -1,14 +1,12 @@
 \name{deprecated}
 
-\docType{methods}
-
 \alias{area}
 \alias{area,SpatRaster-method}
 
-\title{Deprecated methods}
+\title{deprecated methods}
 
 \description{
-Deprecated methods
+These methods are deprecated and will be removed in future versions
 }
 
 \usage{
@@ -16,9 +14,8 @@ Deprecated methods
 }
 
 \arguments{
-  \item{x}{SpatRaster}
+  \item{x}{object}
   \item{...}{additional arguments}
 }
-
 
 

@@ -1,4 +1,46 @@
+
+# version 1.6-1
+
+## bug fixes
+
+- `subst` no longer uses values that it changed earlier on. [#639](https://github.com/rspatial/terra/issues/639) by Paul Smith
+- `as.points<SpatRaster>` could return wrong factor labels. [#640](https://github.com/rspatial/terra/issues/640) by Attilio Benini
+- `mask<SpatRaster,SpatVector>` crashed when the results were written to disk. [#646](https://github.com/rspatial/terra/issues/646) by Monika Anna Tomaszewska
+- `extract<SpatRaster,SpatVector(points)>(xy=TRUE)` returned the locations of the points, not the xy-coordinates of the cells.  [#650](https://github.com/rspatial/terra/issues/650) by Ward Fonteyn
+- `wrap<SpatRaster>` did not return the correct labels for some categorical rasters. [#652](https://github.com/rspatial/terra/issues/652) by Jakub Nowosad
+- better support for non-latin characters in the legend [#658](https://github.com/rspatial/terra/issues/658) by Krzysztof Dyba
+- holes in small lon/lat polygons are now properly buffered [#689](https://github.com/rspatial/terra/issues/689) by David Hofmann
+
+
+## enhancements 
+
+- `subst` can now substitute the values from multiple input layers with a single output value (layer)
+- `subset<SpatVector>` now behaves like `subset<data.frame>` [#648](https://github.com/rspatial/terra/issues/648) by Andrew Gene Brown
+- setting category labels with a vector of names is now deprecated. A data.frame with at least two columns should be used. The first column should have the cell values (IDs).
+- It is now possible to "drop" a layer from a SpatRaster by setting it to NULL [#664](
+https://github.com/rspatial/terra/issues/664) by Daniel Valentins
+- `freq` now provides the labels of factors, even if `bylayer=FALSE`. It now always returns a `data.frame` (it used to return a `matrix` in some cases. [#687](https://github.com/rspatial/terra/issues/687) by Rodolfo Jaffé
+- `disagg` and `aggregate` now return a warning instead of an error when using a (dis)aggregation factor of 1.[#684](https://github.com/rspatial/terra/issues/684) by Justin Fain.
+- `project` crashed when erroneously projecting raster data from one celestial body to another [#688](https://github.com/rspatial/terra/issues/688) by Mike Sumner
+- you can now set a color table with a two column (value, ID) data.frame
+- categorical rasters can now be updated more easily [#667](https://github.com/rspatial/terra/issues/667) by Alex Ilich
+- more control over matching values with colors when using `plot`. [673](https://github.com/rspatial/terra/issues/673) by Jakub Nowosad.
+- SpatVector attributes can now also be a factor, date, or POSIXct. [697](https://github.com/rspatial/terra/issues/697) by Grant Williamson
+- improved handling of missing values in `extract(method="bilinear")`. [693](https://github.com/rspatial/terra/pull/693) by swooping-magpie
+
+## new
+
+- argument `as.raster` to `unique<SpatRaster>` to create a categorical raster with the unique combinations in the layers of the input raster. The default for argument `na.rm` was changed to `FALSE`
+- `sort<SpatRaster>` to sort cell values across layers.
+- `has.colors` and `has.RGB` for SpatRaster
+- `cover` can now combine categorical rasters 
+- `concats` to combine the levels of two SpatRaster into new categories [663](https://github.com/rspatial/terra/issues/663) by Alex Ilich
+- `zonal<SpatVector,SpatVector>` method to aggregate SpatVector attributes by polygons
+
+
 # version 1.5-34
+
+Released on 2022-06-09
 
 ## bug fixes
 
@@ -39,9 +81,9 @@
 - `as.list` implemented for `<SpatRasterDataset>`.
 - `sources` implemented for `<SpatRasterDataset>`, `<SpatVector>` and `<SpatVectorProxy>` [#638](https://github.com/rspatial/terra/issues/638) by Andrew Gene Brown
 
-# name changes
+## name changes
 
-delauny -> delaunay [#627](https://github.com/rspatial/terra/issues/627) by Derek Friend
+- delauny -> delaunay [#627](https://github.com/rspatial/terra/issues/627) by Derek Friend
 
 
 
@@ -62,6 +104,7 @@ Released on 2022-02-17
 - `makeTiles` has new arguments `extend` and `na.rm` [#520](https://github.com/rspatial/terra/issues/520) by by L. Dalby
 - `project<SpatRaster>` now uses nearest neighbor as default method for RGB rasters
 - new argument `na.rm=TRUE` to `unique`. [#561](https://github.com/rspatial/terra/issues/561) by Matthieu Stigler
+
 
 # version 1.5-17
 
