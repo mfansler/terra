@@ -6,10 +6,10 @@
 \alias{vrt,character-method}
 
 
-\title{Virtual Raster Tiles}
+\title{Virtual Raster Dataset}
 
 \description{ 
-Create a Virtual Raster Tiles (VRT) dataset from a collection of file-based raster datasets. 
+Create a Virtual Raster Dataset (VRT) from a collection of file-based raster datasets (tiles). 
 }
 
 \usage{
@@ -19,7 +19,7 @@ Create a Virtual Raster Tiles (VRT) dataset from a collection of file-based rast
 \arguments{
   \item{x}{character. Filenames of raster "tiles". See \code{\link{tiles}}}
   \item{filename}{character. Output VRT filename}  
-  \item{options}{character. Options as for \href{https://gdal.org/programs/gdalbuildvrt.html}{gdalbuildvrt}}
+  \item{options}{character. All arguments as separate vector elements. Options as for \href{https://gdal.org/programs/gdalbuildvrt.html}{gdalbuildvrt}}
   \item{overwrite}{logical. Should \code{filename} be overwritten if it exists?}
 }
 
@@ -39,10 +39,11 @@ filename <- paste0(tempfile(), "_.tif")
 ff <- makeTiles(r, x, filename)
 ff
 
-vrtfile <- paste0(tempfile(), ".vrt")
-v <- vrt(ff, vrtfile)
-head(readLines(vrtfile))
-v
+## output in lower resolution
+#vrtfile <- paste0(tempfile(), ".vrt")
+#v <- vrt(ff, vrtfile, options = c("-tr", 5, 5))
+#head(readLines(vrtfile))
+#v
 }
 
 

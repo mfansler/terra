@@ -94,8 +94,9 @@ wmax <- function(p, na.rm=FALSE) {
 
 
 
-extractCells <- function(x, y, method="simple", list=FALSE, factors=TRUE, cells=FALSE, xy=FALSE, layer=NULL) {
+extractCells <- function(x, y, method="simple", cells=FALSE, xy=FALSE, layer=NULL) {
 
+	#value <- match.arg(tolower(value), c("data.frame", "list", "matrix"))
 	method <- match.arg(tolower(method), c("simple", "bilinear"))
 
 	nl <- nlyr(x)
@@ -123,10 +124,6 @@ extractCells <- function(x, y, method="simple", list=FALSE, factors=TRUE, cells=
 		e <- x@ptr$extractCell(y-1)
 	}
 
-	if (list) {
-		messages(x, "extract")
-		return(e)
-	}
 	e <- do.call(cbind, e)
 	cn <- names(x)
 	nc <- nl
@@ -149,12 +146,10 @@ extractCells <- function(x, y, method="simple", list=FALSE, factors=TRUE, cells=
 	}
 	colnames(e) <- cn
 
-	if (factors) {
-		if (method != "simple") {
-			e <- as.data.frame(e)
-		} else {
-			e <- .makeDataFrame(x, e, TRUE)
-		}
+	if (method != "simple") {
+		e <- as.data.frame(e)
+	} else {
+		e <- .makeDataFrame(x, e)
 	}
 
 	if (useLyr) {
@@ -179,20 +174,33 @@ function(x, y, ...) {
 
 
 setMethod("extract", signature(x="SpatRaster", y="SpatVector"),
-function(x, y, fun=NULL, method="simple", list=FALSE, factors=TRUE, cells=FALSE, xy=FALSE, ID=TRUE, as.spatvector=FALSE, weights=FALSE, exact=FALSE, touches=is.lines(y), layer=NULL, ...) {
+function(x, y, fun=NULL, method="simple", cells=FALSE, xy=FALSE, ID=TRUE, weights=FALSE, exact=FALSE, touches=is.lines(y), layer=NULL, bind=FALSE, ...) {
+
+#	value <- match.arg(tolower(value), c("data.frame", "matrix", "spatvector"))
+#	if (value == "matrix") {
+#		factors <- FALSE
+#	} else {
+#		factors <- TRUE	
+#	}
 
 	nl <- nlyr(x)
 	useLyr <- FALSE
+	geo <- geomtype(y)
+	if (weights && (geo == "points")) {	
+		warn("argument weights is ignored for point data")
+		weights <- FALSE
+	} 
 	method <- match.arg(tolower(method), c("simple", "bilinear"))
 	hasfun <- !is.null(fun)
 	if (weights && exact) {
 		exact = FALSE
 	}
+	wfun <- FALSE
 	if (hasfun) {
 		cells <- FALSE
 		xy <- FALSE
 		if (weights || exact) {
-			list <- TRUE
+			wfun <- TRUE
 			fun <- .makeTextFun(fun)
 			bad <- FALSE
 			if (is.character(fun)) {
@@ -206,11 +214,15 @@ function(x, y, fun=NULL, method="simple", list=FALSE, factors=TRUE, cells=FALSE,
 					fun <- wmin
 				} else if (fun == "max") {
 					fun <- wmax
+				} else {
+					bad <- TRUE
 				}
 			} else {
-				bad <- TRUE
+				bad <- TRUE			
 			}
-			if (bad) error("extract", 'if weights or exact=TRUE, "fun" must be "sum", "mean", "min", or "max"')
+			if (bad) {
+				error("extract", 'if weights=TRUE or exact=TRUE, "fun" must be "sum", "mean", "min", or "max"')
+			}
 		}
 	}
 	if (!is.null(layer) && nl > 1) {
@@ -232,30 +244,35 @@ function(x, y, fun=NULL, method="simple", list=FALSE, factors=TRUE, cells=FALSE,
 		useLyr <- TRUE
 	}
 
-	#f <- function(i) if(length(i)==0) { NA } else { i }
-	#e <- rapply(e, f, how="replace")
 	cn <- names(x)
 	opt <- spatOptions()
-	if (list) {
+	
+	if (wfun) {
 		e <- x@ptr$extractVector(y@ptr, touches[1], method, isTRUE(cells[1]), isTRUE(xy[1]), isTRUE(weights[1]), isTRUE(exact[1]), opt)
 		x <- messages(x, "extract")
-		if (weights || exact) {
-			if (hasfun) {
-				e <- sapply(e, fun, ...)
-				e <- matrix(e, nrow=nrow(y), byrow=TRUE)
-				colnames(e) <- cn
-				e <- cbind(ID=1:nrow(e), e)
-			}
+		e <- sapply(e, fun, ...)
+		e <- matrix(e, nrow=nrow(y), byrow=TRUE)
+		if (ncol(e) == length(cn)) {
+			colnames(e) <- cn
+		}
+		if (ID) {
+			e <- data.frame(ID=1:nrow(e), e)
+		} else {
+			e <- data.frame(e)			
 		}
 		return(e)
-	}
-
+	}	
+	
 	e <- x@ptr$extractVectorFlat(y@ptr, touches[1], method, isTRUE(cells[1]), isTRUE(xy[1]), isTRUE(weights[1]), isTRUE(exact[1]), opt)
 	x <- messages(x, "extract")
 	nc <- nl
 	if (cells) {
 		cn <- c(cn, "cell")
 		nc <- nc + 1
+	}
+	if (xy) {
+		cn <- c(cn, "x", "y")
+		nc <- nc + 2
 	}
 	if (weights) {
 		cn <- c(cn, "weight")
@@ -264,12 +281,7 @@ function(x, y, fun=NULL, method="simple", list=FALSE, factors=TRUE, cells=FALSE,
 		cn <- c(cn, "fraction")
 		nc <- nc + 1
 	}
-	if (xy) {
-		cn <- c(cn, "x", "y")
-		nc <- nc + 2
-	}
 
-	geo <- geomtype(y)
 	if (geo == "points") {
 		## this was? should be fixed upstream
 		if (nc == nl) {
@@ -313,13 +325,12 @@ function(x, y, fun=NULL, method="simple", list=FALSE, factors=TRUE, cells=FALSE,
 		e[, cncell] <- e[, cncell] + 1
 	}
 
-	if (factors) {
-		if (hasfun || method != "simple") {
-			e <- as.data.frame(e)
-		} else {
-			id <- data.frame(e[,1,drop=FALSE])
-			e <- cbind(id, .makeDataFrame(x, e[,-1,drop=FALSE], TRUE))
-		}
+#	if (value != "matrix") {
+	if (hasfun || method != "simple") {
+		e <- as.data.frame(e)
+	} else {
+		id <- data.frame(e[,1,drop=FALSE])
+		e <- cbind(id, .makeDataFrame(x, e[,-1,drop=FALSE]))
 	}
 
 	if (useLyr) {
@@ -332,7 +343,7 @@ function(x, y, fun=NULL, method="simple", list=FALSE, factors=TRUE, cells=FALSE,
 			e <- ee
 		}
 	}
-	if (as.spatvector) {
+	if (bind) {
 		if (nrow(e) == nrow(y)) {
 			e <- cbind(y, e[,-1,drop=FALSE])
 		} else {
@@ -346,10 +357,12 @@ function(x, y, fun=NULL, method="simple", list=FALSE, factors=TRUE, cells=FALSE,
 	e
 })
 
+
+
 setMethod("extract", signature(x="SpatRaster", y="sf"),
-	function(x, y, fun=NULL, method="simple", list=FALSE, factors=TRUE, cells=FALSE, xy=FALSE, ID=TRUE, as.spatvector=FALSE, weights=FALSE, exact=FALSE, touches=is.lines(y), layer=NULL, ...) {
+	function(x, y, fun=NULL, method="simple", cells=FALSE, xy=FALSE, ID=TRUE, weights=FALSE, exact=FALSE, touches=is.lines(y), layer=NULL, bind=FALSE, ...) {
 		y <- vect(y)
-		extract(x, y, fun=fun, method=method, list=list, factors=factors, cells=cells, xy=xy, ID=TRUE, as.spatvector=FALSE, weights=weights, exact=exact, touches=touches, layer=layer, ...)
+		extract(x, y, fun=fun, method=method, cells=cells, xy=xy, ID=TRUE, weights=weights, exact=exact, touches=touches, layer=layer, bind=bind, ...)
 	}
 )
 
@@ -397,10 +410,9 @@ function(x, y, ...) {
 })
 
 setMethod("extract", signature(x="SpatRaster", y="SpatExtent"),
-function(x, y, factors=TRUE, cells=FALSE, xy=FALSE) {
+function(x, y, cells=FALSE, xy=FALSE) {
 	y <- cells(x, y)
-	if (factors) dataframe = TRUE
-	v <- extract_cell(x, y, factors=factors)
+	v <- extract_cell(x, y)
 	if (cells) {
 		v$cell <- y
 	}
@@ -423,12 +435,12 @@ function(x, i, j, ... , drop=FALSE) {
 })
 
 
-extract_cell <- function(x, cells, drop=FALSE, factors=TRUE) {
+extract_cell <- function(x, cells, drop=FALSE) {
 	e <- x@ptr$extractCell(cells-1)
-	messages(x, "extract_cell")
+	messages(x, "extract")
 	e <- do.call(cbind, e)
 	colnames(e) <- names(x)
-	.makeDataFrame(x, e, factors)[,,drop]
+	.makeDataFrame(x, e)[,,drop]
 }
 
 
@@ -438,15 +450,20 @@ function(x, i, j, ... , drop=TRUE) {
 	add <- any(grepl("drop", names(match.call())))
 	if (!drop) {
 		if (nargs() == 3) {
+			i <- positive_indices(i, ncell(x), caller=" [ ")
 			rc <- rowColFromCell(x, i)
 			e <- ext_from_rc(x, min(rc[,1]), max(rc[,1]), min(rc[,2]), max(rc[,2]))
 		} else {
+			i <- positive_indices(i, nrow(x), caller=" [ ")
 			e <- ext_from_rc(x, min(i), max(i), 1, ncol(x))
 		}
 		return(crop(x, e))
 	}
 	if (nargs() > (2+add)) {
+		i <- positive_indices(i, nrow(x), caller=" [ ")
 		i <- cellFromRowColCombine(x, i, 1:ncol(x))
+	} else {
+		i <- positive_indices(i, ncell(x), caller=" [ ")	
 	}
 	extract_cell(x, i, drop=FALSE)
 })

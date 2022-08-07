@@ -335,8 +335,13 @@ SpatRaster SpatRaster::aggregate(std::vector<unsigned> fact, std::string fun, bo
 // and  3, 4, 5 are the new nrow, ncol, nlyr
 	if (!get_aggregate_dims(fact, message)) {
 		if (message.substr(0,3) == "all") {
-			out = *this;
-			out.addWarning(message);
+			std::string filename = opt.get_filename();
+			if (filename != "") {
+				out = writeRaster(opt);
+			} else {
+				out = *this;
+				out.addWarning(message);
+			}
 		} else {
 			out.setError(message);
 		}
@@ -1059,7 +1064,7 @@ SpatRaster SpatRaster::transpose(SpatOptions &opt) {
 	enew.xmax = eold.ymax;
 	enew.ymin = eold.xmin;
 	enew.ymax = eold.xmax;
-	out.setExtent(enew, false, "");
+	out.setExtent(enew, false, true, "");
 	out.source[0].ncol = nrow();
 	out.source[0].nrow = ncol();
 	if (!hasValues()) return out;
@@ -1875,7 +1880,7 @@ SpatRaster SpatRaster::rotate(bool left, SpatOptions &opt) {
 	SpatExtent outext = out.getExtent();
 	outext.xmin = outext.xmin + addx;
 	outext.xmax = outext.xmax + addx;
-	out.setExtent(outext, true);
+	out.setExtent(outext, true, true, "");
 
 	if (!hasValues()) return out;
 
@@ -2008,15 +2013,15 @@ SpatRaster SpatRaster::cover(SpatRaster x, std::vector<double> values, SpatOptio
 			x.readValues(m, out.bs.row[i], out.bs.nrows[i], 0, ncol());
 			recycle(v, m);
 			if (std::isnan(value)) {
-				for (size_t i=0; i < v.size(); i++) {
-					if (std::isnan(v[i])) {
-						v[i] = m[i];
+				for (size_t j=0; j < v.size(); j++) {
+					if (std::isnan(v[j])) {
+						v[j] = m[j];
 					}
 				}
 			} else {
-				for (size_t i=0; i < v.size(); i++) {
-					if (v[i] == value) {
-						v[i] = m[i];
+				for (size_t j=0; j < v.size(); j++) {
+					if (v[j] == value) {
+						v[j] = m[j];
 					}
 				}
 			}
@@ -2038,16 +2043,16 @@ SpatRaster SpatRaster::cover(SpatRaster x, std::vector<double> values, SpatOptio
 			readValues(v, out.bs.row[i], out.bs.nrows[i], 0, ncol());
 			x.readValues(m, out.bs.row[i], out.bs.nrows[i], 0, ncol());
 			recycle(v, m);
-			for (size_t i=0; i < v.size(); i++) {
+			for (size_t j=0; j < v.size(); j++) {
 				if (hasNA) {
-					if (std::isnan(v[i])) {
-						v[i] = m[i];
+					if (std::isnan(v[j])) {
+						v[j] = m[j];
 						continue;
 					}
 				}
-				for (size_t i=0; i<values.size(); i++) {
-					if (v[i] == values[i]) {
-						v[i] = m[i];
+				for (size_t j=0; j<values.size(); j++) {
+					if (v[j] == values[j]) {
+						v[j] = m[j];
 						continue;
 					}
 				}
@@ -2072,7 +2077,7 @@ SpatRaster SpatRaster::extend(SpatExtent e, std::string snap, SpatOptions &opt) 
 	SpatExtent extent = getExtent();
 	e.unite(extent);
 
-	out.setExtent(e, true);
+	out.setExtent(e, true, true, "");
 	if (!hasValues() ) {
 		if (opt.get_filename() != "") {
 			out.addWarning("ignoring filename argument because there are no cell values");
@@ -2127,13 +2132,18 @@ SpatRaster SpatRaster::crop(SpatExtent e, std::string snap, SpatOptions &opt) {
 		out.setError("invalid extent");
 		return out;
 	}
+	if ((e.xmin == e.xmax) && (e.ymin == e.ymax)) {
+		out.setError("cannot crop a SpatRaster with an empty extent");
+		return out;
+	}
 	e = e.intersect(out.getExtent());
 	if ( !e.valid() ) {
 		out.setError("extents do not overlap");
 		return out;
 	}
 
-	out.setExtent(e, true, snap);
+	out.setExtent(e, true, false, snap);
+
 	if (!hasValues() ) {
 		if (opt.get_filename() != "") {
 			out.addWarning("ignoring filename argument because there are no cell values");
@@ -2189,6 +2199,11 @@ SpatRaster SpatRaster::crop(SpatExtent e, std::string snap, SpatOptions &opt) {
 
 SpatRaster SpatRaster::cropmask(SpatVector v, std::string snap, bool touches, SpatOptions &opt) {
 	SpatOptions copt(opt);
+	if (v.nrow() == 0) {
+		SpatRaster out;
+		out.setError("cannot crop a SpatRaster with an empty SpatVector");
+		return out;
+	}
 	SpatRaster out = crop(v.extent, snap, copt);
 	return out.mask(v, false, NAN, touches, opt);
 }
@@ -2292,7 +2307,7 @@ SpatRaster SpatRaster::shift(double x, double y, SpatOptions &opt) {
 	outext.xmax = outext.xmax + x;
 	outext.ymin = outext.ymin + y;
 	outext.ymax = outext.ymax + y;
-	out.setExtent(outext, true);
+	out.setExtent(outext, true, true, "");
 	return out;
 }
 
@@ -2422,7 +2437,7 @@ SpatRaster SpatRasterCollection::mosaic(std::string fun, SpatOptions &opt) {
 		nl = std::max(nl, ds[i].nlyr());
 	}
 	out = ds[0].geometry(nl, false);
-	out.setExtent(e, true, "");
+	out.setExtent(e, true, true, "");
 
 	for (int i=(n-1); i>=0; i--) {
 		if (!hvals[i]) {
@@ -2541,7 +2556,7 @@ SpatRaster SpatRasterCollection::morph(SpatRaster &x, SpatOptions &opt) {
 	}
 
 	out.setSRS(x.getSRS("wkt"));
-	out.setExtent(e, false, "near");
+	out.setExtent(e, false, true, "near");
 
 	lrtrim(filename);
 	if (filename != "") {

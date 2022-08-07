@@ -170,6 +170,8 @@ setMethod("crs", signature("SpatVectorProxy"),
 	}
 )
 
+# breaks stppSim 1.2.3
+#
 setMethod("crs", signature("sf"),
   function(x, proj=FALSE, describe=FALSE, parse=FALSE) {
 	  xcrs <- attr(x[[ attr(x, "sf_column") ]], "crs")$wkt

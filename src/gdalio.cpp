@@ -25,7 +25,6 @@ void getGDALdriver(std::string &filename, std::string &driver) {
 		if (driver == "RST") {
 			filename = noext(filename) + ".rst";
 		}
-
 		return;
 	}
 
@@ -57,6 +56,33 @@ void getGDALdriver(std::string &filename, std::string &driver) {
 	}
 }
 
+bool SpatRaster::getTempFile(std::string &filename, std::string &driver, SpatOptions& opt) {
+
+	driver = opt.get_def_filetype();
+	if ((driver == "") || (driver == "GTiff")) {
+		driver = "GTiff";
+		filename = tempFile(opt.get_tempdir(), opt.pid, ".tif");
+		return true;
+	}
+	filename = tempFile(opt.get_tempdir(), opt.pid, "");
+	std::unordered_map<std::string, std::string>
+	exts = {
+		{"GTiff", ".tif"},
+		{"NetCDF", ".nc"},
+		{"GPKG", ".gpkg"},
+		{"HFA", ".img"},
+		{"RRASTER", ".grd"},
+		{"SAGA", ".sgrd"},
+		{"RST", ".rst"},
+		{"ENVI", ".envi"},
+		{"AAIGrid", ".asc"},
+	};
+    auto i = exts.find(driver);
+    if (i != exts.end()) {
+		filename += i->second;
+	}
+	return true;
+}
 
 
 /*
@@ -291,7 +317,7 @@ std::vector<std::vector<std::string>> sdinfo(std::string fname) {
 
 #if GDAL_VERSION_MAJOR <= 2 && GDAL_VERSION_MINOR < 1
 
-SpatRaster SpatRaster::make_vrt(std::vector<std::string> filenames, SpatOptions &opt) {
+SpatRaster SpatRaster::make_vrt(std::vector<std::string> filenames, std::vector<std::string> options, SpatOptions &opt) {
 	SpatRaster out;
 	out.setError( "GDAL version >= 2.1 required for vrt");
 	return out;

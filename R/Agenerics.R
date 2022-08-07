@@ -1,5 +1,9 @@
 #if (!isGeneric("#")) { setGeneric("#", function(x, ...) standardGeneric("#")) }
 
+if (!isGeneric("blocks")) {setGeneric("blocks", function(x, ...) standardGeneric("blocks"))}
+
+if (!isGeneric("str")) { setGeneric("str", function(object, ...) standardGeneric("str"))}
+	
 if (!isGeneric("plet")) { setGeneric("plet", function(x, ...) standardGeneric("plet"))}
 
 if (!isGeneric("combineGeoms")) {setGeneric("combineGeoms", function(x, y, ...) standardGeneric("combineGeoms"))}

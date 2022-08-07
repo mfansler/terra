@@ -10,11 +10,12 @@ setMethod("hasValues", signature(x="SpatRaster"),
 )
 
 
-.makeDataFrame <- function(x, v, factors=TRUE, ...) {
+.makeDataFrame <- function(x, v, ...) {
 
 	v <- data.frame(v, check.names=FALSE, ...)
 
-	if (factors) {
+#	factors=TRUE,
+#	if (factors) {
 		ff <- is.factor(x)
 		if (any(ff)) {
 			ff <- which(ff)
@@ -44,21 +45,21 @@ setMethod("hasValues", signature(x="SpatRaster"),
 				}
 			}
 		}
-	} else {
-		bb <- is.bool(x)
-		if (any(bb)) {
-			for (b in which(bb)) {
-				v[[b]] = as.logical(v[[b]])
-			}
-		}
+	#} else {
+	#	bb <- is.bool(x)
+	#	if (any(bb)) {
+	#		for (b in which(bb)) {
+	#			v[[b]] = as.logical(v[[b]])
+	#		}
+	#	}
 
-		ii <- is.int(x)
-		if (any(ii)) {
-			for (i in which(ii)) {
-				v[[i]] = as.integer(v[[i]])
-			}
-		}
-	}
+	#	ii <- is.int(x)
+	#	if (any(ii)) {
+	#		for (i in which(ii)) {
+	#			v[[i]] = as.integer(v[[i]])
+	#		}
+	#	}
+	#}
 	v
 }
 
@@ -73,7 +74,7 @@ function(x, row=1, nrows=nrow(x), col=1, ncols=ncol(x), mat=FALSE, dataframe=FAL
 		v <- matrix(v, ncol = nlyr(x))
 		colnames(v) <- names(x)
 		if (dataframe) {
-			return(.makeDataFrame(x, v, factors=TRUE, ...) )
+			return(.makeDataFrame(x, v, ...) )
 		}
 	}
 	v
@@ -123,17 +124,41 @@ setMethod("focalValues", signature("SpatRaster"),
 )
 
 
+mtrans <- function(mm, nc) {
+	v <- NULL
+	n <- ncol(mm) / nc
+	for (i in 1:n) {
+		j <- 1:nc + (i-1)*nc
+		v <- c(v, as.vector(t(mm[, j])))
+	}
+	v
+}
+
+
 setMethod("setValues", signature("SpatRaster"),
 	function(x, values, keeptime=TRUE, keepunits=TRUE, props=FALSE) {
 
 		y <- rast(x, keeptime=keeptime, keepunits=keepunits, props=props)
 
 		if (is.matrix(values)) {
-			if (nrow(values) == nrow(x)) {
-				values <- as.vector(t(values))
-			} else {
-				values <- as.vector(values)
-			}
+			nl <- nlyr(x)
+			d <- dim(values)
+			if (!all(d == c(ncell(x), nl))) {
+				ncx <- ncol(x)
+				if ((d[1] == nrow(x)) && ((d[2] %% nl*ncx) == 0)) { 
+					# raster-shaped matrix 
+					if (ncx < d[2]) {
+						values <- mtrans(values, ncx)
+					} else {
+						values <- as.vector(t(values))
+					}
+				} else if ((d[2] == nl) && (d[1] < ncell(x))) {
+					if (d[1] > 1) warn("setValues", "values were recycled")
+					values <- as.vector(apply(values, 2, function(i) rep_len(i, ncell(x))))
+				} else {
+					error("setValues","dimensions of the matrix do not match the SpatRaster")				
+				}
+			} 
 		} else if (is.array(values)) {
 			stopifnot(length(dim(values)) == 3)
 			values <- as.vector(aperm(values, c(2,1,3)))

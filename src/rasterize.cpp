@@ -440,11 +440,23 @@ SpatRaster SpatRaster::rasterize(SpatVector x, std::string field, std::vector<do
 			return out;
 		}
 		std::string dt = x.df.get_datatype(field);
-		if (dt == "string") {
-			//std::vector<std::string> ss = ;
-			SpatFactor f(x.df.getS(i));
-			for (size_t i=0; i<values.size(); i++) {
-				values[i] = f.v[i] - 1;
+		if (dt == "double") {
+			values = x.df.getD(i);
+		} else if (dt == "long") {
+			values = x.df.as_double(i);
+			out.setValueType(1);
+		} else if (dt == "bool") {
+			values = x.df.as_double(i);
+			out.setValueType(3);
+		} else if (dt == "time") {
+			// tbd
+			values = x.df.as_double(i);
+		} else {
+			std::vector<std::string> sv = x.df.as_string(i);
+			SpatFactor f(sv);
+			values.resize(f.v.size());
+			for (size_t j=0; j<values.size(); j++) {
+				values[j] = f.v[j];
 			}
 			if (!add && !update) {
 				std::vector<long> u(f.labels.size());
@@ -455,14 +467,6 @@ SpatRaster SpatRaster::rasterize(SpatVector x, std::string field, std::vector<do
 			if (add) {
 				add = false;
 				addWarning("cannot add factors");
-			}
-		} else if (dt == "double") {
-			values = x.df.getD(i);
-		} else {
-			std::vector<long> v = x.df.getI(i);
-			values.resize(v.size());
-			for (size_t i=0; i<values.size(); i++) {
-				values[i] = v[i];
 			}
 		}
 	}
@@ -742,5 +746,51 @@ void SpatRaster::rasterizeCellsExact(std::vector<double> &cells, std::vector<dou
 
 }
 
+
+void SpatRaster::rasterizeLinesLength(std::vector<double> &cells, std::vector<double> &weights, SpatVector &v, SpatOptions &opt) {
+
+	if (v.type() != "lines") {
+		setError("expected lines");
+		return;
+	}
+
+	double m = 1;
+	if (!v.is_lonlat()) {
+		double tom = v.srs.to_meter();
+		tom = std::isnan(tom) ? 1 : tom;
+		m *= tom;
+	}
+
+
+	SpatOptions xopt(opt);
+	xopt.ncopies = std::max(xopt.ncopies, (unsigned)4) * 8;
+	SpatRaster x = geometry(1);
+	
+	SpatExtent ev = v.getExtent();
+	x = x.crop(ev, "out", xopt);
+	BlockSize bs = x.getBlockSize(xopt);
+	
+	SpatExtent e = x.getExtent();
+	double rsy = x.yres() / 2;
+	for (size_t i=0; i < bs.n; i++) {
+		e.ymax = yFromRow(bs.row[i]) + rsy;
+		e.ymin = yFromRow(bs.row[i] + bs.nrows[i] - 1) - rsy;
+		SpatRaster tmp = x.crop(e, "near", xopt);	
+		std::vector<double> cell(tmp.ncell());
+		std::iota(cell.begin(), cell.end(), 0);
+		std::vector<std::vector<double>> xy = tmp.xyFromCell(cell);
+		cell = cellFromXY(xy[0], xy[1]);
+		SpatVector p = tmp.as_polygons(true, false, false, false, false, xopt);
+		p.df.add_column(cell, "cell");
+		p = p.intersect(v, true);
+		if (p.nrow() > 1) {
+			cells.insert(cells.end(), p.df.dv[0].begin(), p.df.dv[0].end());
+			std::vector<double> w = p.length();
+			double sm = std::accumulate(w.begin(), w.end(), 0.0);	
+			for (double &d : w) d /= sm;
+			weights.insert(weights.end(), w.begin(), w.end());
+		}
+	}
+}
 
 

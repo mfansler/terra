@@ -231,7 +231,9 @@ class SpatRaster {
 		size_t nrow();
 		SpatExtent getExtent();
 		void setExtent(SpatExtent e);
-		void setExtent(SpatExtent ext, bool keepRes=false, std::string snap="");  // also set it for sources?
+//		void setExtent(SpatExtent ext, bool keepRes=false, std::string snap="");  // also set it for sources?
+		void setExtent(SpatExtent ext, bool keepRes, bool no_expand, std::string snap);
+
 		SpatVector dense_extent(bool inside, bool geobounds);
 
 		//std::vector<std::string> getCRS();
@@ -480,6 +482,7 @@ class SpatRaster {
 		bool fillValuesGDAL(double fillvalue);
 		bool writeValuesGDAL(std::vector<double> &vals, size_t startrow, size_t nrows, size_t startcol, size_t ncols);
 		bool writeStopGDAL();
+		bool getTempFile(std::string &filename, std::string &driver, SpatOptions& opt);
 
 
 		bool readStartMulti(unsigned src);
@@ -547,7 +550,7 @@ class SpatRaster {
 		SpatExtent align(SpatExtent e, std::string snap);
 		SpatRaster rst_area(bool mask, std::string unit, bool transform, int rcmax, SpatOptions &opt);
 
-		std::vector<double> sum_area(std::string unit, bool transform, SpatOptions &opt);
+		std::vector<std::vector<double>> sum_area(std::string unit, bool transform, bool by_value, SpatOptions &opt);
 		std::vector<std::vector<double>> area_by_value(SpatOptions &opt);
 
 		SpatRaster arith(SpatRaster x, std::string oper, SpatOptions &opt);
@@ -674,6 +677,7 @@ class SpatRaster {
 
 		void rasterizeCellsWeights(std::vector<double> &cells, std::vector<double> &weights, SpatVector &v, SpatOptions &opt); 
 		void rasterizeCellsExact(std::vector<double> &cells, std::vector<double> &weights, SpatVector &v, SpatOptions &opt); 
+		void rasterizeLinesLength(std::vector<double> &cells, std::vector<double> &weights, SpatVector &v, SpatOptions &opt);
 
 
 		SpatRaster replaceValues(std::vector<double> from, std::vector<double> to, long nl, bool keepcats, SpatOptions &opt);

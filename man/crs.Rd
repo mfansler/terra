@@ -10,11 +10,12 @@
 \alias{crs<-,SpatRaster-method}
 \alias{crs<-,SpatRaster,ANY-method}
 
-\alias{crs,sf-method}
 \alias{crs,SpatVector-method}
 \alias{crs,SpatVectorProxy-method}
 \alias{crs<-,SpatVector-method}
 \alias{crs<-,SpatVector,ANY-method}
+
+\alias{crs,sf-method}
 
 \title{ Get or set a coordinate reference system }
 
