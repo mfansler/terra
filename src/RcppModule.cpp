@@ -143,7 +143,7 @@ std::vector<std::vector<std::vector<Rcpp::DataFrame>>> get_geometryList(SpatVect
 		for (size_t j=0; j < nj; j++) {
 			SpatPart p = g.getPart(j);
 			size_t nk = p.nHoles();
-			out[i][j].reserve(nk);
+			out[i][j].reserve(nk + 1);
 			Rcpp::DataFrame m = Rcpp::DataFrame::create(
 				Rcpp::Named(xnm) = p.x,
 				Rcpp::Named(ynm) = p.y
@@ -161,6 +161,7 @@ std::vector<std::vector<std::vector<Rcpp::DataFrame>>> get_geometryList(SpatVect
 	}
 	return out;
 }
+
 
 RCPP_EXPOSED_CLASS(SpatFactor)
 RCPP_EXPOSED_CLASS(SpatTime_v)
@@ -261,6 +262,7 @@ RCPP_MODULE(spat){
 		.field("datatype_set", &SpatOptions::datatype_set)
 		.field("threads", &SpatOptions::threads)
 		.property("progress", &SpatOptions::get_progress, &SpatOptions::set_progress)
+		.field("progressbar", &SpatOptions::progressbar)
 		.property("ncopies", &SpatOptions::get_ncopies, &SpatOptions::set_ncopies)
 
 		.property("def_filetype", &SpatOptions::get_def_filetype, &SpatOptions::set_def_filetype )
@@ -369,6 +371,7 @@ RCPP_MODULE(spat){
 		.method("boundary", &SpatVector::boundary)
 		.method("polygonize", &SpatVector::polygonize)
 		.method("normalize", &SpatVector::normalize)
+		.method("normalize_dateline", &SpatVector::normalize_dateline)
 		.method("line_merge", &SpatVector::line_merge)
 		.method("simplify", &SpatVector::simplify)
 		.method("thin", &SpatVector::thin)
@@ -377,6 +380,8 @@ RCPP_MODULE(spat){
 		.method("shared_paths2", (SpatVector (SpatVector::*)(SpatVector))( &SpatVector::shared_paths))
 		.method("snap", &SpatVector::snap)
 		.method("snapto", &SpatVector::snapto)
+		.method("spatial_index_2d", &SpatVector::index_2d)
+		.method("spatial_index_sparse", &SpatVector::index_sparse)
 
 		.field_readonly("is_proxy", &SpatVector::is_proxy )
 		.field_readonly("read_query", &SpatVector::read_query )
@@ -395,6 +400,9 @@ RCPP_MODULE(spat){
 		.method("get_geometry", &SpatVector::getGeometry)
 		.method("get_geometryDF", &get_geometryDF)
 		.method("get_geometryList", &get_geometryList)
+		.method("linesList", &SpatVector::linesList)
+		.method("polygonsList", &SpatVector::polygonsList)
+		.method("linesNA", &SpatVector::linesNA)
 
 		.method("add_column_empty", (void (SpatVector::*)(unsigned dtype, std::string name))( &SpatVector::add_column))
 		.method("add_column_double", (bool (SpatVector::*)(std::vector<double>, std::string name))( &SpatVector::add_column))
@@ -425,11 +433,11 @@ RCPP_MODULE(spat){
 		.method("set_crs", (bool (SpatVector::*)(std::string crs))( &SpatVector::setSRS))
 		//.method("prj", &SpatVector::getPRJ)
 
-		.method("distance_self", (std::vector<double> (SpatVector::*)(bool))( &SpatVector::distance))
-		.method("distance_other", (std::vector<double> (SpatVector::*)(SpatVector, bool))( &SpatVector::distance))
+		.method("distance_self", (std::vector<double> (SpatVector::*)(bool, std::string))( &SpatVector::distance))
+		.method("distance_other", (std::vector<double> (SpatVector::*)(SpatVector, bool, std::string))( &SpatVector::distance))
 
-		.method("geosdist_self", (std::vector<double> (SpatVector::*)(bool))( &SpatVector::geos_distance))
-		.method("geosdist_other", (std::vector<double> (SpatVector::*)(SpatVector, bool))( &SpatVector::geos_distance))
+		.method("geosdist_self", (std::vector<double> (SpatVector::*)(bool, std::string))( &SpatVector::geos_distance))
+		.method("geosdist_other", (std::vector<double> (SpatVector::*)(SpatVector, bool, std::string))( &SpatVector::geos_distance))
 
 		.method("extent", &SpatVector::getExtent, "extent")
 		.method("getDF", &getVectorAttributes, "get attributes")
@@ -495,14 +503,24 @@ RCPP_MODULE(spat){
 		.method("mask", &SpatVector::mask)
 
 		.method("is_related", &SpatVector::is_related)
-		.method("relate_first", &SpatVector::relateFirst)
-		.method("relate_between", ( std::vector<int> (SpatVector::*)(SpatVector, std::string))( &SpatVector::relate ))
+			
+		.method("related_between", ( std::vector<std::vector<double>> (SpatVector::*)(SpatVector, std::string, bool))( &SpatVector::which_relate))
+		.method("related_within", ( std::vector<std::vector<double>> (SpatVector::*)(std::string, bool))( &SpatVector::which_relate))
+
+//		.method("relate_first", &SpatVector::relateFirst)
+		.method("relate_between", ( std::vector<int> (SpatVector::*)(SpatVector, std::string, bool, bool))( &SpatVector::relate ))
 		.method("relate_within", ( std::vector<int> (SpatVector::*)(std::string, bool))( &SpatVector::relate ))
+		.method("equals_between", ( std::vector<unsigned> (SpatVector::*)(SpatVector, double))( &SpatVector::equals_exact ))
+		.method("equals_within", ( std::vector<unsigned> (SpatVector::*)(bool, double))( &SpatVector::equals_exact ))
+
+
 		.method("crop_ext", ( SpatVector (SpatVector::*)(SpatExtent))( &SpatVector::crop ))
 		.method("crop_vct", ( SpatVector (SpatVector::*)(SpatVector))( &SpatVector::crop ))
 
 		.method("near_between", (SpatVector (SpatVector::*)(SpatVector, bool))( &SpatVector::nearest_point))
 		.method("near_within", (SpatVector (SpatVector::*)())( &SpatVector::nearest_point))
+		.method("near_geom", &SpatVector::nearest_geometry)
+
 		//.method("knearest", &SpatVector::knearest)
 
 		.method("split", &SpatVector::split)
@@ -591,7 +609,7 @@ RCPP_MODULE(spat){
 
 		//.method("getRasterAtt", &getRasterAttributes, "get attributes")
 
-		.property("filenames", &SpatRaster::filenames )
+		.method("filenames", &SpatRaster::filenames )
 
 		.field_readonly("rgb", &SpatRaster::rgb)
 		.field_readonly("rgbtype", &SpatRaster::rgbtype)
@@ -606,23 +624,25 @@ RCPP_MODULE(spat){
 		//.method("setAttributes", &SpatRaster::setAttributes, "setAttributes")
 		//.method("createAttributes", &SpatRaster::createAttributes, "createAttributes")
 
-		.method("makeCategorical", &SpatRaster::makeCategorical, "makeCategorical")
-		.method("createCategories", &SpatRaster::createCategories, "createCategories")
-		.method("hasCategories", &SpatRaster::hasCategories, "hasCategories")
-		.method("getCategories", &SpatRaster::getCategories, "getCategories")
-		.method("setCategories", &SpatRaster::setCategories, "setCategories")
-		.method("removeCategories", &SpatRaster::removeCategories, "removeCategories")
-		.method("getLabels", &SpatRaster::getLabels, "getLabels")
-		.method("setLabels", &SpatRaster::setLabels, "setLabels")
-		.method("getCatIndex", &SpatRaster::getCatIndex, "getCatIndex")
-		.method("setCatIndex", &SpatRaster::setCatIndex, "setCatIndex")
+		.method("makeCategorical", &SpatRaster::makeCategorical)
+		.method("createCategories", &SpatRaster::createCategories)
+		.method("hasCategories", &SpatRaster::hasCategories)
+		.method("getCategories", &SpatRaster::getCategories)
+		.method("setCategories", &SpatRaster::setCategories)
+		.method("removeCategories", &SpatRaster::removeCategories)
+		.method("getLabels", &SpatRaster::getLabels)
+		.method("setLabels", &SpatRaster::setLabels)
+		.method("getCatIndex", &SpatRaster::getCatIndex)
+		.method("setCatIndex", &SpatRaster::setCatIndex)
+		.method("getScaleOffset", &SpatRaster::getScaleOffset)
+		.method("setScaleOffset", &SpatRaster::setScaleOffset)
+	
+		.method("hasColors", &SpatRaster::hasColors)
+		.method("getColors", &SpatRaster::getColors)
+		.method("setColors", &SpatRaster::setColors)
+		.method("removeColors", &SpatRaster::removeColors)
 
-
-		.method("hasColors", &SpatRaster::hasColors, "hasColors")
-		.method("getColors", &SpatRaster::getColors, "getColors")
-		.method("setColors", &SpatRaster::setColors, "setColors")
-		.method("removeColors", &SpatRaster::removeColors, "removeColors")
-
+		.property("dataType", &SpatRaster::getDataType)
 		.property("valueType", &SpatRaster::getValueType)
 		.method("setValueType", &SpatRaster::setValueType)
 		.property("hasRange", &SpatRaster::hasRange )
@@ -750,8 +770,9 @@ RCPP_MODULE(spat){
 		.method("rastDirection", &SpatRaster::direction)
 		.method("make_tiles", &SpatRaster::make_tiles)
 		.method("ext_from_rc", &SpatRaster::ext_from_rc)
-
+	
 		.method("combineCats", &SpatRaster::combineCats)
+		.method("droplevels", &SpatRaster::dropLevels)
 
 		.method("vectDisdirRasterize", &SpatRaster::disdir_vector_rasterize)
 		.method("vectDistanceDirect", &SpatRaster::distance_vector)

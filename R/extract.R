@@ -94,7 +94,7 @@ wmax <- function(p, na.rm=FALSE) {
 
 
 
-extractCells <- function(x, y, method="simple", cells=FALSE, xy=FALSE, layer=NULL) {
+extractCells <- function(x, y, method="simple", cells=FALSE, xy=FALSE, layer=NULL, raw=FALSE) {
 
 	#value <- match.arg(tolower(value), c("data.frame", "list", "matrix"))
 	method <- match.arg(tolower(method), c("simple", "bilinear"))
@@ -146,10 +146,12 @@ extractCells <- function(x, y, method="simple", cells=FALSE, xy=FALSE, layer=NUL
 	}
 	colnames(e) <- cn
 
-	if (method != "simple") {
-		e <- as.data.frame(e)
-	} else {
-		e <- .makeDataFrame(x, e)
+	if (!raw) {
+		if (method != "simple") {
+			e <- as.data.frame(e)
+		} else {
+			e <- .makeDataFrame(x, e)
+		}
 	}
 
 	if (useLyr) {
@@ -174,7 +176,7 @@ function(x, y, ...) {
 
 
 setMethod("extract", signature(x="SpatRaster", y="SpatVector"),
-function(x, y, fun=NULL, method="simple", cells=FALSE, xy=FALSE, ID=TRUE, weights=FALSE, exact=FALSE, touches=is.lines(y), layer=NULL, bind=FALSE, ...) {
+function(x, y, fun=NULL, method="simple", cells=FALSE, xy=FALSE, ID=TRUE, weights=FALSE, exact=FALSE, touches=is.lines(y), layer=NULL, bind=FALSE, raw=FALSE, ...) {
 
 #	value <- match.arg(tolower(value), c("data.frame", "matrix", "spatvector"))
 #	if (value == "matrix") {
@@ -182,7 +184,8 @@ function(x, y, fun=NULL, method="simple", cells=FALSE, xy=FALSE, ID=TRUE, weight
 #	} else {
 #		factors <- TRUE	
 #	}
-
+	if (bind) raw=FALSE 
+	
 	nl <- nlyr(x)
 	useLyr <- FALSE
 	geo <- geomtype(y)
@@ -325,12 +328,13 @@ function(x, y, fun=NULL, method="simple", cells=FALSE, xy=FALSE, ID=TRUE, weight
 		e[, cncell] <- e[, cncell] + 1
 	}
 
-#	if (value != "matrix") {
-	if (hasfun || method != "simple") {
-		e <- as.data.frame(e)
-	} else {
-		id <- data.frame(e[,1,drop=FALSE])
-		e <- cbind(id, .makeDataFrame(x, e[,-1,drop=FALSE]))
+	if (!raw) {
+		if (hasfun || (method != "simple")) {
+			e <- as.data.frame(e)
+		} else {
+			id <- data.frame(e[,1,drop=FALSE])
+			e <- cbind(id, .makeDataFrame(x, e[,-1,drop=FALSE]))
+		}
 	}
 
 	if (useLyr) {
@@ -351,7 +355,7 @@ function(x, y, fun=NULL, method="simple", cells=FALSE, xy=FALSE, ID=TRUE, weight
 		}
 	} else if (!ID) {
 		if (ncol(e) > nlyr(x)) {
-			e$ID <- NULL
+			e <- e[,-1,drop=FALSE]
 		}
 	}
 	e
@@ -362,7 +366,7 @@ function(x, y, fun=NULL, method="simple", cells=FALSE, xy=FALSE, ID=TRUE, weight
 setMethod("extract", signature(x="SpatRaster", y="sf"),
 	function(x, y, fun=NULL, method="simple", cells=FALSE, xy=FALSE, ID=TRUE, weights=FALSE, exact=FALSE, touches=is.lines(y), layer=NULL, bind=FALSE, ...) {
 		y <- vect(y)
-		extract(x, y, fun=fun, method=method, cells=cells, xy=xy, ID=TRUE, weights=weights, exact=exact, touches=touches, layer=layer, bind=bind, ...)
+		extract(x, y, fun=fun, method=method, cells=cells, xy=xy, ID=ID, weights=weights, exact=exact, touches=touches, layer=layer, bind=bind, ...)
 	}
 )
 
@@ -380,8 +384,9 @@ function(x, i, j, ... , drop=FALSE) {
 
 setMethod("[", c("SpatVector", "SpatVector", "missing"),
 function(x, i, j, ... , drop=FALSE) {
-	r <- !relate(x, i, "disjoint")
-	r <- which(apply(r, 1, any))
+	#r <- !relate(x, i, "disjoint")
+	#r <- which(apply(r, 1, any))
+	r <- is.related(x, i, "intersects")
 	x[r, ]
 })
 
@@ -556,25 +561,32 @@ function(x, i, j, ..., drop=FALSE) {
 setMethod("extract", c("SpatVector", "SpatVector"),
 function(x, y, ...) {
 
-	#r <- relate(y, x, "within")
-	#e <- apply(r, 1, which)
-	r <- relate(x, y, "covers")
-	e <- apply(r, 2, which)
-	if (length(e) == 0) {
-		e <- list(e)
-	}
-	if (is.list(e)) {
-		e <- lapply(1:length(e), function(i) {
-			if (length(e[[i]]) == 0) {
-				cbind(i, NA)
-			} else {
-				cbind(i, e[[i]])
-			}
-		})
-		e <- do.call(rbind, e)
-	} else {
-		e <- cbind(1:nrow(y), e)
-	}
+#	r <- relate(x, y, "covers")
+#	e <- apply(r, 2, which)
+
+#	e <- y@ptr$which_related(x@ptr, "coveredby")
+#	if (length(e[[1]]) == 0) {
+#		e <- cbind(0,0)[0,,drop=FALSE]
+#	} else {
+#		e <- do.call(cbind, e) + 1
+#	}
+	e <- relate(y, x, "coveredby", pairs=TRUE, na.rm=FALSE)
+	
+#	if (length(e) == 0) {
+#		e <- list(e)
+#	}
+#	if (is.list(e)) {
+#		e <- lapply(1:length(e), function(i) {
+#			if (length(e[[i]]) == 0) {
+#				cbind(i, NA)
+#			} else {
+#				cbind(i, e[[i]])
+#			}
+#		})
+#		e <- do.call(rbind, e)
+#	} else {
+#		e <- cbind(1:nrow(y), e)
+#	}
 	if (ncol(x) > 0) {
 		d <- as.data.frame(x)
 		e <- data.frame(id.y=e[,1], d[e[,2], ,drop=FALSE])
@@ -583,5 +595,19 @@ function(x, y, ...) {
 		colnames(e) <- c("id.y", "id.x")
 	}
 	e
+})
+
+
+setMethod("extract", signature(x="SpatVector", y="matrix"),
+function(x, y, ...) {
+	stopifnot(ncol(y) == 2)
+	.checkXYnames(colnames(y))
+	y <- vect(y)
+	extract(x, y, ...)
+})
+
+setMethod("extract", signature(x="SpatVector", y="data.frame"),
+function(x, y, ...) {
+	extract(x, as.matrix(y), ...)
 })
 

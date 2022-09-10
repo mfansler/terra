@@ -15,7 +15,7 @@
 SpatRaster SpatRaster::rasterizePoints(SpatVector x, std::string fun, std::vector<double> values, double background, SpatOptions &opt) {
 
 	SpatRaster out = geometry(1, false, false, false);
-	if (!out.writeStart(opt)) {
+	if (!out.writeStart(opt, filenames())) {
 		return out;
 	}
 	if (fun != "count" && (values.size() != x.size())) {
@@ -155,7 +155,7 @@ SpatRaster SpatRaster::rasterizeGeom(SpatVector x, std::string unit, std::string
 			m *= m;
 		}
 		opt.ncopies = std::max(opt.ncopies, (unsigned)4) * 8;
-		if (!out.writeStart(opt)) {
+		if (!out.writeStart(opt, filenames())) {
 			return out;
 		}
 		for (size_t i=0; i < out.bs.n; i++) {
@@ -167,7 +167,7 @@ SpatRaster SpatRaster::rasterizeGeom(SpatVector x, std::string unit, std::string
 			std::vector<double> v(out.bs.nrows[i] * out.ncol(), 0);
 
 			if (fun == "crosses") {
-				std::vector<int> r = p.relate(x, "crosses");
+				std::vector<int> r = p.relate(x, "crosses", true, true);
 				size_t nx = x.size();
 				for (size_t j=0; j< r.size(); j++) {
 					size_t k= j / nx;
@@ -217,7 +217,7 @@ SpatRaster SpatRaster::hardCopy(SpatOptions &opt) {
 		out.setError(getError());
 		return(out);
 	}
- 	if (!out.writeStart(opt)) {
+ 	if (!out.writeStart(opt, filenames())) {
 		readStop();
 		return out;
 	}
@@ -266,7 +266,7 @@ bool SpatRaster::getDSh(GDALDatasetH &rstDS, SpatRaster &out, std::string &filen
 			return false;
 		}
 		std::string msg;
-		if (!can_write(filename, opt.get_overwrite(), msg)) {
+		if (!can_write({filename}, filenames(), opt.get_overwrite(), msg)) {
 			out.setError(msg);
 			return false;
 		}

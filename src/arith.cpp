@@ -175,6 +175,25 @@ SpatRaster SpatRaster::arith(SpatRaster x, std::string oper, SpatOptions &opt) {
 	}
 	if (logical) {
 		out.setValueType(3);
+	} else if (oper != "/") {
+		std::vector<int> v = getValueType();
+		std::vector<int> vx = x.getValueType();
+		bool is_int = true;
+		for (size_t i = 0; i<v.size(); i++) {
+			if ((v[i] != 1) && (v[i] != 3)) { 
+				is_int = false;
+				break;
+			}
+		}
+		for (size_t i = 0; i<vx.size(); i++) {
+			if (!is_int) break;
+			if ((vx[i] != 1) && (vx[i] != 3)) { 
+				is_int = false;
+			}
+		}
+		if (is_int) {
+			out.setValueType(1);
+		}		
 	}
 
 	if (!out.compare_geom(x, false, true, opt.get_tolerance())) {
@@ -189,7 +208,7 @@ SpatRaster SpatRaster::arith(SpatRaster x, std::string oper, SpatOptions &opt) {
 		out.setError(x.getError());
 		return(out);
 	}
- 	if (!out.writeStart(opt)) {
+ 	if (!out.writeStart(opt, filenames())) {
 		readStop();
 		x.readStop();
 		return out;
@@ -252,6 +271,18 @@ SpatRaster SpatRaster::arith(double x, std::string oper, bool reverse, SpatOptio
 	}
 	if (logical) {
 		out.setValueType(3);
+	} else if (oper != "/") {
+		std::vector<int> v = getValueType();
+		bool is_int = true;
+		for (size_t i = 0; i<v.size(); i++) {
+			if ((v[i] != 1) && (v[i] != 3)) { 
+				is_int = false;
+				break;
+			}
+		}
+		if (is_int && (x == std::round(x))) { 
+			out.setValueType(1);
+		}
 	}
 
 
@@ -260,7 +291,7 @@ SpatRaster SpatRaster::arith(double x, std::string oper, bool reverse, SpatOptio
 		return(out);
 	}
 
-  	if (!out.writeStart(opt)) {
+  	if (!out.writeStart(opt, filenames())) {
 		readStop();
 		return out;
 	}
@@ -382,6 +413,22 @@ SpatRaster SpatRaster::arith(std::vector<double> x, std::string oper, bool rever
 	}
 	if (logical) {
 		out.setValueType(3);
+	} else if (oper != "/") {
+		std::vector<int> v = getValueType();
+		bool is_int = true;
+		for (size_t i = 0; i<v.size(); i++) {
+			if ((v[i] != 1) && (v[i] != 3)) { 
+				is_int = false;
+				break;
+			}
+		}
+		for (size_t i = 0; i<x.size(); i++) {
+			if (!is_int) break;
+			is_int = x[i] == std::round(x[i]); 
+		}
+		if (is_int) { 
+			out.setValueType(1);
+		}
 	}
 
 
@@ -390,7 +437,7 @@ SpatRaster SpatRaster::arith(std::vector<double> x, std::string oper, bool rever
 		return(out);
 	}
 
-  	if (!out.writeStart(opt)) {
+  	if (!out.writeStart(opt, filenames())) {
 		readStop();
 		return out;
 	}
@@ -542,7 +589,7 @@ SpatRaster SpatRaster::math(std::string fun, SpatOptions &opt) {
 	}
 
 
-  	if (!out.writeStart(opt)) {
+  	if (!out.writeStart(opt, filenames())) {
 		readStop();
 		return out;
 	}
@@ -578,7 +625,7 @@ SpatRaster SpatRaster::math2(std::string fun, unsigned digits, SpatOptions &opt)
 	}
 
 
-  	if (!out.writeStart(opt)) {
+  	if (!out.writeStart(opt, filenames())) {
 		readStop();
 		return out;
 	}
@@ -663,7 +710,7 @@ SpatRaster SpatRaster::trig(std::string fun, SpatOptions &opt) {
 	}
 
 
-  	if (!out.writeStart(opt)) {
+  	if (!out.writeStart(opt, filenames())) {
 		readStop();
 		return out;
 	}
@@ -690,7 +737,7 @@ SpatRaster SpatRaster::atan_2(SpatRaster x, SpatOptions &opt) {
 		out.setError(x.getError());
 		return(out);
 	}
-  	if (!out.writeStart(opt)) {
+  	if (!out.writeStart(opt, filenames())) {
 		readStop();
 		x.readStop();
 		return out;
@@ -753,7 +800,7 @@ SpatRaster SpatRaster::isnot(SpatOptions &opt) {
 		out.setError(getError());
 		return(out);
 	}
-  	if (!out.writeStart(opt)) {
+  	if (!out.writeStart(opt, filenames())) {
 		readStop();
 		return out;
 	}
@@ -797,7 +844,7 @@ SpatRaster SpatRaster::logic(SpatRaster x, std::string oper, SpatOptions &opt) {
 		return(out);
 	}
 
- 	if (!out.writeStart(opt)) {
+ 	if (!out.writeStart(opt, filenames())) {
 		readStop();
 		return out;
 	}
@@ -834,7 +881,7 @@ SpatRaster SpatRaster::logic(bool x, std::string oper, SpatOptions &opt) {
 		return(out);
 	}
 
-  	if (!out.writeStart(opt)) {
+  	if (!out.writeStart(opt, filenames())) {
 		readStop();
 		return out;
 	}
@@ -884,7 +931,7 @@ SpatRaster SpatRaster::cum(std::string fun, bool narm, SpatOptions &opt) {
 	}
 
 
-  	if (!out.writeStart(opt)) {
+  	if (!out.writeStart(opt, filenames())) {
 		readStop();
 		return out;
 	}
@@ -958,7 +1005,7 @@ SpatRaster SpatRaster::summary_numb(std::string fun, std::vector<double> add, bo
 
 
 	opt.ncopies = std::max(opt.ncopies, nlyr() * 2);
-	if (!out.writeStart(opt)) {
+	if (!out.writeStart(opt, filenames())) {
 		readStop();
 		return out;
 	}
@@ -1014,7 +1061,7 @@ SpatRaster SpatRaster::modal(std::vector<double> add, std::string ties, bool nar
 		return(out);
 	}
 
-  	if (!out.writeStart(opt)) {
+  	if (!out.writeStart(opt, filenames())) {
 		readStop();
 		return out;
 	}
@@ -1060,7 +1107,7 @@ SpatRaster SpatRaster::range(std::vector<double> add, bool narm, SpatOptions &op
 	}
 
 
-  	if (!out.writeStart(opt)) {
+  	if (!out.writeStart(opt, filenames())) {
 		readStop();
 		return out;
 	}
@@ -1123,7 +1170,7 @@ SpatRaster SpatRasterStack::summary_numb(std::string fun, std::vector<double> ad
 	}
 
 
-  	if (!out.writeStart(opt)) {
+  	if (!out.writeStart(opt, filenames())) {
 		readStop();
 		return out;
 	}
@@ -1173,7 +1220,7 @@ SpatRaster SpatRaster::isnan(SpatOptions &opt) {
 		return(out);
 	}
 
-	if (!out.writeStart(opt)) {
+	if (!out.writeStart(opt, filenames())) {
 		readStop();
 		return out;
 	}
@@ -1198,7 +1245,7 @@ SpatRaster SpatRaster::isnotnan(SpatOptions &opt) {
 		out.setError(getError());
 		return(out);
 	}
-	if (!out.writeStart(opt)) {
+	if (!out.writeStart(opt, filenames())) {
 		readStop();
 		return out;
 	}
@@ -1223,7 +1270,7 @@ SpatRaster SpatRaster::isfinite(SpatOptions &opt) {
 		out.setError(getError());
 		return(out);
 	}
-	if (!out.writeStart(opt)) {
+	if (!out.writeStart(opt, filenames())) {
 		readStop();
 		return out;
 	}
@@ -1249,7 +1296,7 @@ SpatRaster SpatRaster::isinfinite(SpatOptions &opt) {
 		out.setError(getError());
 		return(out);
 	}
-	if (!out.writeStart(opt)) {
+	if (!out.writeStart(opt, filenames())) {
 		readStop();
 		return out;
 	}
@@ -1265,7 +1312,7 @@ SpatRaster SpatRaster::isinfinite(SpatOptions &opt) {
 }
 
 
-std::vector<std::vector<double>> SpatRaster::where(std::string what, SpatOptions &opt) {
+std::vector<std::vector<double>> SpatRaster::where(std::string what, bool values, SpatOptions &opt) {
 
 	unsigned nl = nlyr();
 	std::vector<std::vector<double>> out(nl);
@@ -1286,20 +1333,31 @@ std::vector<std::vector<double>> SpatRaster::where(std::string what, SpatOptions
 	}
 	BlockSize bs = getBlockSize(opt);
 
+	std::vector<double> val;
+	bool do_min = what == "min";
+
 	std::vector<bool> hr = hasRange();
 	bool hasR = true;
 	for (size_t i=0; i<hr.size(); i++) {
-		if (!hr[i]) hasR = false;
+		if (!hr[i]) {
+			hasR = false;
+			break;
+		}
 	}
-	if (!hasR) {
-		setRange(opt);
-	}
-
-	std::vector<double> val;
-	if (what == "min") {
-		val = range_min();
+	if (hasR) {
+		if (do_min) {
+			val = range_min();
+			for (double &d : val) d *= 1.00001;
+		} else {
+			val = range_max();
+			for (double &d : val) d *= 0.99999;
+		}
 	} else {
-		val = range_max();
+		if (do_min) {
+			val.resize(nl, std::numeric_limits<double>::max());
+		} else {
+			val.resize(nl, std::numeric_limits<double>::lowest());
+		}
 	}
 	for (size_t i=0; i<bs.n; i++) {
 		std::vector<double> v;
@@ -1308,12 +1366,39 @@ std::vector<std::vector<double>> SpatRaster::where(std::string what, SpatOptions
 		size_t boff = i * lyrsize;
 		for (size_t j=0; j<nl; j++) {
 			size_t off = j * lyrsize;
-			for (size_t k=off; k<(off+lyrsize); k++) {
-				if (!std::isnan(v[k]) && (v[k] == val[j])) {
-					double cell = k - off + boff;
-					out[j].push_back(cell);
+			if (do_min) {
+				for (size_t k=off; k<(off+lyrsize); k++) {
+					if (!std::isnan(v[k])) {
+						if (v[k] < val[j]) {
+							val[j] = v[k];
+							out[j].resize(0);
+							double cell = k - off + boff;							
+							out[j].push_back(cell);
+						} else if (v[k] == val[j]) {
+							double cell = k - off + boff;							
+							out[j].push_back(cell);					
+						}
+					}
+				}
+			} else {
+				for (size_t k=off; k<(off+lyrsize); k++) {
+					if (!std::isnan(v[k])) {
+						if (v[k] > val[j]) {
+							val[j] = v[k];
+							out[j].resize(0);
+							double cell = k - off + boff;							
+							out[j].push_back(cell);
+						} else if (v[k] == val[j]) {
+							double cell = k - off + boff;							
+							out[j].push_back(cell);					
+						}
+					}
 				}
 			}
+			if (values) {
+				std::vector<double> wval(out[j].size(), val[j]);
+				out[j].insert(out[j].end(), wval.begin(), wval.end());
+			}			
 		}
 	}
 	readStop();

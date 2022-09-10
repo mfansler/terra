@@ -44,7 +44,9 @@ setMethod("vect", signature(x="missing"),
 )
 
 setMethod("vect", signature(x="character"),
-	function(x, layer="", query="", extent=NULL, filter=NULL, crs="", proxy=FALSE) {
+	function(x, layer="", query="", extent=NULL, filter=NULL, crs="", proxy=FALSE, what="") {
+		what <- trimws(tolower(what))
+		if (what != "") what <- match.arg(trimws(tolower(what)), c("geoms", "attributes"))
 		p <- methods::new("SpatVector")
 		s <- substr(x[1], 1, 5)
 		if (s %in% c("POINT", "MULTI", "LINES", "POLYG")) {
@@ -60,6 +62,10 @@ setMethod("vect", signature(x="character"),
 				x <- enc2utf8(x)
 			}
 			proxy <- isTRUE(proxy)
+			
+			if ((what=="attributes") && proxy) {
+				error("vect", "you cannot use 'what==attribtues' when proxy=TRUE")
+			}
 			#if (proxy) query <- ""
 			if (is.null(filter)) {
 				filter <- vect()@ptr
@@ -74,7 +80,7 @@ setMethod("vect", signature(x="character"),
 			} else {
 				extent <- as.vector(ext(extent))
 			}
-			p@ptr$read(x, layer, query, extent, filter, proxy)
+			p@ptr$read(x, layer, query, extent, filter, proxy, what)
 			if (isTRUE(crs != "")) {
 				crs(p) <- crs
 			}
@@ -86,7 +92,11 @@ setMethod("vect", signature(x="character"),
 				return(pp)
 			}
 		}
-		messages(p, "vect")
+		p <- messages(p, "vect")
+		if (what == "attributes") {
+			p <- values(p)
+		}
+		p
 	}
 )
 
@@ -338,7 +348,7 @@ setMethod("$<-", "SpatVector",
 
 
 setMethod("vect", signature(x="data.frame"),
-	function(x, geom=c("lon", "lat"), crs=NA, keepgeom=FALSE) {
+	function(x, geom=c("lon", "lat"), crs="", keepgeom=FALSE) {
 		if (!all(geom %in% names(x))) {
 			error("vect", "the variable name(s) in argument `geom` are not in `x`")
 		}

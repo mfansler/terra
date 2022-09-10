@@ -30,18 +30,21 @@ setMethod("ext", signature(x="missing"),
 
 setMethod("ext", signature(x="numeric"),
 	function(x, ...){
-		dots <- unlist(list(...))
+		dots <- as.vector(unlist(list(...)))
 		x <- c(x, dots)
 		if (length(x) < 4) {
 			error("ext", "insufficient number of elements (should be 4)")
 		}
 		if (length(x) > 4) {
-			warn("ext", "more elements than expected (should be 4)")
+			error("ext", "more elements than expected (should be 4)")
 		}
 		names(x) <- NULL
 		e <- methods::new("SpatExtent")
 		e@ptr <- SpatExtent$new(x[1], x[2], x[3], x[4])
-		if (methods::validObject(e)) return(e)
+		if (!e@ptr$valid) {
+			error("ext", "invalid extent")
+		}
+		e
 	}
 )
 
@@ -106,6 +109,7 @@ setMethod("set.ext", signature("SpatRaster"),
 		e <- ext(value)
 		x@ptr$extent <- e@ptr
 		messages(x, "set_ext")
+		invisible(TRUE)
 	}
 )
 

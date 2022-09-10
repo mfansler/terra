@@ -15,9 +15,13 @@ setMethod("names", signature(x="SpatRaster"),
 
 setMethod("names<-", signature(x="SpatRaster"),
 	function(x, value)  {
-		value <- enc2utf8(as.character(value))
-		if (length(value) != nlyr(x)) {
-			error("names<-", "incorrect number of names")
+		if (is.null(value)) {
+			value <- rep("", nlyr(x))
+		} else {
+			value <- enc2utf8(as.character(value))
+			if (length(value) != nlyr(x)) {
+				error("names<-", "incorrect number of names")
+			}
 		}
 		x@ptr <- x@ptr$deepcopy()
 		if (! x@ptr$setNames(value, FALSE)) {
@@ -63,7 +67,7 @@ setMethod("names<-", signature(x="SpatRaster"),
 setMethod("set.names", signature(x="SpatRaster"),
 	function(x, value, index=1:nlyr(x), validate=FALSE)  {
 		value <- .raster_names_check(x, value, index, validate)
-		if (! x@ptr$setNames(value, FALSE)) {
+		if (!x@ptr$setNames(value, FALSE)) {
 			error("set.names", "cannot set these names")
 		}
 		invisible(TRUE)

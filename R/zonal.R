@@ -43,7 +43,7 @@ setMethod("zonal", signature(x="SpatRaster", z="SpatRaster"),
 			subst(z, out[,1], out[,-1], filename=filename, wopt=wopt)
 		} else {
 			if (is.factor(z)) {
-				levs <- active_cats(z)[[1]]
+				levs <- levels(z)[[1]]
 				m <- match(out$zone, levs[,1])
 				out$zone <- levs[m, 2]
 			}
@@ -68,7 +68,7 @@ setMethod("zonal", signature(x="SpatVector", z="SpatVector"),
 		}
 		x <- x[,isn]
 		if (geomtype(x) == "points") {
-			r <- !relate(x, z, "disjoint")
+			r <- !relate(x, z, "disjoint", pairs=FALSE)
 			i <- apply(r, 1, function(i) if(any(i)) which(i) else (NA))
 			if (length(i) == 0) {
 				error("zonal", "there are no points in x that overlap with the polygons in z")		

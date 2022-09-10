@@ -19,15 +19,14 @@ setMethod("hasValues", signature(x="SpatRaster"),
 		ff <- is.factor(x)
 		if (any(ff)) {
 			ff <- which(ff)
-			cgs <- cats(x)
+			cgs <- levels(x)
 			for (f in ff) {
 				cg <- cgs[[f]]
 				i <- match(v[,f], cg[,1])
-				act <- activeCat(x, f) + 1
-				if (!inherits(cg[[act]], "numeric")) {
-					v[[f]] <- factor(cg[i, act], levels=unique(cg[[act]]))
+				if (!inherits(cg[[2]], "numeric")) {
+					v[[f]] <- factor(cg[i, 2], levels=unique(cg[[2]]))
 				} else {
-					v[[f]] <- cg[i, act]
+					v[[f]] <- cg[i, 2]
 				}
 			}
 		} else {
@@ -102,7 +101,7 @@ function(x, mat=TRUE, dataframe=FALSE, row=1, nrows=nrow(x), col=1, ncols=ncol(x
 
 setMethod("values<-", signature("SpatRaster", "ANY"),
 	function(x, value) {
-		setValues(x, value)
+		setValues(x, value, keepnames=TRUE)
 	}
 )
 
@@ -136,11 +135,18 @@ mtrans <- function(mm, nc) {
 
 
 setMethod("setValues", signature("SpatRaster"),
-	function(x, values, keeptime=TRUE, keepunits=TRUE, props=FALSE) {
+	function(x, values, keeptime=TRUE, keepunits=TRUE, keepnames=FALSE, props=FALSE) {
 
 		y <- rast(x, keeptime=keeptime, keepunits=keepunits, props=props)
-
+		if (is.data.frame(values)) {
+			# needs improvement to deal with mixed data types
+			values <- as.matrix(values)
+		}
 		if (is.matrix(values)) {
+			if (!keepnames) {
+				nms <- colnames(values)
+				if (!is.null(nms)) names(y) <- nms
+			}
 			nl <- nlyr(x)
 			d <- dim(values)
 			if (!all(d == c(ncell(x), nl))) {
@@ -251,7 +257,7 @@ setMethod("inMemory", signature(x="SpatRaster"),
 
 setMethod("sources", signature(x="SpatRaster"),
 	function(x, nlyr=FALSE, bands=FALSE) {
-		src <- x@ptr$filenames
+		src <- x@ptr$filenames()
 		Encoding(src) <- "UTF-8"
 		if (bands) {
 			nls <- x@ptr$nlyrBySource()
@@ -281,6 +287,19 @@ setMethod("sources", signature(x="SpatRasterCollection"),
 		}
 	}
 )
+
+setMethod("sources", signature(x="SpatRasterDataset"),
+	function(x, nlyr=FALSE, bands=FALSE) {
+		if (nlyr | bands) {
+			x <- lapply(x, function(i) sources(i, nlyr, bands))
+			x <- lapply(1:length(x), function(i) cbind(cid=i, x[[i]]))
+			do.call(rbind, x)
+		} else {
+			sapply(x, sources)
+		}
+	}
+)
+
 
 setMethod("sources", signature(x="SpatVector"),
 	function(x) {
@@ -369,6 +388,28 @@ setMethod("compareGeom", signature(x="SpatRaster", y="SpatRaster"),
 		res
 	}
 )
+
+
+setMethod("compareGeom", signature(x="SpatVector", y="SpatVector"),
+	function(x, y, tolerance=0) {
+		out <- x@ptr$equals_between(y@ptr, tolerance)
+		x <- messages(x, "compareGeom")
+		out[out == 2] <- NA
+		matrix(as.logical(out), nrow=nrow(x), byrow=TRUE)
+	}
+)
+
+setMethod("compareGeom", signature(x="SpatVector", y="SpatVector"),
+	function(x, y, tolerance=0) {
+		out <- x@ptr$equals_within(tolerance)
+		x <- messages(x, "compareGeom")
+		out[out == 2] <- NA
+		out <- matrix(as.logical(out), nrow=nrow(x), byrow=TRUE)
+		out
+	}
+)
+
+
 
 
 setMethod("values", signature("SpatVector"),

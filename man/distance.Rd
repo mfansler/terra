@@ -14,7 +14,9 @@
 
 \bold{If \code{x} is a SpatRaster:}
 
-If \code{y} is \code{missing} this method computes the distance, for all cells that are \code{NA} in SpatRaster \code{x} to the nearest cell that is not \code{NA}. If argument \code{grid=TRUE}, the distance is computed using a path that goes through the centers of the 8 neighboring cells.
+If \code{y} is \code{missing} this method computes the distance, for all cells that are \code{NA} in SpatRaster \code{x} to the nearest cell that is not \code{NA} (or other values, see arguments "target" and "exclude". 
+
+If \code{y} is a numeric value, the cells with that value are ignored. That is, distance to or from these cells is not computed (only if \code{grid=FALSE}).
 
 If \code{y} is a SpatVector, the distance to that SpatVector is computed for all cells. For lines and polygons this is done after rasterization; and only the overlapping areas of the vector and raster are considered (for now).
 
@@ -32,23 +34,25 @@ The distance is always expressed in meter, except when the coordinate reference 
 }
 
 \usage{
-\S4method{distance}{SpatRaster,missing}(x, y, grid=FALSE, filename="", ...)
+\S4method{distance}{SpatRaster,missing}(x, y, target=NA, exclude=NULL, unit="m", filename="", ...)
 
-\S4method{distance}{SpatRaster,SpatVector}(x, y, filename="", ...)
+\S4method{distance}{SpatRaster,SpatVector}(x, y, unit="m", filename="", ...)
 
-\S4method{distance}{SpatVector,ANY}(x, y, sequential=FALSE, pairs=FALSE, symmetrical=TRUE)
+\S4method{distance}{SpatVector,ANY}(x, y, sequential=FALSE, pairs=FALSE, symmetrical=TRUE, unit="m")
 
-\S4method{distance}{SpatVector,SpatVector}(x, y, pairwise=FALSE)
+\S4method{distance}{SpatVector,SpatVector}(x, y, pairwise=FALSE, unit="m")
 
-\S4method{distance}{matrix,matrix}(x, y, lonlat, pairwise=FALSE)
+\S4method{distance}{matrix,matrix}(x, y, lonlat, pairwise=FALSE, unit="m")
 
-\S4method{distance}{matrix,missing}(x, y, lonlat, sequential=FALSE)
+\S4method{distance}{matrix,missing}(x, y, lonlat, sequential=FALSE, unit="m")
 }
 
 \arguments{
   \item{x}{SpatRaster, SpatVector, or two-column matrix with coordinates (x,y) or (lon,lat)}
-  \item{y}{missing or SpatVector, or two-column matrix}
-  \item{grid}{logical. If \code{TRUE}, distance is computed using a path that goes through the centers of the 8 neighboring cells}
+  \item{y}{missing, numeric, SpatVector, or two-column matrix}
+  \item{target}{numeric. The value of the cells for which distances to cells that are not \code{NA} should be computed}
+  \item{exclude}{numeric. The value of the cells that should not be considered for computing distances}
+  \item{unit}{character. Can be either "m" or "km"}
   \item{filename}{character. Output filename}
   \item{...}{additional arguments for writing files as in \code{\link{writeRaster}}}
   \item{sequential}{logical. If \code{TRUE}, the distance between sequential geometries is returned}
@@ -83,6 +87,9 @@ plot(d / 100000)
 rr <- rast(ncols=36, nrows=18, crs="+proj=utm +zone=1 +datum=WGS84")
 rr[500] <- 1
 d <- distance(rr) 
+
+rr[3:10, 3:10] <- 99
+e <- distance(rr, exclude=99) 
 
 p1 <- vect(rbind(c(0,0), c(90,30), c(-90,-30)), crs="+proj=longlat +datum=WGS84")
 dp <- distance(r, p1) 

@@ -25,9 +25,9 @@
 \description{
 Methods to read from or write chunks of values to or from a file. These are low level methods for programmers. Use writeRaster if you want to save an entire SpatRaster to file in one step. It is much easier to use. 
 
-To write chunks, begin by opening a file with \code{writeStart}, then write values to it in chunks using the list that is returned by \code{writeStart}. When writing is done close the file with \code{writeStop}. 
+To write chunks, begin by opening a file with \code{writeStart}, then write values to it in chunks using the list that is returned by \code{writeStart}. When writing is done, close the file with \code{writeStop}. 
 
-\code{blocks} also retunrs chunk size information. For example for only reading raster data. 
+\code{blocks} also returns chunk size information. For example for only reading raster data. 
 }
 
 \usage{
@@ -37,7 +37,7 @@ To write chunks, begin by opening a file with \code{writeStart}, then write valu
 
 \S4method{readValues}{SpatRaster}(x, row=1, nrows=nrow(x), col=1, ncols=ncol(x), mat=FALSE, dataframe=FALSE, ...)
 
-\S4method{writeStart}{SpatRaster,character}(x, filename="", overwrite=FALSE, n=4, ...)
+\S4method{writeStart}{SpatRaster,character}(x, filename="", overwrite=FALSE, n=4, sources="", ...)
 
 \S4method{writeStop}{SpatRaster}(x)
 
@@ -65,6 +65,8 @@ fileBlocksize(x)
   
   \item{overwrite}{logical. If \code{TRUE}, \code{filename} is overwritten}
   \item{n}{positive integer indicating how many copies the data may be in memory at any point in time. This is used to determine how many blocks (large) datasets need to be read}
+  \item{sources}{character. Filenames that may not be overwritten because they are used as input to the function. Can be obtained with \code{sources(x)}}
+
   \item{...}{
 	For \code{writeStart}: additional arguments for writing files as in \code{\link{writeRaster}}
 

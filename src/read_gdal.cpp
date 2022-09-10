@@ -158,14 +158,14 @@ SpatCategories GetRAT(GDALRasterAttributeTable *pRAT) {
 
 	std::vector<std::string> ss = {"histogram", "count", "red", "green", "blue", "opacity", "r", "g", "b", "alpha"};
 
-	std::vector<std::string> ratnms;
+	//std::vector<std::string> ratnms;
 	std::vector<int> id, id2;
 
 	bool hasvalue=false;
 	for (size_t i=0; i<nc; i++) {
 		std::string name = pRAT->GetNameOfCol(i);
 		lowercase(name);
-		ratnms.push_back(name);
+		//ratnms.push_back(name);
 		if (name == "value") {
 			id.insert(id.begin(), i);
 			hasvalue = true;
@@ -178,7 +178,12 @@ SpatCategories GetRAT(GDALRasterAttributeTable *pRAT) {
 			}
 		}
 	}
+	if ((id.size() == 0) && (id2.size() == 1)) {
+// #790 avoid having just "count" or "histogram" 
+		return(out);
+	}
 	id.insert(id.end(), id2.begin(), id2.end());
+	
 
 	if (!hasvalue) {
 		std::vector<long> vid(nr);
@@ -230,7 +235,7 @@ bool GetVAT(std::string filename, SpatCategories &vat) {
 	SpatVector v, fvct;
 	std::vector<double> fext;
 
-	v.read(filename, "", "", fext, fvct, false);
+	v.read(filename, "", "", fext, fvct, false, ""); 
 	if (v.df.nrow() == 0) return false;
 
 
@@ -535,6 +540,17 @@ std::string getDsPRJ(GDALDataset *poDataset) {
 }
 
 
+inline std::string dtypename(const std::string &d) {
+	if (d == "Float64") return "FLT8S";
+	if (d == "Float32") return "FLT4S";
+	if (d == "Int32") return "INT4S";
+	if (d == "Int16") return "INT2S";
+	if (d == "UInt32") return "INT4U";
+	if (d == "UInt16") return "INT2U";
+	if (d == "Byte") return "INT1U";
+	return "FLT4S";
+}
+
 
 SpatRasterStack::SpatRasterStack(std::string fname, std::vector<int> ids, bool useids) {
 
@@ -634,7 +650,7 @@ bool SpatRaster::constructFromFile(std::string fname, std::vector<int> subds, st
 		if (!file_exists(fname)) {
 			setError("file does not exist: " + fname);
 		} else {
-			setError("cannot read from " + fname );
+			setError("cannot open this file as a SpatRaster: " + fname);
 		}
 		return false;
 	}
@@ -692,7 +708,7 @@ bool SpatRaster::constructFromFile(std::string fname, std::vector<int> subds, st
 		}
 	} else {
 		hasExtent = false;
-		SpatExtent e(0, 1, 0, 1);
+		SpatExtent e(0, s.ncol, 0, s.nrow);
 		s.extent = e;
 		if ((gdrv=="netCDF") || (gdrv == "HDF5")) {
 			#ifndef standalone
@@ -807,8 +823,7 @@ bool SpatRaster::constructFromFile(std::string fname, std::vector<int> subds, st
 		poBand->GetBlockSize(&bs1, &bs2);
 		s.blockcols[i] = bs1;
 		s.blockrows[i] = bs2;
-
-		//std::string dtype = GDALGetDataTypeName(poBand->GetRasterDataType());
+		s.dataType[i] = dtypename(GDALGetDataTypeName(poBand->GetRasterDataType()));
 
 		adfMinMax[0] = poBand->GetMinimum( &bGotMin );
 		adfMinMax[1] = poBand->GetMaximum( &bGotMax );

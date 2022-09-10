@@ -303,7 +303,7 @@ void removeVatJson(std::string filename) {
 }
 
 
-bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
+bool SpatRaster::writeStartGDAL(SpatOptions &opt, const std::vector<std::string> &srcnames) {
 
 	std::string filename = opt.get_filename();
 	if (filename == "") {
@@ -355,17 +355,14 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 		setError("cannot append and overwrite at the same time");
 		return false;
 	}
-	if (file_exists(filename) && (!opt.get_overwrite()) && (!append)) {
-		setError("file exists. You can use 'overwrite=TRUE' to overwrite it");
-		return false;
+	if (!append) {
+		std::string msg;
+		if (!can_write({filename}, srcnames, opt.get_overwrite(), msg)) {		
+			setError(msg);
+			return false;
+		}
 	}
 	removeVatJson(filename);
-
-//	if (!can_write(filename, opt.get_overwrite(), errmsg)) {
-//		setError(errmsg);
-//		return(false);
-//	}
-
 
 // what if append=true?
 	std::string auxf = filename + ".aux.xml";
@@ -381,36 +378,44 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 	bool rat = cat ? is_rat(source[0].cats[0].d) : false;
 	if (rat) {
 		if (hasCT[0]) {
-			datatype = "INT1U";
+			if (opt.datatype_set && (datatype != opt.get_datatype())) {
+				addWarning("change datatype to INT1U to write the color-table");					
+			} else {
+				datatype = "INT1U";
+			}
 		} else {
-			datatype = "INT4S";
+			//if (opt.datatype_set) {
+			//	std::string sdt = opt.get_datatype().substr(0, 3); 
+			//	if (sdt != "INT") {
+			//		addWarning("change datatype to an INT type to write the categories");
+			//	}
+			//} else {
+			//	datatype = "INT4S";					
+			//}
+			if (!opt.datatype_set && (driver != "GPKG")) {
+				datatype = "INT4S";					
+			}
 		}
-/*
-		hasCats[0] = false;
-		hasCT[0] = false;
-		std::fill(hasCT.begin(), hasCT.end(), false);
-		SpatCategories cats = source[0].cats[0];
-		SpatOptions sopt(opt);
-		cats.d.write_dbf(filename, true, sopt);
-*/
 	} else if (hasCT[0] || cat) {
-		datatype = "INT1U";
+		if (opt.datatype_set && (datatype != "INT1U")) {
+			addWarning("change datatype to INT1U to write the color-table");
+		} else {
+			datatype = "INT1U";
+		}
 	} else if (datatype != "INT1U") {
 		std::fill(hasCT.begin(), hasCT.end(), false);
 	}
-
-	if (opt.datatype_set) {
-		if (datatype != opt.get_datatype()) {
-			addWarning("changed datatype to " + datatype);
-		}
-	}
-
+	//if (opt.datatype_set) {
+	//	if (datatype != opt.get_datatype()) {
+	//		addWarning("changed datatype to " + datatype);
+	//	}
+	//}
+	
 	GDALDataType gdt;
 	if (!getGDALDataType(datatype, gdt)) {
 		setError("invalid datatype");
 		return false;
 	}
-	source[0].datatype = datatype;
 
 	int dsize = std::stoi(datatype.substr(3,1));
 	GIntBig diskNeeded = ncell() * nlyr() * dsize;
@@ -624,16 +629,14 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt) {
 
 	source[0].resize(nlyr());
 	source[0].nlyrfile = nlyr();
-	source[0].datatype = datatype;
+	source[0].dtype = datatype;
 	for (size_t i =0; i<nlyr(); i++) {
 		source[0].range_min[i] = NAN; //std::numeric_limits<double>::max();
 		source[0].range_max[i] = NAN; //std::numeric_limits<double>::lowest();
 	}
-
 	source[0].driver = "gdal" ;
 	source[0].filename = filename;
 	source[0].memory = false;
-
 	write_aux_json(filename);
 
 /*
@@ -708,12 +711,11 @@ void minmaxlim(Iterator start, Iterator end, double &vmin, double &vmax, const d
 
 bool SpatRaster::writeValuesGDAL(std::vector<double> &vals, size_t startrow, size_t nrows, size_t startcol, size_t ncols){
 
-
 	CPLErr err = CE_None;
 	double vmin, vmax;
 	size_t nc = nrows * ncols;
 	size_t nl = nlyr();
-	std::string datatype = source[0].datatype;
+	std::string datatype = source[0].dtype;
 
 	if ((compute_stats) && (!gdal_stats)) {
 		bool invalid = false;
@@ -746,7 +748,6 @@ bool SpatRaster::writeValuesGDAL(std::vector<double> &vals, size_t startrow, siz
 			addWarning("detected values outside of the limits of datatype " + datatype);
 		}
 	}
-
 
 	int hasNA=0;
 	double na = source[0].gdalconnection->GetRasterBand(1)->GetNoDataValue(&hasNA);
@@ -788,10 +789,7 @@ bool SpatRaster::writeValuesGDAL(std::vector<double> &vals, size_t startrow, siz
 			//std::vector<int8_t> vv(vals.begin(), vals.end());
 			std::vector<int8_t> vv;
 			tmp_min_max_na(vv, vals, na, 0, 255);
-
 			err = source[0].gdalconnection->RasterIO(GF_Write, startcol, startrow, ncols, nrows, &vv[0], ncols, nrows, GDT_Byte, nl, NULL, 0, 0, 0, NULL );
-
-
 		} else {
 			setError("bad datatype");
 			GDALClose( source[0].gdalconnection );
@@ -814,7 +812,7 @@ bool SpatRaster::writeStopGDAL() {
 
 	GDALRasterBand *poBand;
 	source[0].hasRange.resize(nlyr());
-	std::string datatype = source[0].datatype;
+	std::string datatype = source[0].dtype;
 
 	for (size_t i=0; i < nlyr(); i++) {
 		poBand = source[0].gdalconnection->GetRasterBand(i+1);
@@ -836,7 +834,10 @@ bool SpatRaster::writeStopGDAL() {
 				if (datatype.substr(0,3) == "INT") {
 					source[0].range_min[i] = trunc(source[0].range_min[i]);
 					source[0].range_max[i] = trunc(source[0].range_max[i]);
-				}
+				} else if (datatype == "FLT4S") { // match precision
+					source[0].range_min[i] = (float) source[0].range_min[i]; 
+					source[0].range_max[i] = (float) source[0].range_max[i]; 
+				}				
 				poBand->SetStatistics(source[0].range_min[i], source[0].range_max[i], -9999., -9999.);
 			}
 			source[0].hasRange[i] = true;

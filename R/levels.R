@@ -1,4 +1,11 @@
 
+setMethod("droplevels", signature(x="SpatRaster"),
+	function(x) {
+		x@ptr <- x@ptr$droplevels()
+		messages(x)
+	}
+)
+
 
 setMethod("is.factor", signature(x="SpatRaster"),
 	function(x) {
@@ -130,7 +137,7 @@ setMethod ("set.cats" , "SpatRaster",
 				error("set.cats", "value should have at least two columns")
 			} else {
 				value[,1] <- round(value[,1])
-				if (length(unique(value[,1])) != nrow(value)) {
+				if (length(unique(value[,1,drop=TRUE])) != nrow(value)) {
 					error("set.cats", "duplicate values (IDs) supplied")
 				}
 			}
@@ -238,8 +245,8 @@ setMethod("cats" , "SpatRaster",
 )
 
 
-
-active_cats <- function(x, layer) {
+# superseded by levels(x)[[layer]]
+..active_cats <- function(x, layer) {
 	ff <- is.factor(x)
 	if (!any(ff)) {
 		return (lapply(ff, function(i) NULL))

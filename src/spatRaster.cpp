@@ -81,15 +81,12 @@ SpatRaster::SpatRaster(std::vector<std::string> fname, std::vector<int> subds, s
 
 void SpatRaster::setSources(std::vector<SpatRasterSource> s) {
 	source = s;
-//	extent = s[0].extent;
-//	srs = s[0].srs;
 }
 
 
 void SpatRaster::setSource(SpatRasterSource s) {
-	s.resize(s.nlyr);
-	std::vector<SpatRasterSource> vs = {s};
-	setSources(vs);
+	s.resize(s.nlyr); // appears to be necessary!
+	source = {s};
 }
 
 
@@ -115,7 +112,7 @@ SpatRaster::SpatRaster() {
 	s.hasValues = false;
 	s.valueType = { 0 };
 	s.layers.resize(1, 0);
-	s.datatype = "";
+	s.dtype = "";
 	s.names = {"lyr.1"};
 	s.srs.proj4 = "+proj=longlat +datum=WGS84";
 	s.srs.wkt = "GEOGCRS[\"WGS 84\", DATUM[\"World Geodetic System 1984\", ELLIPSOID[\"WGS 84\",6378137,298.257223563, LENGTHUNIT[\"metre\",1]]], PRIMEM[\"Greenwich\",0, ANGLEUNIT[\"degree\",0.0174532925199433]], CS[ellipsoidal,2], AXIS[\"geodetic latitude (Lat)\",north, ORDER[1], ANGLEUNIT[\"degree\",0.0174532925199433]], AXIS[\"geodetic longitude (Lon)\",east, ORDER[2], ANGLEUNIT[\"degree\",0.0174532925199433]], USAGE[ SCOPE[\"Horizontal component of 3D system.\"], AREA[\"World.\"], BBOX[-90,-180,90,180]], ID[\"EPSG\",4326]]";
@@ -160,7 +157,7 @@ SpatRaster::SpatRaster(std::vector<unsigned> rcl, std::vector<double> ext, std::
 	//s.layers.resize(1, s.nlyr);
 	//std::iota(s.layers.begin(), s.layers.end(), 0);
 
-	s.datatype = "";
+	s.dtype = "";
 
 #ifdef useGDAL
 	std::string msg;
@@ -201,7 +198,7 @@ SpatRaster::SpatRaster(unsigned nr, unsigned nc, unsigned nl, SpatExtent ext, st
 	s.layers.resize(1, 0);
 	//s.layers.resize(1, _nlyr);
 	//std::iota(s.layers.begin(), s.layers.end(), 0);
-	s.datatype = "";
+	s.dtype = "";
 #ifdef useGDAL
 	std::string msg;
 	if (!s.srs.set(crs, msg )) {
@@ -1111,16 +1108,27 @@ bool SpatRaster::createCategories(unsigned layer, SpatOptions &opt) {
 
 
 std::vector<bool> SpatRaster::hasCategories() {
-	std::vector<bool> b(nlyr());
+	std::vector<bool> b;
+	b.reserve(nlyr());
 	std::vector<unsigned> ns = nlyrBySource();
-	unsigned k = 0;
 	for (size_t i=0; i<ns.size(); i++) {
 		for (size_t j=0; j<ns[i]; j++) {
-			b[k] = source[i].hasCategories[j];
-			k++;
+			b.push_back(source[i].hasCategories[j]);
 		}
 	}
 	return b;
+}
+
+std::vector<std::string> SpatRaster::getDataType() {
+	std::vector<std::string> d;
+	d.reserve(nlyr());
+	std::vector<unsigned> ns = nlyrBySource();
+	for (size_t i=0; i<ns.size(); i++) {
+		for (size_t j=0; j<ns[i]; j++) {
+			d.push_back(source[i].dataType[j]);
+		}
+	}
+	return d;
 }
 
 
@@ -1156,6 +1164,7 @@ bool SpatRaster::setLabels(unsigned layer, std::vector<long> values, std::vector
 	source[sl[0]].hasCategories[sl[1]] = true;
 	return true;
 }
+
 
 
 
@@ -1208,6 +1217,82 @@ std::vector<SpatCategories> SpatRaster::getCategories() {
 }
 
 
+std::vector<std::vector<double>> SpatRaster::getScaleOffset() {
+	std::vector<std::vector<double>> so(2);
+	so[0].reserve(nlyr());
+	so[1].reserve(nlyr());	
+	for (size_t i=0; i<source.size(); i++) {
+		so[0].insert(so[0].end(), source[i].scale.begin(), source[i].scale.end());
+		so[1].insert(so[1].end(), source[i].offset.begin(), source[i].offset.end());
+	}
+	return so;
+}
+
+bool SpatRaster::setScaleOffset(std::vector<double> sc, std::vector<double> of) {
+	size_t n = sc.size();
+	size_t nl = nlyr();
+	if (n != of.size()) {
+		setError("length of scale and offset should be the same");
+		return false;
+	}
+	if (n > nl) {
+		setError("length of scale and offset cannot exceed the number of layers");
+		return false;
+	}
+	if (n < nl) {
+		recycle(sc, nl);
+		recycle(of, nl);
+		if (n > 1) {
+			addWarning("recycling scale and offset to the number of layers");
+		}
+	}
+	size_t k=0;
+	size_t nc=ncell();
+	for (size_t i=0; i<source.size(); i++)	{
+		if (source[i].memory) {
+			for (size_t j=0; j<source[i].nlyr; j++) {
+				size_t loff = j * nc;
+				bool dorange = false;
+				if (sc[k] != 1) {
+					for (size_t p=loff; p<(loff+nc); p++) {
+						source[i].values[p] *= sc[k];
+					}
+					dorange = true;
+				}
+				if (of[k] != 0) {
+					for (size_t p=loff; p<(loff+nc); p++) {
+						source[i].values[p] += of[k];
+					}
+					dorange = true;
+				}
+				if (dorange) {
+					source[i].range_min[j] = source[i].range_min[j] * sc[k] + of[k];
+					source[i].range_max[j] = source[i].range_max[j] * sc[k] + of[k];
+				}
+				k++;
+			}
+		} else {
+			for (size_t j=0; j<source[i].nlyr; j++) {
+				if (source[i].has_scale_offset[j]) {
+					source[i].range_min[j] = (source[i].range_min[j] - source[i].offset[j]) / source[i].scale[j];
+					source[i].range_max[j] = (source[i].range_max[j] - source[i].offset[j]) / source[i].scale[j];
+				}
+				source[i].scale[j] = sc[k];
+				source[i].offset[j] = of[k];
+				if ((sc[k] != 1) || (of[k] != 0)) {
+					source[i].has_scale_offset[j] = true;
+					source[i].range_min[j] = source[i].range_min[j] * sc[k] + of[k];
+					source[i].range_max[j] = source[i].range_max[j] * sc[k] + of[k];
+				} else {
+					source[i].has_scale_offset[j] = false;					
+				}
+				k++;
+			}
+		}
+	}
+	return true;
+}
+
 
 std::vector<std::string> SpatRaster::getLabels(unsigned layer) {
 	std::vector<std::string> out;
@@ -1248,6 +1333,51 @@ int SpatRaster::getCatIndex(unsigned layer) {
 	}
     std::vector<unsigned> sl = findLyr(layer);
 	return source[sl[0]].cats[sl[1]].index;
+}
+
+SpatRaster SpatRaster::dropLevels() {
+	std::vector<bool> hascats = hasCategories();
+	bool bany = false;
+	for (size_t i=0; i<hascats.size(); i++) {
+		if (hascats[i]) {
+			bany = true;
+			break;
+		}
+	}	
+	if (!bany) return *this;
+	
+	std::vector<SpatCategories> cats = getCategories();
+	SpatOptions opt;
+	SpatRaster out = *this;
+	std::vector<std::vector<double>> uvv = unique(true, true, opt);
+	for (size_t i=0; i<hascats.size(); i++) {
+		if (hascats[i]) {
+			SpatCategories lyrcats = cats[i];
+			size_t n = lyrcats.d.nrow();
+			std::vector<double> uv = uvv[i];
+			std::vector<long> uvi(uv.size());
+			for (size_t j=0; j<uv.size(); j++) {
+				uvi[j] = uv[j];
+			}
+			std::vector<long> isin;
+			isin.reserve(n);
+			for (size_t j=0; j<n; j++) {
+				for (size_t k=0; k<uvi.size(); k++) {
+					if (lyrcats.d.iv[0][j] == uvi[k]) {
+						isin.push_back(j);
+						continue;
+					}
+				}
+			}
+			lyrcats.d = lyrcats.d.subset_rows(isin);
+			if (lyrcats.d.nrow() == 0) {
+				out.removeCategories(i);				
+			} else {
+				out.setCategories(i, lyrcats.d, lyrcats.index);
+			}
+		}
+	}
+	return out;
 }
 
 
@@ -1935,6 +2065,7 @@ SpatVector SpatRaster::as_polygons(bool trunc, bool dissolve, bool values, bool 
 	std::vector<double> cells(ncell()) ;
 	std::iota (std::begin(cells), std::end(cells), 0);
 	std::vector< std::vector<double> > xy = xyFromCell(cells);
+	vect.reserve(cells.size());
 	for (int i=nc-1; i>=0; i--) {
 		if (narm) {
 			bool erase;
@@ -2096,6 +2227,7 @@ SpatRaster SpatRaster::to_memory_copy(SpatOptions &opt) {
 
 std::vector<int> SpatRaster::getFileBlocksize() {
 	std::vector<int> b;
+	b.reserve(2 * nlyr());
 	for (size_t i=0; i<source.size(); i++) {
 		b.insert(b.end(), source[i].blockrows.begin(), source[i].blockrows.end());
 	}
