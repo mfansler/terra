@@ -16,6 +16,9 @@
 // along with spat. If not, see <http://www.gnu.org/licenses/>.
 
 
+#ifndef SPATDATAFRAME_GUARD
+#define SPATDATAFRAME_GUARD
+
 #include <vector>
 #include <string>
 //#include "spatMessages.h"
@@ -35,7 +38,7 @@ class SpatDataFrame {
 		void addWarning(std::string s) { msg.addWarning(s); }
 		bool hasError() { return msg.has_error; }
 		bool hasWarning() { return msg.has_warning; }
-		std::string getWarnings() { return msg.getWarnings(); }
+		std::vector<std::string> getWarnings() { return msg.getWarnings(); }
 		std::string getError() { return msg.getError(); }
 	
 		std::vector<std::string> names;
@@ -132,4 +135,6 @@ class SpatDataFrame {
 		SpatDataFrame unique();
 		size_t strwidth(unsigned i);
 };
+
+#endif //SPATDATAFRAME_GUARD
 

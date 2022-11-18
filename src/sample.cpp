@@ -99,6 +99,11 @@ SpatRaster SpatRaster::sampleRegularRaster(unsigned size) {
 	out.source[0].nrow = nr;
 	out.source[0].ncol = nc;
 
+	std::vector<int> vt = getValueType(true);
+	if (vt.size() == 1) {
+		out.setValueType(vt[0]);
+	}
+
 	if (!source[0].hasValues) return (out);
 
 	std::vector<double> v;
@@ -137,6 +142,11 @@ SpatRaster SpatRaster::sampleRowColRaster(size_t nr, size_t nc) {
 	}
 	out.source[0].nrow = nr;
 	out.source[0].ncol = nc;
+
+	std::vector<int> vt = getValueType(true);
+	if (vt.size() == 1) {
+		out.setValueType(vt[0]);
+	}
 
 	if (!source[0].hasValues) return (out);
 
@@ -570,7 +580,7 @@ std::vector<std::vector<double>> SpatExtent::sampleRegular(size_t size, bool lon
 	double r2 = ymax - ymin;
 
 	if (lonlat) {
-		double halfy = ymin + r2/2;	
+		double halfy = ymin + r2/2;
 		// beware that -180 is the same as 180; and that latitude can only go from -90:90 therefore:
 		double dx = distance_lonlat(xmin, halfy, xmin + 1, halfy) * std::min(180.0, r1);
 		double dy = distance_lonlat(0, ymin, 0, ymax);
@@ -603,13 +613,13 @@ std::vector<std::vector<double>> SpatExtent::sampleRegular(size_t size, bool lon
 			xmax -= 0.000001;
 			for (size_t i=0; i<lat.size(); i++) {
 				size_t n = std::max(1, (int)(360.0/xi[i]));
-				double step = 360.0 / n;			
+				double step = 360.0 / n;
 				std::vector<double> x = seq(xmin+0.5*step, xmax, step);
 				std::vector<double> y(x.size(), lat[i]);
 				out[0].insert(out[0].end(), x.begin(), x.end());
 				out[1].insert(out[1].end(), y.begin(), y.end());
 			}
-			
+
 		} else {
 			double halfx = xmin + (xmax - xmin)/2;
 			for (size_t i=0; i<lat.size(); i++) {

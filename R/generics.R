@@ -4,29 +4,6 @@
 # License GPL v3
 
 
-setMethod("all.equal", signature(target="SpatRaster", current="SpatRaster"),
-	function(target, current, maxcell=10000, ...) {
-		first <- all.equal.default(target, current)
-		if (isTRUE(first)) {
-			if (hasValues(target)) {
-				if (ncell(target) > maxcell) {
-					s <- round(100 * maxcell / ncell(target))
-					warn("all.equal", paste0("using a sample of ", s, "% of the cells"))
-				}
-				vt <- spatSample(target, maxcell, "regular")
-				ct <- spatSample(current, maxcell, "regular")
-				all.equal(vt, ct, ...)
-			} else {
-				first
-			}
-		} else {
-			first
-		}
-	}
-)
-
-
-
 setMethod("weighted.mean", signature(x="SpatRaster", w="numeric"),
 	function(x, w, na.rm=FALSE, filename="", ...) {
 		opt <- spatOptions(filename, ...)
@@ -122,6 +99,16 @@ setMethod("align", signature(x="SpatExtent", y="numeric"),
 		x
 	}
 )
+
+
+setMethod("intersect", signature(x="SpatRaster", y="SpatRaster"),
+	function(x, y) {
+		opt <- spatOptions() 
+		x@ptr <- x@ptr$intersect(y@ptr, opt)
+		messages(x)
+	}
+)
+
 
 setMethod("cellSize", signature(x="SpatRaster"),
 	function(x, mask=TRUE, unit="m", transform=TRUE, rcx=100, filename="", ...) {
@@ -336,6 +323,13 @@ setMethod("rep", signature(x="SpatRaster"),
 )
 
 
+#setMethod("rep", signature(x="SpatVector"),
+#	function(x, ...) {
+#		i <- rep(1:nrow(x), ...)
+#		x[i,]
+#	}
+#)
+
 setMethod("clamp", signature(x="SpatRaster"),
 	function(x, lower=-Inf, upper=Inf, values=TRUE, filename="", ...) {
 		opt <- spatOptions(filename, ...)
@@ -386,7 +380,7 @@ function(x, rcl, include.lowest=FALSE, right=TRUE, others=NULL, brackets=TRUE, f
 )
 
 setMethod("subst", signature(x="SpatRaster"),
-function(x, from, to, raw=FALSE, filename="", ...) {
+function(x, from, to, others=NULL, raw=FALSE, filename="", ...) {
 	opt <- spatOptions(filename, ...)
 
 	if (inherits(from, "data.frame")) {
@@ -407,7 +401,7 @@ function(x, from, to, raw=FALSE, filename="", ...) {
 	fromc <- inherits(from[1], "character")
 	toc <- inherits(to[1], "character")
 	if (raw && fromc) {
-		error("subst", "if 'raw=TRUE', 'from' cannot have character values")	
+		error("subst", "if 'raw=TRUE', 'from' cannot have character values")
 	}
 	keepcats <- FALSE
 	if (any(is.factor(x))) {
@@ -428,7 +422,7 @@ function(x, from, to, raw=FALSE, filename="", ...) {
 				return(deepcopy(x))
 			}
 		}
-		i <- is.na(from)		
+		i <- is.na(from)
 		if (any(i)) {
 			to <- rep_len(to, length(from))
 			from <- from[!i]
@@ -451,15 +445,23 @@ function(x, from, to, raw=FALSE, filename="", ...) {
 	} else if (fromc || toc) {
 		error("subst", "from or to has character values but x is not categorical")
 	}
-
+	
+	if (is.null(others)) {
+		setothers <- FALSE
+		others <- NA
+	} else {
+		setothers <- TRUE
+		others <- others[1]
+	}
+	
 	if (tom) {
 		nms <- colnames(to)
 		if (!is.null(nms)) 	opt$names = nms
-		x@ptr <- x@ptr$replaceValues(from, to, ncol(to), keepcats, opt)
+		x@ptr <- x@ptr$replaceValues(from, to, ncol(to), setothers, others, keepcats, opt)
 	} else if (frm) {
-		x@ptr <- x@ptr$replaceValues(as.vector(t(from)), to, -ncol(from), FALSE, opt)
+		x@ptr <- x@ptr$replaceValues(as.vector(t(from)), to, -ncol(from), setothers, others, FALSE, opt)
 	} else {
-		x@ptr <- x@ptr$replaceValues(from, to, 0, keepcats, opt)
+		x@ptr <- x@ptr$replaceValues(from, to, 0, setothers, others, keepcats, opt)
 	}
 	messages(x, "subst")
 }
@@ -480,33 +482,47 @@ function(x, from, to, raw=FALSE, filename="", ...) {
 	y
 }
 
+
 setMethod("crop", signature(x="SpatRaster", y="ANY"),
-	function(x, y, snap="near", mask=FALSE, touches=TRUE, filename="", ...) {
+	function(x, y, snap="near", mask=FALSE, touches=TRUE, extend=FALSE, filename="", ...) {
 		opt <- spatOptions(filename, ...)
 		if (mask && inherits(y, "SpatVector")) {
-			x@ptr <- x@ptr$crop_mask(y@ptr, snap[1], touches[1], opt)
+			x@ptr <- x@ptr$crop_mask(y@ptr, snap[1], touches[1], extend[1], opt)
+		} else if (mask && inherits(y, "SpatRaster")) {
+			mopt <- spatOptions(filename="", ...)
+			e <- ext(y)
+			x@ptr <- x@ptr$crop(e@ptr, snap[1], extend[1], mopt)
+			x <- messages(x, "crop")
+			if (!compareGeom(x, y, lyrs=FALSE, crs=FALSE, warncrs=FALSE, ext=TRUE, rowcol=TRUE, res=FALSE, stopOnError=FALSE, messages=TRUE)) {
+				return(mask(x, y, filename=filename, ...))
+			} else {
+				return(x)
+			}
 		} else {
 			y <- .getExt(y, method="crop")
-			x@ptr <- x@ptr$crop(y@ptr, snap[1], opt)
+			x@ptr <- x@ptr$crop(y@ptr, snap[1], extend[1], opt)
 		}
 		messages(x, "crop")
 	}
 )
 
 setMethod("crop", signature(x="SpatRasterDataset", y="ANY"),
-	function(x, y, snap="near", filename="", ...) {
-		if (all(filename != "")) {
-			ext <- tools::file_ext(filename)
-			filename <- tools::file_path_sans_ext(filename)
-			filename <- paste0(make.unique(filename, sep="_"), ext)
-		}
-		opt <- spatOptions(filename, ...)
+	function(x, y, snap="near", extend=FALSE) {
+		opt <- spatOptions()
 		y <- .getExt(y, method="crop")
-		x@ptr <- x@ptr$crop(y@ptr, snap[1], opt)
+		x@ptr <- x@ptr$crop(y@ptr, snap[1], extend[1], opt)
 		messages(x, "crop")
 	}
 )
 
+setMethod("crop", signature(x="SpatRasterCollection", y="ANY"),
+	function(x, y, snap="near", extend=FALSE) {
+		y <- .getExt(y, method="crop")
+		opt <- spatOptions()
+		x@ptr <- x@ptr$crop(y@ptr, snap[1], extend[1], double(), opt)
+		messages(x, "crop")
+	}
+)
 
 
 setMethod("selectRange", signature(x="SpatRaster"),
@@ -673,8 +689,8 @@ setMethod("mask", signature(x="SpatRaster", mask="sf"),
 )
 
 setMethod("project", signature(x="SpatRaster"),
-	function(x, y, method, mask=FALSE, align=FALSE, gdal=TRUE, res=NULL, origin=NULL, threads=TRUE, filename="", ...)  {
-	
+	function(x, y, method, mask=FALSE, align=FALSE, gdal=TRUE, res=NULL, origin=NULL, threads=FALSE, filename="", ...)  {
+
 		if (missing(method)) {
 			if (is.factor(x)[1] || isTRUE(x@ptr$rgb)) {
 				method <- "near"
@@ -732,6 +748,14 @@ setMethod("project", signature(x="SpatVector"),
 	}
 )
 
+setMethod("project", signature(x="SpatExtent"),
+	function(x, from, to)  {
+		x <- as.polygons(x, crs=from)
+		x <- densify(x, 10000)
+		ext(project(x, to))
+	}
+)
+
 setMethod("project", signature(x="matrix"),
     function(x, from, to)  {
         if (ncol(x) != 2) {
@@ -749,10 +773,12 @@ setMethod("project", signature(x="matrix"),
         if (!is.character(to)) {
            to <- as.character(crs(to))
         }
-		v <- vect(x, type="line", crs=from)
-        v@ptr <- v@ptr$project(to)
-        messages(v, "project")
-        crds(v)
+		#v <- vect(x, type="line", crs=from)
+        #v@ptr <- v@ptr$project(to)
+        v <- vect()
+		xy <- v@ptr$project_xy(x[,1], x[,2], from, to)
+		messages(v, "project")
+		matrix(xy, ncol=2)
     }
 )
 
@@ -802,7 +828,7 @@ setMethod("rectify", signature(x="SpatRaster"),
 )
 
 setMethod("resample", signature(x="SpatRaster", y="SpatRaster"),
-	function(x, y, method, threads=TRUE, filename="", ...)  {
+	function(x, y, method, threads=FALSE, filename="", ...)  {
 
 		if (missing(method)) {
 			method <- ifelse(is.factor(x)[1], "near", "bilinear")
@@ -859,6 +885,46 @@ setMethod("rotate", signature(x="SpatRaster"),
 	}
 )
 
+setMethod("rotate", signature(x="SpatVector"),
+	function(x, longitude=0, split=FALSE, left=TRUE, normalize=FALSE) {
+		if (split) {
+			e <- ext(x)
+			if ((longitude < e$xmin) || (longitude > e$xmax)) {
+				if (left) {
+					return(shift(x, -360))
+				} else {
+					return(shift(x, 360))
+				}
+			}
+			e <- as.vector(floor(e) + 1)
+			ew <- ext(c(e[1], longitude, e[3:4]))
+			ee <- ext(c(longitude, e[2:4]))
+			x$unique_id_for_aggregation <- 1:nrow(x)
+			xw <- crop(x, ew)
+			xe <- crop(x, ee)
+			if (left) {
+				xe <- shift(xe, -360)
+			} else {
+				xw <- shift(xw, 360)
+			}
+			out <- rbind(xe, xw)
+			if (nrow(out) > nrow(x)) {
+				out <- aggregate(out, "unique_id_for_aggregation", id=F)
+				i <- match(out$unique_id_for_aggregation, x$unique_id_for_aggregation)
+				values(out) <- values(x)[i,,drop=FALSE]
+				x <- out
+			} 
+			x$unique_id_for_aggregation <- NULL
+		} else {
+			x@ptr <- x@ptr$rotate_longitude(longitude, left)
+			x <- messages(x, "rotate")
+		}
+		if (normalize) {
+			x <- normalize.longitude(x)
+		}
+		x
+	}
+)
 
 setMethod("segregate", signature(x="SpatRaster"),
 	function(x, classes=NULL, keep=FALSE, other=0, round=FALSE, digits=0, filename="", ...) {
@@ -1021,10 +1087,38 @@ setMethod("terrain", signature(x="SpatRaster"),
 )
 
 
+setMethod("viewshed", signature(x="SpatRaster"),
+	function(x, loc, observer=1.80, target=0, curvcoef=6/7, output="yes/no", filename="", ...) {
+		opt <- spatOptions(filename, ...)
+		z <- rast()
+		if (length(loc) == 1) {
+			loc <- xyFromCell(x, loc)
+		}
+		outops <- c("yes/no", "sea", "land")
+		output <- match.arg(tolower(output), outops)
+		output <- match(output, outops)
+		z@ptr <- x@ptr$view(c(loc[1:2], observer[1], target[1]), c(1,0,2,3), curvcoef, 2, 0, output, opt)
+		messages(z, "viewshed")
+	}
+)
+
+setMethod("sieve", signature(x="SpatRaster"),
+	function(x, threshold, directions=8, filename="", ...) {
+		opt <- spatOptions(filename, ...)
+		x@ptr <- x@ptr$sieve(threshold[1], directions[1], opt)
+		messages(x, "sieve")
+	}
+)
+
+
 setMethod("trim", signature(x="SpatRaster"),
 	function(x, padding=0, value=NA, filename="", ...) {
 		opt <- spatOptions(filename, ...)
-		x@ptr <- x@ptr$trim(value[1], padding[1], opt)
+		padding <- round(padding[1])
+		if (padding < 0) {
+			error("trim", "padding must be a non-negative integer")
+		}
+		x@ptr <- x@ptr$trim(value[1], padding, opt)
 		messages(x, "trim")
 	}
 )
@@ -1117,7 +1211,7 @@ setMethod("scoff<-", signature("SpatRaster"),
 	function(x, value) {
 		if (is.null(value)) {
 			x@ptr <- x@ptr$deepcopy()
-			x@ptr$setScaleOffset(1, 0)		
+			x@ptr$setScaleOffset(1, 0)
 		} else {
 			if (NCOL(value) != 2) {
 				error("scoff<-", "value must be a 2-column matrix")

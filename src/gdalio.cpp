@@ -132,7 +132,7 @@ std::vector<std::string> get_metadata(std::string filename) {
 	}
 
 	char **m = poDataset->GetMetadata();
-	if (m != NULL) { // needed
+	if (m != NULL) {
 		while (*m != nullptr) {
 			out.push_back(*m++);
 		}
@@ -391,7 +391,7 @@ SpatRaster SpatRaster::make_vrt(std::vector<std::string> filenames, std::vector<
 //	GDALDataset *ds = (GDALDataset *) GDALBuildVRT(outfile.c_str(), tiles.size(), (GDALDatasetH *) tiles.data(), nullptr, vrtops, &pbUsageError);
 
 	GDALDataset *ds = (GDALDataset *) GDALBuildVRT(outfile.c_str(), filenames.size(), nullptr, names, vrtops, &pbUsageError);
-	
+
 	GDALBuildVRTOptionsFree(vrtops);
 	CSLDestroy( names );
 
@@ -453,6 +453,12 @@ bool getNAvalue(GDALDataType gdt, double & naval) {
 		naval = UINT16_MAX;
 	} else if (gdt == GDT_Byte) {
 		naval = 255;
+#if GDAL_VERSION_MAJOR <= 3 && GDAL_VERSION_MINOR < 7
+// no INT1S
+#else 
+	} else if (gdt == GDT_Int8) {
+		naval = -128;
+#endif
 	} else {
 		naval = NAN;
 		return false;
@@ -477,6 +483,13 @@ bool getGDALDataType(std::string datatype, GDALDataType &gdt) {
 		gdt = GDT_UInt16;
 	} else if (datatype == "INT1U") {
 		gdt = GDT_Byte;
+#if GDAL_VERSION_MAJOR <= 3 && GDAL_VERSION_MINOR < 7
+// no INT1S
+#else 
+	} else if (datatype == "INT1S") {
+		GDAL 3.7
+		gdt = GDT_Int8;
+#endif
 	} else {
 		gdt = GDT_Float32;
 		return false;
@@ -495,7 +508,12 @@ bool GDALsetSRS(GDALDatasetH &hDS, const std::string &crs) {
 		return false ;
 	}
 	char *pszSRS_WKT = NULL;
+#if GDAL_VERSION_MAJOR >= 3
+	const char *options[3] = { "MULTILINE=YES", "FORMAT=WKT2", NULL };
+	OSRExportToWktEx( hSRS, &pszSRS_WKT, options);
+#else
 	OSRExportToWkt( hSRS, &pszSRS_WKT );
+#endif
 	OSRDestroySpatialReference( hSRS );
 	GDALSetProjection( hDS, pszSRS_WKT );
 	CPLFree( pszSRS_WKT );
@@ -884,9 +902,11 @@ bool SpatRaster::create_gdalDS(GDALDatasetH &hDS, std::string filename, std::str
 		} else if (datatype == "INT4U") {
 			naflag = UINT32_MAX;
 		} else if (datatype == "INT2U") {
-			naflag = UINT16_MAX;
+			naflag = UINT16_MAX;			
 		} else if (datatype == "INT1U") {
 			naflag = 255; // ?;
+		} else if (datatype == "INT1S") {
+			naflag = -128; 
 		}
 	} else {
 		getGDALDataType(opt.get_datatype(), gdt);
@@ -939,7 +959,13 @@ bool SpatRaster::create_gdalDS(GDALDatasetH &hDS, std::string filename, std::str
 			return false;
 		}
 		char *pszSRS_WKT = NULL;
-		OSRExportToWkt( hSRS, &pszSRS_WKT );
+		#if GDAL_VERSION_MAJOR >= 3
+			const char *options[3] = { "MULTILINE=YES", "FORMAT=WKT2", NULL };
+			OSRExportToWktEx( hSRS, &pszSRS_WKT, options);
+		#else
+			OSRExportToWkt( hSRS, &pszSRS_WKT );
+		#endif
+
 		GDALSetProjection( hDS, pszSRS_WKT );
 		CPLFree(pszSRS_WKT);
 		OSRDestroySpatialReference( hSRS );

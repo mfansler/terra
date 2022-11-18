@@ -75,10 +75,10 @@ setMethod("dots", signature(x="SpatVector"),
 		lines(x, col=out$leg$border, lty=lty, lwd=lwd, ...)
 		return(out)
 	}
-	
+
 #		cols <- .getCols(length(x), col, alpha)
 #		out <- list(main_cols=cols)
-	
+
 	if (!is.null(out$leg$border)) {
 		out$leg$border <- rep_len(out$leg$border, n)
 	} else {
@@ -90,11 +90,11 @@ setMethod("dots", signature(x="SpatVector"),
 	}
 	if (!is.null(lty)) out$leg$lty <- rep_len(lty, n)
 	if (!is.null(lwd)) out$leg$lwd <- rep_len(lwd, n)
-	
+
 	if (!is.null(out$main_cols)) {
 		out$main_cols <- rep_len(out$main_cols, n)
 	}
-	
+
 #	g <- geom(x, df=TRUE)
 #	g <- split(g, g[,1])
 #	g <- lapply(g, function(y) split(y[,3:5], y[,2]))
@@ -146,13 +146,13 @@ setMethod("dots", signature(x="SpatVector"),
 		# out <- .plotLines(x, out, ...)
 		lines(x, col=out$main_cols, lty=lty, lwd=lwd, ...)
 		out$leg$lwd = lwd
-		out$leg$lty = lty		
+		out$leg$lty = lty
 	}
 	out
 }
 
 
-.getCols <- function(n, cols, alpha=1) {
+.getCols <- function(n, cols, alpha=NULL) {
 	if (is.null(cols)) { 
 		return(cols)
 	}
@@ -168,8 +168,10 @@ setMethod("dots", signature(x="SpatVector"),
 			cols <- rep_len(cols, n)
 		}
 	}
-	if (alpha < 1 && alpha >= 0) {
-		cols <- grDevices::rgb(t(grDevices::col2rgb(cols)), alpha=alpha[1]*255, maxColorValue=255)
+	if (!is.null(alpha)) {
+		if (alpha < 1 && alpha >= 0) {
+			cols <- grDevices::rgb(t(grDevices::col2rgb(cols)), alpha=alpha[1]*255, maxColorValue=255)
+		}
 	}
 	cols
 }
@@ -180,7 +182,7 @@ setMethod("dots", signature(x="SpatVector"),
 	#} else {
 	#	out$cols <- .getCols(out$ngeom, out$cols)
 	#}
-	out$main_cols <- out$cols	
+	out$main_cols <- out$cols
 	out
 }
 
@@ -191,7 +193,7 @@ setMethod("dots", signature(x="SpatVector"),
 	} else {
 		out$uv <- out$uv[!is.na(out$uv)]
 	}
-	ucols <- .getCols(length(out$uv), out$cols, 1)
+	ucols <- .getCols(length(out$uv), out$cols, out$alpha)
 
 	i <- match(out$v, out$uv)
 	out$cols <- ucols
@@ -247,7 +249,7 @@ setMethod("dots", signature(x="SpatVector"),
 	if (is.null(out$leg$digits)) {
 		dif <- diff(out$range)
 		if (dif == 0) {
-			out$leg_digits = 0;
+			out$leg$digits <- 0;
 		} else {
 			out$leg$digits <- max(0, -floor(log10(dif/10)))
 		}
@@ -459,6 +461,9 @@ setMethod("dots", signature(x="SpatVector"),
 		v <- rep_len(v, nrow(x))
 	}
 	if (is.factor(v)) v <- as.character(v)
+	if (is.numeric(v)) {
+		v[!is.finite(v)] <- NA
+	}
 	if (!is.null(range)) {
 		range <- sort(range)
 		v[v < range[1]] <- NA
@@ -511,11 +516,12 @@ setMethod("dots", signature(x="SpatVector"),
 		}
 	}
 	if (!is.null(alpha)) {
-		alpha <- clamp(alpha[1]*255, 0, 255)
+		alpha <- clamp(alpha[1], 0, 1)
 		cols <- grDevices::rgb(t(grDevices::col2rgb(cols)), alpha=alpha, maxColorValue=255)
 	} else {
-		alpha <- 255
+		alpha <- 1
 	}
+	out$alpha <- alpha
 	out$cols <- cols
 	out$legend_draw <- isTRUE(legend)
 	out$legend_only <- isTRUE(legend.only)
@@ -532,7 +538,7 @@ setMethod("dots", signature(x="SpatVector"),
 	out$skipNA <- TRUE
 	if (!is.null(colNA)) {
 		if (!is.na(colNA)) {
-			out$colNA <- grDevices::rgb(t(grDevices::col2rgb(colNA)), alpha=alpha, maxColorValue=255)
+			out$colNA <- grDevices::rgb(t(grDevices::col2rgb(colNA)), alpha=alpha*255, maxColorValue=255)
 			out$r[is.na(out$r)] <- out$colNA
 			out$skipNA <- FALSE
  		} else {
@@ -546,8 +552,8 @@ setMethod("dots", signature(x="SpatVector"),
 
 setMethod("plot", signature(x="SpatVector", y="character"),
 	function(x, y, col=NULL, type, mar=NULL, legend=TRUE, add=FALSE, axes=!add,
-	main=y, buffer=TRUE, background=NULL, grid=FALSE, ext=NULL,
-	sort=TRUE, decreasing=FALSE, plg=list(), pax=list(), nr, nc, ...) {
+	main=y, buffer=TRUE, background=NULL, grid=FALSE, ext=NULL, 
+	sort=TRUE, decreasing=FALSE, plg=list(), pax=list(), nr, nc, colNA=NA, alpha=NULL, ...) {
 
 		if (nrow(x) == 0) {
 			error("plot", "SpatVector has zero geometries")
@@ -588,7 +594,7 @@ setMethod("plot", signature(x="SpatVector", y="character"),
 			}
 			if (missing(col)) col <- NULL
 
-			out <- .prep.vect.data(x, y[i], type=type, cols=col, mar=mar, plg=plg, pax=pax, legend=isTRUE(legend), add=add, axes=axes, main=main[i], buffer=buffer, background=background, grid=grid, ext=ext, sort=sort, decreasing=decreasing, ...)
+			out <- .prep.vect.data(x, y[i], type=type, cols=col, mar=mar, plg=plg, pax=pax, legend=isTRUE(legend), add=add, axes=axes, main=main[i], buffer=buffer, background=background, grid=grid, ext=ext, sort=sort, decreasing=decreasing, colNA=colNA, alpha=alpha, ...)
 		}
 		invisible(out)
 	}

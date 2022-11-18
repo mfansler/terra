@@ -168,11 +168,6 @@ extractCells <- function(x, y, method="simple", cells=FALSE, xy=FALSE, layer=NUL
 	}
 }
 
-setMethod("extract", signature(x="SpatRaster", y="matrix"),
-function(x, y, ...) {
-	.checkXYnames(colnames(y))
-	extractCells(x, y, ...)
-})
 
 
 setMethod("extract", signature(x="SpatRaster", y="SpatVector"),
@@ -182,14 +177,14 @@ function(x, y, fun=NULL, method="simple", cells=FALSE, xy=FALSE, ID=TRUE, weight
 #	if (value == "matrix") {
 #		factors <- FALSE
 #	} else {
-#		factors <- TRUE	
+#		factors <- TRUE
 #	}
 	if (bind) raw=FALSE 
-	
+
 	nl <- nlyr(x)
 	useLyr <- FALSE
 	geo <- geomtype(y)
-	if (weights && (geo == "points")) {	
+	if (weights && (geo == "points")) {
 		warn("argument weights is ignored for point data")
 		weights <- FALSE
 	} 
@@ -221,7 +216,7 @@ function(x, y, fun=NULL, method="simple", cells=FALSE, xy=FALSE, ID=TRUE, weight
 					bad <- TRUE
 				}
 			} else {
-				bad <- TRUE			
+				bad <- TRUE
 			}
 			if (bad) {
 				error("extract", 'if weights=TRUE or exact=TRUE, "fun" must be "sum", "mean", "min", or "max"')
@@ -249,7 +244,7 @@ function(x, y, fun=NULL, method="simple", cells=FALSE, xy=FALSE, ID=TRUE, weight
 
 	cn <- names(x)
 	opt <- spatOptions()
-	
+
 	if (wfun) {
 		e <- x@ptr$extractVector(y@ptr, touches[1], method, isTRUE(cells[1]), isTRUE(xy[1]), isTRUE(weights[1]), isTRUE(exact[1]), opt)
 		x <- messages(x, "extract")
@@ -261,11 +256,11 @@ function(x, y, fun=NULL, method="simple", cells=FALSE, xy=FALSE, ID=TRUE, weight
 		if (ID) {
 			e <- data.frame(ID=1:nrow(e), e)
 		} else {
-			e <- data.frame(e)			
+			e <- data.frame(e)
 		}
 		return(e)
-	}	
-	
+	}
+
 	e <- x@ptr$extractVectorFlat(y@ptr, touches[1], method, isTRUE(cells[1]), isTRUE(xy[1]), isTRUE(weights[1]), isTRUE(exact[1]), opt)
 	x <- messages(x, "extract")
 	nc <- nl
@@ -372,31 +367,6 @@ setMethod("extract", signature(x="SpatRaster", y="sf"),
 
 
 
-setMethod("[", c("SpatRaster", "SpatVector", "missing"),
-function(x, i, j, ... , drop=FALSE) {
-	v <- extract(x, i)
-	if (drop) {
-		as.vector(v)
-	} else {
-		v
-	}
-})
-
-setMethod("[", c("SpatVector", "SpatVector", "missing"),
-function(x, i, j, ... , drop=FALSE) {
-	#r <- !relate(x, i, "disjoint")
-	#r <- which(apply(r, 1, any))
-	r <- is.related(x, i, "intersects")
-	x[r, ]
-})
-
-
-setMethod("[", c("SpatVector", "SpatExtent", "missing"),
-function(x, i, j, ... , drop=FALSE) {
-	x[as.polygons(i)]
-})
-
-
 setMethod("extract", signature(x="SpatRaster", y="data.frame"),
 function(x, y, ...) {
 	if (ncol(y) != 2) {
@@ -408,158 +378,40 @@ function(x, y, ...) {
 
 
 setMethod("extract", signature(x="SpatRaster", y="numeric"),
-function(x, y, ...) {
+function(x, y, xy=FALSE) {
 	y <- round(y)
 	y[(y < 1) | (y > ncell(x))] <- NA
-	extract_cell(x, y)	
+	v <- .extract_cell(x, y, drop=TRUE)
+	if (xy) {
+		v <- cbind(xyFromCell(x, y), v)
+	}
+	v
+})
+
+setMethod("extract", signature(x="SpatRaster", y="matrix"),
+function(x, y, cells=FALSE) {
+	.checkXYnames(colnames(y))
+	y <- cellFromXY(x, y)
+	if (cells) {
+		cbind(cell=y, extract(x, y))
+	} else {
+		extract(x, y)
+	}
 })
 
 setMethod("extract", signature(x="SpatRaster", y="SpatExtent"),
 function(x, y, cells=FALSE, xy=FALSE) {
 	y <- cells(x, y)
-	v <- extract_cell(x, y)
+	v <- extract(x, y, xy=xy)
 	if (cells) {
-		v$cell <- y
+		v <- cbind(cell=y, v)
 	}
-	if (xy) {
-		v <- cbind(v, xyFromCell(x, y))
-	}
-	v
 }
 )
 
 
-setMethod("[", c("SpatRaster", "missing", "missing"),
-function(x, i, j, ... , drop=FALSE) {
-	values(x, mat=!drop)
-})
-
-setMethod("[", c("SpatRaster", "logical", "missing"),
-function(x, i, j, ... , drop=FALSE) {
-	x[which(i),, drop=drop]
-})
-
-
-extract_cell <- function(x, cells, drop=FALSE) {
-	e <- x@ptr$extractCell(cells-1)
-	messages(x, "extract")
-	e <- do.call(cbind, e)
-	colnames(e) <- names(x)
-	.makeDataFrame(x, e)[,,drop]
-}
-
-
-setMethod("[", c("SpatRaster", "numeric", "missing"),
-function(x, i, j, ... , drop=TRUE) {
-
-	add <- any(grepl("drop", names(match.call())))
-	if (!drop) {
-		if (nargs() == 3) {
-			i <- positive_indices(i, ncell(x), caller=" [ ")
-			rc <- rowColFromCell(x, i)
-			e <- ext_from_rc(x, min(rc[,1]), max(rc[,1]), min(rc[,2]), max(rc[,2]))
-		} else {
-			i <- positive_indices(i, nrow(x), caller=" [ ")
-			e <- ext_from_rc(x, min(i), max(i), 1, ncol(x))
-		}
-		return(crop(x, e))
-	}
-	if (nargs() > (2+add)) {
-		i <- positive_indices(i, nrow(x), caller=" [ ")
-		i <- cellFromRowColCombine(x, i, 1:ncol(x))
-	} else {
-		i <- positive_indices(i, ncell(x), caller=" [ ")	
-	}
-	extract_cell(x, i, drop=FALSE)
-})
-
-
-setMethod("[", c("SpatRaster", "data.frame", "missing"),
-function(x, i, j, ... , drop=TRUE) {
-	if (ncol(i) == 1) {
-		i <- i[,1]
-	} else if (ncol(i) == 2) {
-		i <- cellFromXY(x, i)
-	} else {
-		error(" [", "cannot extract values with this data.frame")
-	}
-	`[`(x, i, drop=drop)
-})
-
-setMethod("[", c("SpatRaster", "matrix", "missing"),
-function(x, i, j, ... , drop=TRUE) {
-	if (ncol(i) == 1) {
-		i <- i[,1]
-	} else if ((nrow(i) == 1) && (ncol(i) != 2)) {
-		i <- i[1,]
-	} else if (ncol(i) == 2) {
-		i <- cellFromXY(x, i)
-	} else {
-		error(" [", "cannot extract values with a ` of these dimensions")
-	}
-	`[`(x, i, drop=drop)
-})
-
-
-setMethod("[", c("SpatRaster", "missing", "numeric"),
-function(x, i, j, ... , drop=TRUE) {
-	if (!drop) {
-		e <- ext_from_rc(x, 1, nrow(x), min(j), max(j))
-		return(crop(x, e))
-	}
-
-	i <- cellFromRowColCombine(x, 1:nrow(x), j)
-	extract_cell(x, i, drop=FALSE)
-})
-
-
-setMethod("[", c("SpatRaster", "numeric", "numeric"),
-function(x, i, j, ..., drop=TRUE) {
-	if (!drop) {
-		e <- ext_from_rc(x, min(i), max(i), min(j), max(j))
-		return(crop(x, e))
-	}
-	i <- cellFromRowColCombine(x, i, j)
-	extract_cell(x, i, drop=FALSE)
-})
-
-
-setMethod("[", c("SpatRaster", "SpatRaster", "missing"),
-function(x, i, j, ..., drop=TRUE) {
-
-	if (!compareGeom(x, i, crs=FALSE, stopOnError=FALSE)) {
-		return (x[ext(i), drop=drop])
-	}
-	if (drop) {
-		if (is.bool(i)) {
-			i <- as.logical(values(i))
-		} else {
-			i <- !is.na(values(i))
-		}
-		values(x)[i,]
-	} else {
-		if (is.bool(i)) {
-			mask(x, i, maskvalues=FALSE)
-		} else {
-			mask(x, i)
-		}
-	}
-})
-
-
-setMethod("[", c("SpatRaster", "SpatExtent", "missing"),
-function(x, i, j, ..., drop=FALSE) {
-	x <- crop(x, i)
-	if (drop) {
-		values(x)
-	} else {
-		x
-	}
-})
-
-
 setMethod("extract", c("SpatVector", "SpatVector"),
-function(x, y, ...) {
+function(x, y) {
 
 #	r <- relate(x, y, "covers")
 #	e <- apply(r, 2, which)
@@ -571,7 +423,7 @@ function(x, y, ...) {
 #		e <- do.call(cbind, e) + 1
 #	}
 	e <- relate(y, x, "coveredby", pairs=TRUE, na.rm=FALSE)
-	
+
 #	if (length(e) == 0) {
 #		e <- list(e)
 #	}
@@ -599,15 +451,15 @@ function(x, y, ...) {
 
 
 setMethod("extract", signature(x="SpatVector", y="matrix"),
-function(x, y, ...) {
+function(x, y) {
 	stopifnot(ncol(y) == 2)
 	.checkXYnames(colnames(y))
 	y <- vect(y)
-	extract(x, y, ...)
+	extract(x, y)
 })
 
 setMethod("extract", signature(x="SpatVector", y="data.frame"),
-function(x, y, ...) {
-	extract(x, as.matrix(y), ...)
+function(x, y) {
+	extract(x, as.matrix(y))
 })
 

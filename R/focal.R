@@ -43,9 +43,10 @@ function(x, w=3, fun="sum", ..., na.policy="all", fillvalue=NA, expand=FALSE, si
 			wopt$names <- paste0("focal_", txtfun)
 		}
 		opt <- spatOptions(filename, overwrite, wopt=wopt)
-		narm <- isTRUE(list(...)$na.rm)
-		if (na.only && (!narm)) {
-			error("focal", "combining 'na.only=TRUE' with 'na.rm=FALSE' has no effect")
+		if (na.only) {
+			narm <- TRUE
+		} else {
+			narm <- isTRUE(list(...)$na.rm)
 		}
 		x@ptr <- x@ptr$focal(w, m, fillvalue, narm, na.only, na.omit, txtfun, expand, opt)
 		messages(x, "focal")
@@ -82,17 +83,28 @@ function(x, w=3, fun="sum", ..., na.policy="all", fillvalue=NA, expand=FALSE, si
 		on.exit(readStop(x))
 		nl <- nlyr(x)
 		outnl <- nl * length(test)
+		out <- rast(x, nlyr=outnl)
+
 		transp <- FALSE
 		nms <- NULL
 		if (isTRUE(nrow(test) > 1)) {
 			transp <- TRUE
 			nms <- rownames(test)
+			if (nl > 1) {
+				nms <- paste0(rep(names(x), each=nl), "_", rep(nms, nl))
+			}
 		} else if (isTRUE(ncol(test) > 1)) {
 			nms <- colnames(test)
+			if (nl > 1) {
+				nms <- paste0(rep(names(x), each=nl), "_", rep(nms, nl))
+			}
+		} else {
+			nms <- names(x)
+			if (nl > 1) {
+				nms <- paste0(rep(names(x), each=nl), "_", rep(1:length(test), nl))
+			}
 		}
-
-		out <- rast(x, nlyr=outnl)
-		if (!is.null(nms)) {
+		if (length(nms) == nlyr(out)) {
 			names(out) <- nms
 		}
 		b <- writeStart(out, filename, overwrite, n=msz*4, sources=sources(x), wopt=wopt)
@@ -175,13 +187,13 @@ function(x, w=3, fun=mean, ..., na.policy="all", fillvalue=NA, pad=FALSE, padval
 		stopifnot(all(w > 0))
 		m <- rep(1, prod(w))
 	}
-	
+
 	if (w[3] > nlyr(x)) {
 		error("focal3D", "the third weights dimension is larger than nlyr(x)")
 	}
 	if (any((w %% 2) == 0)) {
 		error("focal3D", "w must be odd sized in all dimensions")
-	
+
 	}
 
 	msz <- prod(w)

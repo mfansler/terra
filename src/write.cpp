@@ -96,7 +96,7 @@ bool SpatRaster::isSource(std::string filename) {
 
 SpatRaster SpatRaster::writeRaster(SpatOptions &opt) {
 
-	SpatRaster out = geometry(nlyr(), true, true, true);
+	SpatRaster out = geometry_opt(nlyr(), true, true, true, true, opt);
 	if (!hasValues()) {
 		out.setError("there are no cell values");
 		return out;
@@ -150,7 +150,7 @@ SpatRaster SpatRaster::writeRaster(SpatOptions &opt) {
 			out.writeStop();
 			return out;
 		}
-	}	
+	}
 	out.writeStop();
 	readStop();
 	return out;
@@ -188,7 +188,6 @@ bool SpatRaster::writeStart(SpatOptions &opt, const std::vector<std::string> src
 			//opt.gdal_options = {"COMPRESS=NONE"};
 		}
 	}
-
 	bs = getBlockSize(opt);
 	if (filename != "") {
 		// open GDAL filestream
@@ -223,14 +222,14 @@ bool SpatRaster::writeStart(SpatOptions &opt, const std::vector<std::string> src
 		Rcpp::Rcout<< "in memory     : " << inmem << std::endl;
 		Rcpp::Rcout<< "block size    : " << mems[3] << " rows" << std::endl;
 		Rcpp::Rcout<< "n blocks      : " << bs.n << std::endl;
-		Rcpp::Rcout<< "pb            : " << opt.show_progress(bs.n) << std::endl;
-		Rcpp::Rcout<< std::endl;
+		Rcpp::Rcout<< "pb            : " << opt.get_progress() << std::endl << std::endl;
 	}
 
 	if (opt.progressbar) {
-		unsigned long steps = bs.n+2;
-		pbar = new Progress(steps, opt.show_progress(bs.n));
-		pbar->increment();
+		pbar.init(bs.n, opt.get_progress());
+		//unsigned long steps = bs.n+2;
+		//pbar = new Progress(steps, opt.show_progress(bs.n));
+		//pbar->increment();
 		progressbar = true;
 	} else {
 		progressbar = false;
@@ -239,6 +238,16 @@ bool SpatRaster::writeStart(SpatOptions &opt, const std::vector<std::string> src
 	return true;
 }
 
+#ifdef useRcpp
+
+static void chkIntFn(void *dummy) {
+  R_CheckUserInterrupt();
+}
+bool checkInterrupt() {
+  return (R_ToplevelExec(chkIntFn, NULL) == FALSE);
+}
+
+#endif
 
 
 bool SpatRaster::writeValues(std::vector<double> &vals, size_t startrow, size_t nrows) {
@@ -268,15 +277,22 @@ bool SpatRaster::writeValues(std::vector<double> &vals, size_t startrow, size_t 
 
 //return success;
 #ifdef useRcpp
-	if (progressbar) {
-		if (Progress::check_abort()) {
-			pbar->cleanup();
-			delete pbar;
-			setError("aborted");
-			return(false);
-		}
-		pbar->increment();
+	if (checkInterrupt()) {
+		pbar.interrupt();
+		setError("aborted");
+		return(false);
 	}
+	if (progressbar) {
+		pbar.stepit();
+	}
+//		if (Progress::check_abort()) {
+//			pbar->cleanup();
+//			delete pbar;
+//			setError("aborted");
+//			return(false);
+//		}
+//		pbar->increment();
+//	}
 #endif
 	return success;
 }
@@ -308,15 +324,22 @@ bool SpatRaster::writeValuesRect(std::vector<double> &vals, size_t startrow, siz
 	}
 
 #ifdef useRcpp
-	if (progressbar) {
-		if (Progress::check_abort()) {
-			pbar->cleanup();
-			delete pbar;
-			setError("aborted");
-			return(false);
-		}
-		pbar->increment();
+	if (checkInterrupt()) {
+		pbar.interrupt();
+		setError("aborted");
+		return(false);
 	}
+	if (progressbar) {
+		pbar.stepit();
+	}
+	//	if (Progress::check_abort()) {
+	//		pbar->cleanup();
+	//		delete pbar;
+	//		setError("aborted");
+	//		return(false);
+	//	}
+	//	pbar->increment();
+	//}
 #endif
 	return success;
 }
@@ -357,10 +380,15 @@ bool SpatRaster::writeStop(){
 
 #ifdef useRcpp
 	if (progressbar) {
+		pbar.stepit();
+	}
+/*
+	if (progressbar) {
 		pbar->increment();
 		pbar->cleanup();
 		delete pbar;
 	}
+*/
 #endif
 
 	return success;
@@ -487,4 +515,49 @@ bool SpatRaster::writeStartFs(std::string filename, std::string format, std::str
 }
 */
 
+
+bool SpatRaster::writeDelim(std::string filename, std::string delim, bool cell, bool xy, SpatOptions &opt) {
+
+	if (!hasValues()) {
+		setError("there are no cell values");
+		return false;
+	}
+	if (!readStart()) {
+		setError(getError());
+		return(false);
+	}
+
+	std::ofstream f;
+	f.open(filename);
+	if (!f.is_open()) {
+		setError("could not open the csv file for writing");
+		return false;
+	}
+	std::vector<std::string> nms = getNames();
+	if (xy | cell) {
+		std::vector<std::string> add;
+		if (xy) {
+			add.push_back("x");
+			add.push_back("y");
+		} 
+		if (cell) {
+			add.push_back("cell");
+		}
+		nms.insert(nms.begin(), add.begin(), add.end());
+	}
+
+	std::string s = concatenate(nms, delim);
+	f << s << std::endl;
+
+	BlockSize bs = getBlockSize(opt);
+	for (size_t i=0; i<bs.n; i++) {
+		std::vector<double> v;
+		readBlock(v, bs, i);
+		//s = get_delim_string(v, delim);
+		//f << s << std::endl;
+	}
+	f.close();
+	readStop();
+	return true;
+}
 

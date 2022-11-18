@@ -16,6 +16,7 @@
 \alias{crs<-,SpatVector,ANY-method}
 
 \alias{crs,sf-method}
+\alias{crs,character-method}
 
 \title{ Get or set a coordinate reference system }
 
@@ -29,6 +30,8 @@ Setting a new CRS does not change the data itself, it just changes the label. So
 \S4method{crs}{SpatRaster}(x, proj=FALSE, describe=FALSE, parse=FALSE)
 
 \S4method{crs}{SpatVector}(x, proj=FALSE, describe=FALSE, parse=FALSE)
+
+\S4method{crs}{character}(x, proj=FALSE, describe=FALSE, parse=FALSE)
 
 \S4method{crs}{SpatRaster}(x)<-value
 
@@ -45,9 +48,11 @@ Setting a new CRS does not change the data itself, it just changes the label. So
 
 
 \note{
-Projections are handled by the PROJ/GDAL libaries. Recent changes in the PROJ library to improve transformations between datums have degraded the library's usability. The PROJ developers suggest to no longer use the proj-string notation to define a CRS, but use the WKT2 or <authority>:<code> notation instead. These alternative systems work for formally described CRSs that are in databases, but they do not cover the infinite number of CRSs that exist. It is not practical to define one's own custom CRS with WKT2. Moreover, unlike the proj-notation, these newer systems are hard to read and that leads to code that cannot be easily understood and, therefore, is more error-prone.
+Projections are handled by the PROJ/GDAL libraries. Recent changes in the PROJ library to improve transformations between datums have degraded the library's usability. The PROJ developers suggest to no longer use the proj-string notation to define a CRS, but use the WKT2 or <authority>:<code> notation instead. These alternative systems work for formally described CRSs that are in databases, but they do not cover the infinite number of CRSs that exist. It is not practical to define one's own custom CRS with WKT2. Moreover, unlike the proj-notation, these newer systems are hard to read and that leads to code that cannot be easily understood and, therefore, is more error-prone.
 
 It is still possible to use the PROJ-string notation with one major caveat: the datum should be WGS84 (or the equivalent NAD83) -- if you want to transform your data to a coordinate reference system with a different datum. Thus as long as you use WGS84, or an ellipsoid instead of a datum, you can safely use PROJ-strings to represent your CRS; including to define your own custom CRS.
+
+You can also set the crs to "local" to get an informal coordinate system on an arbitrary Euclidean (Cartesian) plane with units in meter.
 }
 
 
@@ -64,9 +69,11 @@ crs(r, describe=TRUE, proj=TRUE)
 crs(r) <- "+proj=lcc +lat_1=48 +lat_2=33 +lon_0=-100 +ellps=WGS84"
 crs(r)
 
-# You can also use epsg codes
+# You can use epsg codes
 crs(r)  <- "epsg:25831"
 crs(r, describe=TRUE)$area
+
+crs("epsg:25831", describe=TRUE)
 }
 
 \keyword{ spatial }

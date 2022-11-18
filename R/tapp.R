@@ -3,7 +3,7 @@ setMethod("tapp", signature(x="SpatRaster"),
 function(x, index, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list()) {
 
 	stopifnot(!any(is.na(index)))
-	
+
 	if ((length(index) == 1) && is.character(index)) {
 		choices <- c("years", "months", "week", "days", "doy", "yearmonths")
 		i <- pmatch(tolower(index), choices)
@@ -58,8 +58,29 @@ function(x, index, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())
 	}
 	fun <- match.fun(fun)
 
+	readStart(x)
+	on.exit(readStop(x), add=TRUE)
+
+	testnc <- min(ncol(x), 11)
+	v <- readValues(x, 1, 1, 1, testnc, TRUE)
+
+	test <- apply(v, 1, FUN=fun, ...)
+	transpose = FALSE
+	nlout <- 1
+	if (ncol(test) > 1) {
+		if (ncol(test) == testnc) {
+			transpose = TRUE
+			nlout <- nrow(test)
+			addnms <- rownames(test)
+		} else {
+			nlout <- ncol(test)
+			addnms <- colnames(test)
+		}
+		nms <- paste(rep(nms, each=length(addnms)), rep(addnms, length(nms)), sep="_")
+	}
+
 	out <- rast(x)
-	nlyr(out) <- length(uin)
+	nlyr(out) <- nlout * length(uin)
 	names(out) <- nms
 
 	doclust <- FALSE
@@ -71,18 +92,22 @@ function(x, index, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())
 		on.exit(parallel::stopCluster(cores))
 	}
 
-	readStart(x)
-	on.exit(readStop(x), add=TRUE)
+
 	b <- writeStart(out, filename, overwrite, sources=sources(x), wopt=wopt)
 
 	if (doclust) {
+		export_args(cores, ..., caller="tapp")
 		pfun <- function(x, ...) apply(x, 1, FUN=fun, ...)
 		parallel::clusterExport(cores, "pfun", environment())
 		for (i in 1:b$n) {
 			v <- readValues(x, b$row[i], b$nrows[i], 1, ncol(out), TRUE)
 			v <- lapply(uin, function(i) v[, ind==i, drop=FALSE])
 			v <- parallel::parLapply(cores, v, pfun, ...)
-			v <- do.call(cbind, v)
+			if (transpose) {
+				v <- t(do.call(rbind, v))
+			} else {
+				v <- do.call(cbind, v)
+			}
 			writeValues(out, v, b$row[i], b$nrows[i])
 		}
 	} else {
@@ -92,7 +117,11 @@ function(x, index, fun, ..., cores=1, filename="", overwrite=FALSE, wopt=list())
 			# v <- lapply(uin, function(j, ...) apply(v[, ind==uin[j], drop=FALSE], 1, FUN=fun, ...))
 			# like this it works
 			v <- lapply(uin, function(j) apply(v[, ind==uin[j], drop=FALSE], 1, FUN=fun, ...))
-			v <- do.call(cbind, v)
+			if (transpose) {
+				v <- t(do.call(rbind, v))
+			} else {
+				v <- do.call(cbind, v)
+			}
 			writeValues(out, v, b$row[i], b$nrows[i])
 		}
 	}

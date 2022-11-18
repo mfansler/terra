@@ -1,5 +1,5 @@
 # Author: Robert J. Hijmans
-# Date :  June 2008
+# Date :  June 2018
 # Version 0.9
 # License GPL v3
 
@@ -16,49 +16,37 @@ setMethod("hasValues", signature(x="SpatRaster"),
 
 #	factors=TRUE,
 #	if (factors) {
-		ff <- is.factor(x)
-		if (any(ff)) {
-			ff <- which(ff)
-			cgs <- levels(x)
-			for (f in ff) {
-				cg <- cgs[[f]]
-				i <- match(v[,f], cg[,1])
-				if (!inherits(cg[[2]], "numeric")) {
-					v[[f]] <- factor(cg[i, 2], levels=unique(cg[[2]]))
-				} else {
-					v[[f]] <- cg[i, 2]
-				}
-			}
-		} else {
-			bb <- is.bool(x)
-			if (any(bb)) {
-				for (b in which(bb)) {
-					v[[b]] = as.logical(v[[b]])
-				}
-			}
-
-			ii <- is.int(x)
-			if (any(ii)) {
-				for (i in which(ii)) {
-					v[[i]] = as.integer(v[[i]])
-				}
+	ff <- is.factor(x)
+	if (any(ff)) {
+		fs <- which(ff)
+		cgs <- levels(x)
+		for (f in fs) {
+			cg <- cgs[[f]]
+			i <- match(v[,f], cg[,1])
+			if (!inherits(cg[[2]], "numeric")) {
+				v[[f]] <- factor(cg[i, 2], levels=unique(cg[[2]]))
+			} else {
+				v[[f]] <- cg[i, 2]
 			}
 		}
-	#} else {
-	#	bb <- is.bool(x)
-	#	if (any(bb)) {
-	#		for (b in which(bb)) {
-	#			v[[b]] = as.logical(v[[b]])
-	#		}
-	#	}
-
-	#	ii <- is.int(x)
-	#	if (any(ii)) {
-	#		for (i in which(ii)) {
-	#			v[[i]] = as.integer(v[[i]])
-	#		}
-	#	}
-	#}
+	} 
+	bb <- is.bool(x)
+	if (any(bb)) {
+		for (b in which(bb)) {
+			v[[b]] = as.logical(v[[b]])
+		}
+	}
+	ii <- (is.int(x) & (!ff))
+	if (any(ii)) {
+		for (i in which(ii)) {
+			v[[i]] = as.integer(v[[i]])
+		}
+	}
+	dd <- !(bb | ii | ff)
+	if (any(dd)) {
+		d = which(dd)
+		v[,d] = replace(v[,d], is.na(v[,d]), NA)
+	}
 	v
 }
 
@@ -143,10 +131,6 @@ setMethod("setValues", signature("SpatRaster"),
 			values <- as.matrix(values)
 		}
 		if (is.matrix(values)) {
-			if (!keepnames) {
-				nms <- colnames(values)
-				if (!is.null(nms)) names(y) <- nms
-			}
 			nl <- nlyr(x)
 			d <- dim(values)
 			if (!all(d == c(ncell(x), nl))) {
@@ -162,9 +146,13 @@ setMethod("setValues", signature("SpatRaster"),
 					if (d[1] > 1) warn("setValues", "values were recycled")
 					values <- as.vector(apply(values, 2, function(i) rep_len(i, ncell(x))))
 				} else {
-					error("setValues","dimensions of the matrix do not match the SpatRaster")				
+					error("setValues","dimensions of the matrix do not match the SpatRaster")
 				}
 			} 
+			if (!keepnames) {
+				nms <- colnames(values)
+				if (!is.null(nms)) names(y) <- nms
+			}
 		} else if (is.array(values)) {
 			stopifnot(length(dim(values)) == 3)
 			values <- as.vector(aperm(values, c(2,1,3)))
@@ -175,7 +163,7 @@ setMethod("setValues", signature("SpatRaster"),
 			if (all(substr(na.omit(values), 1, 1) == "#")) {
 				fv <- as.factor(values)
 				if (length(levels(fv)) <= 256) {
-					values <- as.integer(fv)-1
+					values <- as.integer(fv) #-1
 					fv <- levels(fv)
 					set_coltab <- TRUE
 				} else {
@@ -187,12 +175,12 @@ setMethod("setValues", signature("SpatRaster"),
 			} else {
 				values <- as.factor(values)
 				levs <- levels(values)
-				values <- as.integer(values) - 1 # -1 not needed anymore?
+				values <- as.integer(values) # -1 not needed anymore?
 				make_factor <- TRUE
 			}
 		} else if (is.factor(values)) {
 			levs <- levels(values)
-			values <- as.integer(values) - 1
+			values <- as.integer(values)# - 1
 			make_factor <- TRUE
 		}
 
@@ -220,7 +208,7 @@ setMethod("setValues", signature("SpatRaster"),
 		y <- messages(y, "setValues")
 		if (make_factor) {
 			for (i in 1:nlyr(y)) {
-				levs <- data.frame(value=0:(length(levs)-1), label=levs)
+				levs <- data.frame(value=1:length(levs), label=levs)
 				set.cats(y, i, levs, 2)
 			}
 			names(y) <- names(x)
@@ -267,7 +255,7 @@ setMethod("sources", signature(x="SpatRaster"),
 			if (nlyr) {
 				d$nlyr <- rep(nls, nls)
 			}
-			d			
+			d
 		} else if (nlyr) {
 			data.frame(source=src, nlyr=x@ptr$nlyrBySource(), stringsAsFactors=FALSE)
 		} else {
@@ -295,7 +283,7 @@ setMethod("sources", signature(x="SpatRasterDataset"),
 			x <- lapply(1:length(x), function(i) cbind(cid=i, x[[i]]))
 			do.call(rbind, x)
 		} else {
-			sapply(x, sources)
+			x@ptr$filenames()
 		}
 	}
 )
@@ -332,10 +320,15 @@ setMethod("hasMinMax", signature(x="SpatRaster"),
 )
 
 setMethod("minmax", signature(x="SpatRaster"),
-	function(x) {
+	function(x, compute=FALSE) {
 		have <- x@ptr$hasRange
-		if (!any(have)) {
-			warn("minmax", "min and max values not available. See 'setMinMax' or 'global'")
+		if (!all(have)) {
+			if (compute) {
+				opt <- spatOptions()
+				x@ptr$setRange(opt)
+			} else {
+				warn("minmax", "min and max values not available for all layers. See 'setMinMax' or 'global'")
+			}
 		}
 		r <- rbind(x@ptr$range_min, x@ptr$range_max)
 		r[,!have] <- c(Inf, -Inf)

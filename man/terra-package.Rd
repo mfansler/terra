@@ -13,9 +13,9 @@
 
 The package implements two main classes (data types): \code{SpatRaster} and \code{SpatVector}. \code{SpatRaster} supports handling large raster files that cannot be loaded into memory; local, focal, zonal, and global raster operations; polygon, line and point to raster conversion; integration with modeling methods to make spatial predictions; and more. \code{SpatVector} supports all types of geometric operations such as intersections.
 
-Additional classes include \code{SpatExtent}, which is used to define a spatial extent (bounding box); \code{SpatRasterDataset}, which represents a collection of sub-datasets for the same area. Each sub-dataset is a SpatRaster with possibly many layers, and may, for example, represent different weather variables; and \code{SpatRasterCollection} and \code{SpatVectorCollection} that are equivalent to lists of SpatRaster or SpatVector objects. 
+Additional classes include \code{SpatExtent}, which is used to define a spatial extent (bounding box); \code{SpatRasterDataset}, which represents a collection of sub-datasets for the same area. Each sub-dataset is a SpatRaster with possibly many layers, and may, for example, represent different weather variables; and \code{SpatRasterCollection} and \code{SpatVectorCollection} that are equivalent to lists of \code{SpatRaster} or \code{SpatVector} objects. There is also a \code{SpatGraticule} class to assist in adding a longitude/latitude lines and labels to a map with another coordinate reference system.
 
-These classes hold a C++ pointer to the data "reference class" and that creates some limitations. They cannot be recovered from a saved R session either or directly passed to nodes on a computer cluster. Generally, you should use \code{\link{writeRaster}} to save SpatRaster objects to disk (and pass a filename or cell values to cluster nodes). Also see \code{\link{wrap}}. 
+These classes hold a C++ pointer to the data "reference class" and that creates some limitations. They cannot be recovered from a saved R session either or directly passed to nodes on a computer cluster. Generally, you should use \code{\link{writeRaster}} to save \code{SpatRaster} objects to disk (and pass a filename or cell values to cluster nodes). Also see \code{\link{wrap}}. 
 
 The \code{terra} package is conceived as a replacement of the \code{raster} package. \code{terra} has a very similar, but simpler, interface, and it is faster than \code{raster}. At the bottom of this page there is a table that shows differences in the methods between the two packages. 
 
@@ -88,7 +88,7 @@ Also see the methods in section VIII
 	\tab \code{cumsum, log, log10, log2, log1p, acos, acosh, asin, asinh, atan, atanh,} \cr	 
 	\tab \code{exp, expm1, cos, cosh, sin, sinh, tan, tanh, round, signif}\cr
     \code{\link{Summary-methods}} \tab \code{mean, max, min, median, sum, range, prod,} \cr
-    \tab \code{any, all, stdev, which.min, which.max}\cr
+    \tab \code{any, all, stdev, which.min, which.max, anyNA, allNA}\cr
     \code{\link{as.bool}}\tab create a Boolean (logical) SpatRaster \cr
     \code{\link{as.int}}\tab create an integer (whole numbers) SpatRaster \cr
   --------------------------- \tab ------------------------------------------------------------------------------------------ \cr
@@ -136,15 +136,17 @@ Also see the methods in section VIII
     \code{\link{adjacent}} \tab Identify cells that are adjacent to a set of cells of a SpatRaster \cr
     \code{\link{boundaries}} \tab Detection of boundaries (edges)\cr
     \code{\link{distance}} \tab Shortest distance to a cell that is not \code{NA} or to or from a vector object\cr
-    \code{\link{gridDistance}} \tab Shortest distance through adjacent grid cells\cr
-    \code{\link{costDistance}} \tab Shortest distance considering cell-varying friction \cr
+    \code{\link{gridDist}} \tab Shortest distance through adjacent grid cells\cr
+    \code{\link{costDist}} \tab Shortest distance considering cell-varying friction \cr
     \code{\link{direction}} \tab Direction (azimuth) to or from cells that are not \code{NA}\cr
     \code{\link{focal}} \tab Focal (neighborhood; moving window) functions \cr
     \code{\link{focalCpp}} \tab Faster focal by using custom C++ functions \cr
-    \code{\link{focalReg}} \tab Regression beween layers for focal areas \cr
+    \code{\link{focalReg}} \tab Regression between layers for focal areas \cr
     \code{\link{focalCor}} \tab Correlation between layers for focal areas \cr
     \code{\link{patches}} \tab Find patches (clumps) \cr
+    \code{\link{sieve}} \tab Sieve filter to remove small patches\cr
     \code{\link{terrain}} \tab Compute slope, aspect and other terrain characteristics from elevation data \cr
+    \code{\link{viewshed}} \tab Compute vieshed (showing areas that are visible from a particular location \cr
     \code{\link{shade}} \tab Compute hill shade from slope and aspect layers \cr
     \code{\link{autocor}} \tab Compute global or local spatial autocorrelation  \cr
   --------------------------- \tab ------------------------------------------------------------------------------------------ \cr
@@ -281,6 +283,7 @@ Cell numbers start at 1 in the upper-left corner. They increase within rows, fro
    \code{\link{writeStart}} \tab Open a file for writing \cr
    \code{\link{writeValues}} \tab Write some values  \cr
    \code{\link{writeStop}} \tab Close the file after writing \cr
+   \code{\link{blocks}} \tab Get blocksize for reading files (when not writing) \cr
   --------------------------- \tab ------------------------------------------------------------------------------------------ \cr
 \cr
 }
@@ -299,9 +302,6 @@ Cell numbers start at 1 in the upper-left corner. They increase within rows, fro
 }
 }
 
-\section{\bold{SpatRasterDataSet}}{
-
----------------------------------------------------------------------------------------------------------------------}
 
 \section{XIV. SpatRasterDataset}{
 
@@ -315,11 +315,27 @@ A SpatRasterDataset contains SpatRaster objects that are sub-datasets for the sa
 }
 }
 
+\section{XV. SpatRasterCollections}{
+A SpatRasterCollection is a vector of SpatRaster objects. Unlike for a SpatRasterDataset, there the extent and resolution of the SpatRasters do not need to match each other. 
+
+\tabular{ll}{
+\code{\link{sprc}} \tab create a SpatRasterCollection from (a list of) SpatRaster objects\cr
+\code{\link{length}} \tab how many SpatRasters does the SpatRasterCollection have?\cr
+\code{\link{crop}} \tab crop a SpatRasterCollection\cr
+\code{\link{impose}} \tab force the members of SpatRasterCollection to the same geometry\cr
+\code{\link{merge}} \tab merge the members of a SpatRasterCollection\cr
+\code{\link{mosaic}} \tab mosaic (merge with a function for overlapping areas) the members of a SpatRasterCollection\cr
+\code{\link{[}} \tab extract a SpatRastert\cr
+  --------------------------- \tab ------------------------------------------------------------------------------------------ \cr
+}}
+
+
+
 \section{\bold{SpatVector}}{
 
 ---------------------------------------------------------------------------------------------------------------------}
 
-\section{XV. Create SpatVector objects}{
+\section{XVI. Create SpatVector objects}{
 \tabular{ll}{
   \code{\link{vect}} \tab Create a SpatVector from a file (for example a "shapefile") or from another object\cr
   \code{\link{vector_layers}} \tab list or delete layers in a vector database such as GPGK\cr
@@ -337,7 +353,7 @@ A SpatRasterDataset contains SpatRaster objects that are sub-datasets for the sa
 }}
 
 
-\section{XVI. Properties of SpatVector objects}{
+\section{XVII. Properties of SpatVector objects}{
 \tabular{ll}{
   \code{\link{geom}} \tab returns the geometries as matrix or WKT\cr
   \code{\link{crds}} \tab returns the coordinates as a matrix\cr
@@ -352,7 +368,7 @@ A SpatRasterDataset contains SpatRaster objects that are sub-datasets for the sa
 }}
 
 
-\section{XVII. Geometric queries}{
+\section{XVIII. Geometric queries}{
 \tabular{ll}{
   \code{\link{adjacent}} \tab find adjacent polygons\cr
   \code{\link{expanse}} \tab computes the area covered by polygons\cr
@@ -364,7 +380,7 @@ A SpatRasterDataset contains SpatRaster objects that are sub-datasets for the sa
 }}
 
 
-\section{XVIII. Geometric operations}{
+\section{XIX. Geometric operations}{
 
 \tabular{ll}{
   \code{\link{erase}} or "-" \tab erase (parts of) geometries\cr
@@ -380,7 +396,7 @@ A SpatRasterDataset contains SpatRaster objects that are sub-datasets for the sa
 }}
 
 
-\section{XIX. SpatVector attributes}{
+\section{XX. SpatVector attributes}{
 We use the term "attributes" for the tabular data (data.frame) associated with vector geometries.
 
 \tabular{ll}{
@@ -396,7 +412,7 @@ We use the term "attributes" for the tabular data (data.frame) associated with v
 }}
 
 
-\section{XX. Change geometries (for display, experimentation)}{
+\section{XXI. Change geometries (for display, experimentation)}{
 
 \tabular{ll}{
   \code{\link{shift}} \tab change the position geometries by shifting their coordinates in horizontal and/or vertical direction\cr
@@ -408,7 +424,7 @@ We use the term "attributes" for the tabular data (data.frame) associated with v
 }}
 
 
-\section{XXI. Geometry properties and topology}{
+\section{XXII. Geometry properties and topology}{
 
 \tabular{ll}{
   \code{\link{width}} \tab the minimum diameter of the geometries \cr
@@ -425,30 +441,31 @@ We use the term "attributes" for the tabular data (data.frame) associated with v
   \code{\link{snap}} \tab make boundaries of geometries identical if they are very close to each other  \cr
   \code{\link{erase} (single argument)} \tab remove parts of geometries that overlap \cr
   \code{\link{union} (single argument)} \tab create new polygons such that there are no overlapping polygons \cr
+  \code{\link{rotate}} \tab rotate to (dis-) connect them across the date-line \cr
+  \code{\link{normalize.longitude}} \tab move geomtries that are outside of the -180 to 180 degrees range.  \cr
+  \code{\link{elongate}} \tab make lines longer by extending both sides \cr
   \code{\link{combineGeoms}} \tab combine geometries that overlap, share a border, or are within a minimum distance of each other \cr
   --------------------------- \tab ------------------------------------------------------------------------------------------ \cr
 }}
 
-\section{\bold{Spat* Collections}}{
 
----------------------------------------------------------------------------------------------------------------------}
-
-\section{XXII. Collections}{
-A SpatRasterCollection is a vector of SpatRaster objects. Unlike for a SpatRasterDataset, there the extent and resolution of the SpatRasters do not need to match each other. A SpatVectorCollection is a vector of SpatVector objects. 
+\section{XXIII. SpatVectorCollections}{
+A SpatVectorCollection is a vector of SpatVector objects. 
 
 \tabular{ll}{
-\code{\link{svc}} \tab create a SpatRasterCollection from a set of SpatRaster objects\cr
+\code{\link{svc}} \tab create a SpatVectorCollection from (a list of) SpatVector objects\cr
 \code{\link{length}} \tab how many SpatRasters does the SpatRasterCollection have?\cr
-\code{\link{[}} \tab extract a SpatRastert\cr
+\code{\link{[}} \tab extract a SpatVector\cr
   --------------------------- \tab ------------------------------------------------------------------------------------------ \cr
 }}
 
-\section{\bold{SpatExtent}}{
+
+\section{\bold{Other classes}}{
 
 ---------------------------------------------------------------------------------------------------------------------}
 
-\section{XXIII. SpatExtent}{
 
+\section{XXIV. SpatExtent}{
   \tabular{ll}{
     \code{\link{ext}} \tab Create a SpatExtent object. For example to \code{\link{crop}} a Spatial dataset\cr
     \code{\link{intersect}} \tab Intersect two SpatExtent objects, same as \code{-}  \cr
@@ -460,12 +477,21 @@ A SpatRasterCollection is a vector of SpatRaster objects. Unlike for a SpatRaste
   }
 }
 
+\section{XXV. SpatGraticule}{
+  \tabular{ll}{
+    \code{\link{graticule}} \tab Create a graticule\cr
+    \code{\link{crop}} \tab crop a graticule\cr
+	\code{\link[=plot,SpatGraticule,missing-method]{plot<SpatGraticule>}} \tab plot a graticule \cr
+  --------------------------- \tab ------------------------------------------------------------------------------------------ \cr
+  }
+}
+
 
 \section{\bold{General methods}}{
 
 ---------------------------------------------------------------------------------------------------------------------}
 
-\section{XXIV. Conversion between spatial data objects from different packages}{
+\section{XXVI. Conversion between spatial data objects from different packages}{
 
 You can coerce SpatRasters to Raster* objects, after loading the \code{raster} package, with \code{as(object, "Raster")}, or \code{raster(object)} or \code{brick(object)} or \code{stack(object)}
  
@@ -474,6 +500,7 @@ You can coerce SpatRasters to Raster* objects, after loading the \code{raster} p
     \code{\link{vect}} \tab SpatVector from \code{sf} or \code{Spatial*} vector data\cr
     \code{sf::st_as_sf} \tab sf object from SpatVector\cr
     \code{\link{rasterize}} \tab Rasterizing points, lines or polygons\cr
+    \code{\link{rasterizeWin}} \tab Rasterize points with a moving window\cr
     \code{\link{rasterizeGeom}} \tab Rasterize attributes of geometries such as "count", "area", or "length"\cr
     \code{\link{as.points}} \tab Create points from a SpatRaster or SpatVector \cr
     \code{\link{as.lines}} \tab Create points from a SpatRaster or SpatVector\cr
@@ -483,7 +510,7 @@ You can coerce SpatRasters to Raster* objects, after loading the \code{raster} p
   }
 }
 
-\section{XXV. Plotting}{
+\section{XXVII. Plotting}{
 
 \subsection{Maps}{
   \tabular{ll}{
@@ -494,6 +521,7 @@ You can coerce SpatRasters to Raster* objects, after loading the \code{raster} p
     \code{\link{text}} \tab Add text (such as the values of a SpatRaster or SpatVector) to a map \cr
     \code{\link{image}} \tab Alternative to plot to make a map with a SpatRaster \cr
     \code{\link{plotRGB}} \tab Combine three layers (red, green, blue channels) into a single "real color" plot \cr
+	\code{\link[=plot,SpatGraticule,missing-method]{plot<SpatGraticule>}} \tab plot a graticule \cr
     \code{\link{sbar}} \tab Add a scalebar to a map\cr
     \code{\link{north}} \tab Add a north arrow to a map\cr
     \code{\link{inset}} \tab Add a small inset (overview) map\cr
@@ -533,7 +561,7 @@ You can coerce SpatRasters to Raster* objects, after loading the \code{raster} p
 
 ---------------------------------------------------------------------------------------------------------------------}
 
-\section{XXVI. New method names}{
+\section{XXVIII. New method names}{
 
 \code{terra} has a single class \code{SpatRaster} for which \code{raster} has three (\code{RasterLayer, RasterStack, RasterBrick}). Likewise there is a single class for vector data \code{SpatVector} that replaces six \code{Spatial*} classes. Most method names are the same, but note the following important differences in methods names with the \code{raster} package
 
@@ -576,7 +604,7 @@ You can coerce SpatRasters to Raster* objects, after loading the \code{raster} p
 }
 }
 
-\section{XXVII. Changed behavior}{
+\section{XXIX. Changed behavior}{
 
 Also note that even if function names are the same in \code{terra} and \code{raster}, their output can be different. In most cases this was done to get more consistency in the returned values (and thus fewer errors in the downstream code that uses them). It other cases it simply seemed better. Here are some examples:
 
@@ -600,7 +628,7 @@ Also note that even if function names are the same in \code{terra} and \code{ras
 }
 
 \section{Authors}{
-Except where indicated otherwise, the methods and functions in this package were written by Robert Hijmans. The configuration scripts were written by Roger Bivand. Some of the C++ code for GDAL/GEOS was adapted from code by Edzer Pebesma for \code{sf}. The progress bar code is by Karl Forner (RcppProgress). Jeroen Ooms provided the compiled GDAL and GEOS libraries for installation on windows. Michael Sumner contributed various bits and pieces.
+Except where indicated otherwise, the methods and functions in this package were written by Robert Hijmans. The configuration scripts were written by Roger Bivand. Some of code using the GEOS library was adapted from code by Edzer Pebesma for \code{sf}. Michael Sumner contributed various bits and pieces.
 }
 
 \section{Acknowledgments}{

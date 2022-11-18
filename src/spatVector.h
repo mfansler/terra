@@ -15,9 +15,10 @@
 // You should have received a copy of the GNU General Public License
 // along with spat. If not, see <http://www.gnu.org/licenses/>.
 
-//#include "spatBase.h"
+#ifndef SPATVECTOR_GUARD
+#define SPATVECTOR_GUARD
+
 #include "spatDataframe.h"
-//#include "spatMessages.h"
 
 #ifdef useGDAL
 #include "gdal_priv.h"
@@ -169,6 +170,7 @@ class SpatVector {
 		std::vector<std::vector<double>> coordinates();
 
 		SpatVector project(std::string crs);
+		std::vector<double> project_xy(std::vector<double> x, std::vector<double> y, std::string fromCRS, std::string toCRS);
 
 		SpatVector subset_cols(int i);
 		SpatVector subset_cols(std::vector<int> range);
@@ -186,6 +188,11 @@ class SpatVector {
 		void reserve(size_t n);
 		std::vector<double> length();
 		std::vector<double> distance(SpatVector x, bool pairwise, std::string unit);
+		std::vector<double> pointdistance(const std::vector<double>& px, const std::vector<double>& py, const std::vector<double>& sx, const std::vector<double>& sy, bool pairwise, double m, bool lonlat);
+
+//		std::vector<double> pointdistance_seq(const std::vector<double>& px, const std::vector<double>& py, double m, bool lonlat);
+
+
 		std::vector<double> distance(bool sequential, std::string unit);
 		std::vector<double> linedistLonLat(SpatVector pts);
 
@@ -210,9 +217,7 @@ class SpatVector {
 		SpatVector fromDS(GDALDataset *poDS);
 		bool ogr_geoms(std::vector<OGRGeometryH> &ogrgeoms, std::string &message);		
 		bool delete_layers(std::string filename, std::vector<std::string> layers, bool return_error);		
-		std::vector<std::string> layer_names(std::string filename);		
-
-
+		std::vector<std::string> layer_names(std::string filename);	
 #endif
 
 // attributes
@@ -269,17 +274,18 @@ class SpatVector {
 		void addWarning(std::string s) { msg.addWarning(s); }
 		bool hasError() { return msg.has_error; }
 		bool hasWarning() { return msg.has_warning; }
-		std::string getWarnings() { return msg.getWarnings();}
+		std::vector<std::string> getWarnings() { return msg.getWarnings();}
 		std::string getError() { return msg.getError();}
 
 		SpatVector append(SpatVector x, bool ignorecrs);
-		SpatVector disaggregate();
+		SpatVector disaggregate(bool segments);
 		SpatVector shift(double x, double y);
 		SpatVector rescale(double fx, double fy, double x0, double y0);
 		SpatVector transpose();
 		SpatVector flip(bool vertical);	
-		SpatVector rotate(double angle, double x0, double y0);
-		SpatVector normalize_dateline();
+		SpatVector rotate(double angle, std::vector<double> x0, std::vector<double> y0);
+		SpatVector normalize_longitude();
+		SpatVector rotate_longitude(double longitude, bool left);
 
 		std::vector<std::vector<double>> linesNA();
 		std::vector<std::vector<std::vector<double>>> linesList();
@@ -331,7 +337,8 @@ class SpatVector {
 		SpatVector unite();
 		SpatVector erase_agg(SpatVector v);
 		SpatVector erase(SpatVector v);
-		SpatVector erase();
+		SpatVector erase(bool sequential);
+		SpatVector elongate(double length);
 		SpatVector mask(SpatVector x, bool inverse);
 		SpatVector gaps();		
 		SpatVector cover(SpatVector v, bool identity, bool expand);
@@ -393,7 +400,7 @@ class SpatVectorCollection {
 		void addWarning(std::string s) { msg.addWarning(s); }
 		bool hasError() { return msg.has_error; }
 		bool hasWarning() { return msg.has_warning; }
-		std::string getWarnings() { return msg.getWarnings();}
+		std::vector<std::string> getWarnings() { return msg.getWarnings();}
 		std::string getError() { return msg.getError();}
 
 		size_t size() { return v.size(); }
@@ -452,3 +459,5 @@ class SpatVectorProxy {
 		SpatVector query_filter(std::string query, std::vector<double> extent, SpatVector filter);
 };
 
+
+#endif // SPATVECTOR_GUARD

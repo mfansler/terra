@@ -154,7 +154,7 @@ sampleStratified <- function(x, size, replace=FALSE, as.df=TRUE, as.points=FALSE
 			}
 		}
 	}
-	
+
 	if ((!xy) && (!as.points)) cells <- TRUE
 	if (xy) {
 		pts <- xyFromCell(x, res[,1])
@@ -184,9 +184,12 @@ sampleStratified <- function(x, size, replace=FALSE, as.df=TRUE, as.points=FALSE
 	if (!is.null(ext)) {
 		x <- crop(x, ext)
 	}
+	if (nlyr(x) > 1) {
+		x <- subst(anyNA(x), 1, NA)
+	}
 	if (lonlat) {
-		v <- cbind(cell=1:ncell(x), values(x), abs(cos(pi * values(init(x, "y")) / 360)))
-		v <- v[!is.na(v[,2]), ]
+		v <- cbind(cell=1:ncell(x), abs(cos(pi * values(init(x, "y")) / 360)), values(x))
+		v <- v[!is.na(v[,3]),]
 		i <- sample.int(nrow(v), min(size, nrow(v)), prob=v[,2], replace=replace)
 	} else {
 		v <- cbind(cell=1:ncell(x), values(x))
@@ -203,7 +206,7 @@ sampleStratified <- function(x, size, replace=FALSE, as.df=TRUE, as.points=FALSE
 	if (!is.null(ext)) {
 		r <- crop(rast(r), ext)
 	}
-	
+
 	if ((!replace) && (size >= ncell(r))) {
 		cells <- 1:ncell(r)
 	} else if (method == "random") {
@@ -238,7 +241,7 @@ sampleStratified <- function(x, size, replace=FALSE, as.df=TRUE, as.points=FALSE
 				e <- ext(r)
 				r1 = e$xmax - e$xmin;
 				r2 = e$ymax - e$ymin;
-				halfy = e$ymin + r2/2;	
+				halfy = e$ymin + r2/2;
 
 				# beware that -180 is the same as 180; and that latitude can only go from -90:90 therefore:
 				dx = distance(cbind(e$xmin, halfy), cbind(e$xmin + 1, halfy), TRUE, TRUE) * min(180.0, r1);
@@ -249,7 +252,7 @@ sampleStratified <- function(x, size, replace=FALSE, as.df=TRUE, as.points=FALSE
 				#ny <- max(1, (round(n/ratio)))
 				nx <- min(max(1, round(n/ratio)), ncol(r))
 				ny <- min(max(1, round(n*ratio)), nrow(r))
-							
+
 				xi <- ncol(r) / nx
 				yi <- nrow(r) / ny
 				rows <- unique(round(seq(.5*yi, nrow(r), yi)))
@@ -261,7 +264,7 @@ sampleStratified <- function(x, size, replace=FALSE, as.df=TRUE, as.points=FALSE
 
 				# needs refinement:
 				global <- diff(e[1:2]) > 355
-				
+
 				if (global) {
 					xi <- round(ncol(r) / round(ncol(r) / xi))
 					for (i in 1:length(rows)) {
@@ -381,7 +384,7 @@ setMethod("spatSample", signature(x="SpatRaster"),
 		}
 
 		if (cells || xy || as.points) {
-			
+
 			size <- size[1]
 			cnrs <- .sampleCells(x, size, method, replace, na.rm, ext)
 			if (method == "random") {
@@ -438,8 +441,7 @@ setMethod("spatSample", signature(x="SpatRaster"),
 				} else {
 					x@ptr <- x@ptr$sampleRegularRaster(size)
 				}
-				x <- messages(x, "spatSample")
-				return(x);
+				return (messages(x, "spatSample"))
 			} else {
 				opt <- spatOptions()
 				if (length(size) > 1) {
@@ -622,6 +624,7 @@ get_field_name <- function(x, nms, sender="") {
 setMethod("spatSample", signature(x="SpatVector"),
 	function(x, size, method="random", strata=NULL, chess="") {
 		method = match.arg(tolower(method), c("regular", "random"))
+		size <- round(size)
 		stopifnot(size > 0)
 		gtype <- geomtype(x)
 		if (gtype == "polygons") {
@@ -649,12 +652,14 @@ setMethod("spatSample", signature(x="SpatVector"),
 				r <- do.call(rbind, r)
 				return(r)
 			}
+			out <- vect()
 			if (length(size) == 1) {
-				x@ptr = x@ptr$sample(size, method[1], .seed())
+				out@ptr <- x@ptr$sample(size, method[1], .seed())
 			} else {
-				x@ptr = x@ptr$sampleGeom(size, method[1], .seed())
+				out@ptr <- x@ptr$sampleGeom(size, method[1], .seed())	
 			}
-			return(messages(x))
+			messages(x, "spatSample")
+			return(messages(out, "spatSample"))
 		} else if (grepl(gtype, "points")) {
 			if (!is.null(strata)) {
 				if (inherits(strata, "SpatRaster")) {

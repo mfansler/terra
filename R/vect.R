@@ -12,6 +12,9 @@ character_crs <- function(crs, caller="") {
 		warn(caller, "argument 'crs' should be a character value")
 		as.character(crs)
 	} else {
+		if (tolower(crs) == "local") {
+			crs = 'LOCAL_CS["Cartesian (Meter)", LOCAL_DATUM["Local Datum",0], UNIT["Meter",1.0], AXIS["X",EAST], AXIS["Y",NORTH]]'
+		}
 		crs
 	}
 }
@@ -62,7 +65,7 @@ setMethod("vect", signature(x="character"),
 				x <- enc2utf8(x)
 			}
 			proxy <- isTRUE(proxy)
-			
+
 			if ((what=="attributes") && proxy) {
 				error("vect", "you cannot use 'what==attribtues' when proxy=TRUE")
 			}
@@ -205,15 +208,15 @@ setMethod("$", "SpatVector",  function(x, name) {
 
 
 setMethod("[[", c("SpatVector", "numeric", "missing"),
-function(x, i, j, ... ,drop=FALSE) {
-	s <- .subset_cols(x, i, ..., drop=TRUE)
+function(x, i, j,drop=FALSE) {
+	s <- .subset_cols(x, i, drop=TRUE)
 	s[,,drop=drop]
 })
 
 
 setMethod("[[", c("SpatVector", "character", "missing"),
-function(x, i, j, ... ,drop=FALSE) {
-	s <- .subset_cols(x, i, ..., drop=TRUE)
+function(x, i, j, drop=FALSE) {
+	s <- .subset_cols(x, i, drop=TRUE)
 	s[,,drop=drop]
 })
 
@@ -262,8 +265,8 @@ setReplaceMethod("[", c("SpatVector", "missing", "ANY"),
 )
 
 
-setReplaceMethod("[[", c("SpatVector", "character", "missing"),
-	function(x, i, j, value) {
+setReplaceMethod("[[", c("SpatVector", "character"),
+	function(x, i, value) {
 
 		x@ptr <- x@ptr$deepcopy()
 		if (is.null(value)) {
@@ -275,11 +278,19 @@ setReplaceMethod("[[", c("SpatVector", "character", "missing"),
 			return(x);
 		}
 
+		if (inherits(value, "data.frame")) {
+			if (ncol(value)	> 1) {
+				warn("`[[<-`", "only using the first column")
+			}
+			value <- value[,1]
+		} else if (inherits(value, "list")) {
+			value <- unlist(value)
+		}
+
 		if (NCOL(value)	> 1) {
 			warn("[[<-,SpatVector", "only using the first column")
 			value <- value[,1]
 		}
-
 		name <- i[1]
 		value <- rep(value, length.out=nrow(x))
 
@@ -326,8 +337,8 @@ setReplaceMethod("[[", c("SpatVector", "character", "missing"),
 )
 
 
-setReplaceMethod("[[", c("SpatVector", "numeric", "missing"),
-	function(x, i, j, value) {
+setReplaceMethod("[[", c("SpatVector", "numeric"),
+	function(x, i, value) {
 		stopifnot(i > 0 && i <= ncol(x))
 		vn <- names(x)[i]
 		x[[vn]] <- value

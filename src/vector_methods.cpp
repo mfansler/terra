@@ -18,6 +18,7 @@
 #include "spatVector.h"
 #include "string_utils.h"
 #include "vecmath.h"
+#include "recycle.h"
 
 #include "gdal_alg.h"
 #include "ogrsf_frmts.h"
@@ -72,15 +73,14 @@ SpatVector SpatVector::make_valid() {
 */
 
 
-SpatVector SpatVector::disaggregate() {
+SpatVector SpatVector::disaggregate(bool segments) {
+
 	SpatVector out;
 	out.srs = srs;
 	out.df = df.skeleton();
-
 	if (nrow() == 0) {
 		return out;
 	}
-
 	size_t n=0;
 	for (size_t i=0; i<nrow(); i++) {
 		n += geoms[i].parts.size();
@@ -98,6 +98,29 @@ SpatVector SpatVector::disaggregate() {
 				return out;
 			}
 		}
+	}
+	if (segments && (type() != "points")) {
+		SpatVector x;
+		x.srs = srs;
+		x.df = df.skeleton();
+
+		for (size_t i=0; i<out.nrow(); i++) {
+			SpatGeom g = out.getGeom(i);
+			SpatDataFrame row = out.df.subset_rows(i);
+			size_t n = g.parts[0].x.size() - 1;
+			for (size_t j=0; j<n; j++) {
+				std::vector<double> sx = {g.parts[0].x[j], g.parts[0].x[j+1]};
+				std::vector<double> sy = {g.parts[0].y[j], g.parts[0].y[j+1]};
+				SpatPart p(sx, sy);
+				SpatGeom gg = SpatGeom(p, lines);
+				x.addGeom(gg);
+				if (!x.df.rbind(row)) {
+					x.setError("cannot add row");
+					return x;
+				}
+			}
+		}
+		return x;
 	}
 
 	return out;
@@ -150,6 +173,84 @@ SpatVector SpatVector::aggregate(bool dissolve) {
 	out.srs = srs;
 	return out;
 }
+
+
+#include "geodesic.h"
+
+void extend_line(const double &x1, const double &y1, const double &x2, const double &y2, double &x, double &y, const bool &geo, const double &distance, bool plus) {
+	if (geo) {
+		double a = 6378137.0;
+		double f = 1/298.257223563;
+		double s12, azi1, azi2;
+		struct geod_geodesic g;
+		geod_init(&g, a, f);
+		geod_inverse(&g, y1, x1, y2, x2, &s12, &azi1, &azi2);		
+		geod_direct(&g, y2, x2, azi2, distance, &y, &x, &azi1);
+	} else {
+		double bearing;
+		double dx = x2 - x1;
+		if (dx == 0) {
+			if (y2 > y1) {
+				bearing = 0;
+			} else {
+				bearing = M_PI;				
+			}
+		} else {
+			bearing = atan((y2-y1)/dx);
+		}
+		if (plus) {
+			x = x2 + distance * sin(bearing);
+			y = y2 + distance * cos(bearing);
+		} else {
+			x = x2 - distance * sin(bearing);
+			y = y2 - distance * cos(bearing);			
+		}
+	}
+}
+
+SpatVector SpatVector::elongate(double length) {
+
+	SpatVector out = *this;
+	size_t n = size();
+	if (n == 0) {
+		return out;
+	}
+	if (geoms[0].gtype != lines) {
+		out.setError("you can only elongate lines");
+		return out;
+	}
+	if (length < 0) {
+		out.setError("length must be > 0");
+		return out;
+	}
+	if (length == 0) {
+		return out;
+	}
+
+	double x, y;
+	bool geo = is_lonlat();
+	
+	for (size_t i=0; i<n; i++) {
+		for (size_t j=0; j < out.geoms[i].size(); j++) {
+			SpatPart p = out.geoms[i].parts[j];
+			size_t n = p.x.size();
+			if (n < 2) continue;
+			extend_line(p.x[1], p.y[1], p.x[0], p.y[0], x, y, geo, length, false);
+			p.x.insert(p.x.begin(), x);
+			p.y.insert(p.y.begin(), y);
+			
+			extend_line(p.x[n-1], p.y[n-1], p.x[n], p.y[n], x, y, geo, length, true);
+			p.x.push_back(x);			
+			p.y.push_back(y);
+			
+			out.geoms[i].parts[j] = p;
+		}
+		out.geoms[i].computeExtent();
+	}
+	out.computeExtent();
+	return out;
+}
+
 
 
 SpatVectorCollection SpatVector::split(std::string field) {
@@ -503,18 +604,38 @@ void rotit(std::vector<double> &x, std::vector<double> &y, const double &x0, con
 
 
 
-SpatVector SpatVector::rotate(double angle, double x0, double y0) {
+SpatVector SpatVector::rotate(double angle, std::vector<double> x0, std::vector<double> y0) {
 	angle = -M_PI * angle / 180;
+	size_t n = size();
+	if ((x0.size() == 0) || (y0.size() == 0)) {
+		SpatVector out;
+		out.setError("no center of rotation provided");
+		return out;
+	}
+	bool multi = true;
+	double ix0, iy0; 
+	if ((x0.size() == 1) && (y0.size() == 1)) {
+		multi = false;
+		ix0 = x0[0];
+		iy0 = y0[0]; 
+	} else {
+		recycle(x0, n);
+		recycle(y0, n);
+	}
 	double cos_angle = cos(angle);
 	double sin_angle = sin(angle);
 	SpatVector out = *this;
-	for (size_t i=0; i < size(); i++) {
+	for (size_t i=0; i < n; i++) {
+		if (multi) {
+			ix0 = x0[i];
+			iy0 = y0[i];
+		} 
 		for (size_t j=0; j < geoms[i].size(); j++) {
-			rotit(out.geoms[i].parts[j].x, out.geoms[i].parts[j].y, x0, y0, cos_angle, sin_angle);
+			rotit(out.geoms[i].parts[j].x, out.geoms[i].parts[j].y, ix0, iy0, cos_angle, sin_angle);
 			if (geoms[i].parts[j].hasHoles()) {
 				for (size_t k=0; k < geoms[i].parts[j].nHoles(); k++) {
 					rotit(out.geoms[i].parts[j].holes[k].x,
-						  out.geoms[i].parts[j].holes[k].y, x0, y0, cos_angle, sin_angle);
+						  out.geoms[i].parts[j].holes[k].y, ix0, iy0, cos_angle, sin_angle);
 
 					out.geoms[i].parts[j].holes[k].extent.xmin =
 						vmin(out.geoms[i].parts[j].holes[k].x, true);
@@ -629,6 +750,9 @@ SpatVector SpatVector::thin(double threshold) {
 
 	return out;
 }
+
+
+
 
 
 

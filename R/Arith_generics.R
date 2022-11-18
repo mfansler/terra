@@ -329,12 +329,12 @@ setMethod("as.logical", signature(x="SpatRaster"),
 
 setMethod("is.bool", signature(x="SpatRaster"),
 	function(x) {
-		x@ptr$valueType == 3
+		x@ptr$valueType(FALSE) == 3
 	}
 )
 setMethod("is.int", signature(x="SpatRaster"),
 	function(x) {
-		x@ptr$valueType == 1
+		x@ptr$valueType(FALSE) == 1
 	}
 )
 
@@ -370,6 +370,22 @@ setMethod("is.na", signature(x="SpatRaster"),
 	}
 )
 
+setMethod("anyNA", signature(x="SpatRaster"),
+	function(x) {
+		opt <- spatOptions()
+		x@ptr <- x@ptr$anynan(opt)
+		messages(x, "anyNA")
+	}
+)
+
+
+setMethod("allNA", signature(x="SpatRaster"),
+	function(x) {
+		opt <- spatOptions()
+		x@ptr <- x@ptr$allnan(opt)
+		messages(x, "allNA")
+	}
+)
 
 setMethod("is.nan", signature(x="SpatRaster"),
 	function(x) {
@@ -467,7 +483,7 @@ wherefun <- function(out, list, values) {
 				m
 			})
 		} else {
-			lapply(out, function(i) {i + 1})		
+			lapply(out, function(i) {i + 1})
 		}
 	} else {
 		if (values) {
@@ -479,7 +495,7 @@ wherefun <- function(out, list, values) {
 			out <- do.call(rbind, out)
 			colnames(out) <- c("layer", "cell", "value")
 		} else {
-			out <- lapply(1:length(out), function(i) {cbind(i, out[[i]] + 1)})		
+			out <- lapply(1:length(out), function(i) {cbind(i, out[[i]] + 1)})
 			out <- do.call(rbind, out)
 			colnames(out) <- c("layer", "cell")
 		}

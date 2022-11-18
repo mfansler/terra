@@ -79,20 +79,19 @@ SpatRaster::SpatRaster(std::vector<std::string> fname, std::vector<int> subds, s
 }
 
 
-void SpatRaster::setSources(std::vector<SpatRasterSource> s) {
+void SpatRaster::setSources(std::vector<SpatRasterSource> &s) {
 	source = s;
 }
 
 
-void SpatRaster::setSource(SpatRasterSource s) {
+void SpatRaster::setSource(SpatRasterSource &s) {
 	s.resize(s.nlyr); // appears to be necessary!
 	source = {s};
 }
 
 
-SpatRaster::SpatRaster(SpatRasterSource s) {
-	std::vector<SpatRasterSource> vs = {s};
-	setSources(vs);
+SpatRaster::SpatRaster(SpatRasterSource &s) {
+	source = {s};
 }
 
 
@@ -281,10 +280,22 @@ SpatRaster SpatRaster::geometry(long nlyrs, bool properties, bool time, bool uni
 		out.rgb = rgb;
 		out.rgbtype = rgbtype;
 		out.rgblyrs = rgblyrs;
-	}
+	}	
 	return out;
 }
 
+
+SpatRaster SpatRaster::geometry_opt(long nlyrs, bool properties, bool time, bool units, bool datatype, SpatOptions &opt) {
+
+	if (datatype && hasValues() && (!opt.datatype_set)) {
+		std::vector<std::string> dt = getDataType(true);
+		if ((dt.size() == 1) && (dt[0] != "")) {
+			opt.set_datatype(dt[0]);
+		}
+	}	
+	
+	return geometry(nlyrs, properties, time, units);
+}
 
 SpatRaster SpatRaster::deepCopy() {
 	return *this;
@@ -366,10 +377,15 @@ std::vector<bool> SpatRaster::hasRange() {
 	return(x);
 }
 
-std::vector<int> SpatRaster::getValueType() {
+std::vector<int> SpatRaster::getValueType(bool unique) {
 	std::vector<int> d;
+	d.reserve(nlyr());
 	for (size_t i=0; i<source.size(); i++) {
 		d.insert(d.end(), source[i].valueType.begin(), source[i].valueType.end());
+	}
+	if (unique) {
+		std::sort(d.begin(), d.end());
+		d.erase(std::unique(d.begin(), d.end()), d.end());	
 	}
 	return(d);
 }
@@ -684,7 +700,7 @@ std::vector<std::string> SpatRaster::getTimeStr(bool addstep) {
 						  + std::to_string(x[3]) + ":"
 						  + std::to_string(x[4]) + ":"
 						  + std::to_string(x[5]) );
-						
+
 			} else {
 				out.push_back("");
 			}
@@ -696,7 +712,7 @@ std::vector<std::string> SpatRaster::getTimeStr(bool addstep) {
 				out.push_back( std::to_string(x[0]) + "-"
 						  + std::to_string(x[1]) + "-"
 						  + std::to_string(x[2]) );
-						
+
 			} else {
 				out.push_back("");
 			}
@@ -1119,14 +1135,26 @@ std::vector<bool> SpatRaster::hasCategories() {
 	return b;
 }
 
-std::vector<std::string> SpatRaster::getDataType() {
+std::vector<std::string> SpatRaster::getDataType(bool unique) {
 	std::vector<std::string> d;
-	d.reserve(nlyr());
-	std::vector<unsigned> ns = nlyrBySource();
-	for (size_t i=0; i<ns.size(); i++) {
-		for (size_t j=0; j<ns[i]; j++) {
-			d.push_back(source[i].dataType[j]);
-		}
+	size_t n = nsrc();
+	d.reserve(n);
+	for (size_t i=0; i<n; i++) {
+		d.push_back(source[i].dtype);
+	}
+	if (unique) {
+		std::sort(d.begin(), d.end());
+		d.erase(std::unique(d.begin(), d.end()), d.end());
+	}
+	return d;
+}
+
+std::vector<std::string> SpatRaster::dataType() {
+	std::vector<std::string> d;
+	size_t n = nsrc();
+	d.reserve(n);
+	for (size_t i=0; i<n; i++) {
+		d.push_back(source[i].dtype);
 	}
 	return d;
 }
@@ -1170,7 +1198,7 @@ bool SpatRaster::setLabels(unsigned layer, std::vector<long> values, std::vector
 
 bool SpatRaster::setCategories(unsigned layer, SpatDataFrame d, unsigned index) {
 
-	if (layer > (nlyr()-1)) {
+	if (layer >= nlyr()) {
 		setError("invalid layer number");
 		return(false);
 	}
@@ -1220,7 +1248,7 @@ std::vector<SpatCategories> SpatRaster::getCategories() {
 std::vector<std::vector<double>> SpatRaster::getScaleOffset() {
 	std::vector<std::vector<double>> so(2);
 	so[0].reserve(nlyr());
-	so[1].reserve(nlyr());	
+	so[1].reserve(nlyr());
 	for (size_t i=0; i<source.size(); i++) {
 		so[0].insert(so[0].end(), source[i].scale.begin(), source[i].scale.end());
 		so[1].insert(so[1].end(), source[i].offset.begin(), source[i].offset.end());
@@ -1284,7 +1312,7 @@ bool SpatRaster::setScaleOffset(std::vector<double> sc, std::vector<double> of) 
 					source[i].range_min[j] = source[i].range_min[j] * sc[k] + of[k];
 					source[i].range_max[j] = source[i].range_max[j] * sc[k] + of[k];
 				} else {
-					source[i].has_scale_offset[j] = false;					
+					source[i].has_scale_offset[j] = false;
 				}
 				k++;
 			}
@@ -1343,9 +1371,9 @@ SpatRaster SpatRaster::dropLevels() {
 			bany = true;
 			break;
 		}
-	}	
+	}
 	if (!bany) return *this;
-	
+
 	std::vector<SpatCategories> cats = getCategories();
 	SpatOptions opt;
 	SpatRaster out = *this;
@@ -1371,7 +1399,7 @@ SpatRaster SpatRaster::dropLevels() {
 			}
 			lyrcats.d = lyrcats.d.subset_rows(isin);
 			if (lyrcats.d.nrow() == 0) {
-				out.removeCategories(i);				
+				out.removeCategories(i);
 			} else {
 				out.setCategories(i, lyrcats.d, lyrcats.index);
 			}
@@ -1846,12 +1874,81 @@ std::vector<double> SpatRaster::adjacent(std::vector<double> cells, std::string 
 }
 
 
+SpatVector SpatRaster::as_multipoints(bool narm, bool nall, SpatOptions &opt) {
+
+	BlockSize bs = getBlockSize(opt);
+    size_t ncl = ncell();
+	SpatVector pv;
+	pv.reserve(1);
+
+    std::vector<std::vector<double>> xy;
+	if (!narm) {
+        for (size_t i=0; i<ncl; i++) {
+            xy = xyFromCell(i);
+			SpatPart p(xy[0], xy[1]);
+			SpatGeom g(p, points);
+			pv.addGeom(g);
+			g.parts.resize(0);
+        }
+		return pv;
+	}
+
+	if (!readStart()) {
+		pv.setError(getError());
+		return(pv);
+	}
+
+	size_t nc = ncol();
+	unsigned nl = nlyr();
+	std::vector<double> v, x, y;
+	for (size_t i = 0; i < bs.n; i++) {
+		readValues(v, bs.row[i], bs.nrows[i], 0, nc);
+        size_t off1 = (bs.row[i] * nc);
+ 		size_t vnc = bs.nrows[i] * nc;
+		for (size_t j=0; j<vnc; j++) {
+			if (nall) {
+				bool allna = true;
+				for (size_t lyr=0; lyr<nl; lyr++) {
+					size_t off2 = lyr*vnc;
+					if (!std::isnan(v[off2+j])) {
+						allna = false;
+						continue;
+					}
+				}
+				if (allna) continue;
+			} else {
+				bool foundna = false;
+				for (size_t lyr=0; lyr<nl; lyr++) {
+					size_t off2 = lyr*vnc;
+					if (std::isnan(v[off2+j])) {
+						foundna = true;
+						continue;
+					}
+				}
+				if (foundna) continue;
+			}
+			xy = xyFromCell( off1+j );
+			x.push_back(xy[0][0]);
+			y.push_back(xy[1][0]);
+		}
+	}
+	SpatPart p(x, y);
+	SpatGeom g(p, points);
+	pv.addGeom(g);
+
+	readStop();
+	pv.srs = source[0].srs;
+	return(pv);
+}
+
+
 SpatVector SpatRaster::as_points(bool values, bool narm, bool nall, SpatOptions &opt) {
 
 	BlockSize bs = getBlockSize(opt);
     size_t ncl = ncell();
 	SpatVector pv;
 	pv.reserve(ncl);
+	pv.srs = source[0].srs;
 
     std::vector<std::vector<double>> xy;
 	if ((!values) && (!narm)) {
@@ -1936,12 +2033,92 @@ SpatVector SpatRaster::as_points(bool values, bool narm, bool nall, SpatOptions 
 		}
 	}
 	readStop();
-	pv.srs = source[0].srs;
+//	pv.srs = source[0].srs;
 	return(pv);
 }
 
+std::vector<std::vector<double>> SpatRaster::as_points_value(const double& target, SpatOptions &opt) {
 
+	std::vector<std::vector<double>> xy(2);
+	if (nlyr() > 1) {
+		setError("can only process one layer");
+		return xy;
+	}
 
+	BlockSize bs = getBlockSize(opt);
+
+	if (!readStart()) {
+		return(xy);
+	}
+
+	size_t nc = ncol();
+    size_t ncl = ncell();
+	std::vector<double> cells;
+	cells.reserve(std::min(ncl/10, (size_t)10000));
+
+	std::vector<double> v;
+	if (std::isnan(target)) {
+		for (size_t i = 0; i < bs.n; i++) {
+			readValues(v, bs.row[i], bs.nrows[i], 0, nc);
+			size_t base = (bs.row[i] * nc);
+			size_t szv = v.size();
+			for (size_t j=0; j<szv; j++) {
+				if (std::isnan(v[j])) {
+					cells.push_back(base+j);
+				}
+			}
+		}
+	} else {
+		for (size_t i = 0; i < bs.n; i++) {
+			readValues(v, bs.row[i], bs.nrows[i], 0, nc);
+			size_t base = (bs.row[i] * nc);
+			size_t szv = v.size();
+			for (size_t j=0; j<szv; j++) {
+				if (v[j] == target) {
+					cells.push_back(base+j);
+				}
+			}
+		}
+	}
+	readStop();
+	return xyFromCell(cells);
+}
+
+std::vector<std::vector<double>> SpatRaster::cells_notna(SpatOptions &opt) {
+
+	std::vector<std::vector<double>> out(2);
+	if (nlyr() > 1) {
+		setError("can only process one layer");
+		return out;
+	}
+
+	BlockSize bs = getBlockSize(opt);
+
+	if (!readStart()) {
+		return(out);
+	}
+
+	size_t nc = ncol();
+    size_t ncl = ncell();
+	size_t rs = std::min(ncl/10, (size_t)10000);
+	out[0].reserve(rs);
+	out[1].reserve(rs);
+
+	for (size_t i = 0; i < bs.n; i++) {
+		std::vector<double> v;
+		readValues(v, bs.row[i], bs.nrows[i], 0, nc);
+		size_t base = (bs.row[i] * nc);
+		size_t szv = v.size();
+		for (size_t j=0; j<szv; j++) {
+			if (!std::isnan(v[j])) {
+				out[0].push_back(base+j); // cell
+				out[1].push_back(v[j]); // value
+			}
+		}
+	}
+	readStop();
+	return out;
+}
 
 
 void getCorners(std::vector<double> &x,  std::vector<double> &y, const double &X, const double &Y, const double &xr, const double &yr) {

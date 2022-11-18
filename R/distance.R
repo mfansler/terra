@@ -6,16 +6,16 @@
 
 
 setMethod("buffer", signature(x="SpatRaster"),
-	function(x, width, filename="", ...) {
+	function(x, width, background=0, filename="", ...) {
 		opt <- spatOptions(filename, ...)
-		x@ptr <- x@ptr$buffer(width, opt)
+		x@ptr <- x@ptr$buffer(width, background, opt)
 		messages(x, "buffer")
 	}
 )
 
 
 setMethod("distance", signature(x="SpatRaster", y="missing"),
-	function(x, y, target=NA, exclude=NULL, unit="m", filename="", ...) {
+	function(x, y, target=NA, exclude=NULL, unit="m", haversine=TRUE, filename="", ...) {
 		if (!is.null(list(...)$grid)) {
 			error("distance", "use 'gridDistance(x)' instead of  'distance(x, grid=TRUE)'")
 		}
@@ -29,50 +29,55 @@ setMethod("distance", signature(x="SpatRaster", y="missing"),
 		} else {
 			exclude <- NA
 		}
-		x@ptr <- x@ptr$rastDistance(target, exclude, tolower(unit), opt)
+		x@ptr <- x@ptr$rastDistance(target, exclude, tolower(unit), TRUE, haversine, opt)
 		messages(x, "distance")
 	}
 )
 
 
-setMethod("costDistance", signature(x="SpatRaster"),
-	function(x, target=0, scale=1000, maxiter=50, filename="", ...) {
+setMethod("costDist", signature(x="SpatRaster"),
+	function(x, target=0, scale=1, maxiter=50, filename="", ...) {
 		opt <- spatOptions(filename, ...)
 		maxiter <- max(maxiter[1], 2)
 		x@ptr <- x@ptr$costDistance(target[1], scale[1], maxiter, FALSE, opt)
-		messages(x, "costDistance")
+		messages(x, "costDist")
 	}
 )
 
 
-setMethod("gridDistance", signature(x="SpatRaster"),
-	function(x, target=0, scale=1000, maxiter=50, filename="", ...) {
+setMethod("gridDist", signature(x="SpatRaster"),
+	function(x, target=0, scale=1, maxiter=50, filename="", ...) {
 		opt <- spatOptions(filename, ...)
 		if (is.na(target)) {
-			x@ptr <- x@ptr$gridDistance(opt)
+			x@ptr <- x@ptr$gridDistance(scale[1]	, opt)
 		} else {
 			maxiter <- max(maxiter[1], 2)
 			x@ptr <- x@ptr$costDistance(target[1], scale[1], maxiter, TRUE, opt)
 		}
-		messages(x, "gridDistance")
+		messages(x, "gridDist")
 	}
 )
 
 
 setMethod("distance", signature(x="SpatRaster", y="SpatVector"),
-	function(x, y, unit="m", filename="", ...) {
+	function(x, y, unit="m", rasterize=FALSE, haversine=TRUE, filename="", ...) {
 		opt <- spatOptions(filename, ...)
 		unit <- as.character(unit[1])
-		if (is.lonlat(x, perhaps=TRUE)) {
-			x <- rast(x)
-			x@ptr <- x@ptr$vectDisdirRasterize(y@ptr, TRUE, TRUE, FALSE, FALSE, NA, NA, unit, opt)
+		if (rasterize) {
+			x@ptr <- x@ptr$vectDistanceRasterize(y@ptr, NA, NA, unit, haversine, opt)
 		} else {
-			x@ptr <- x@ptr$vectDistanceDirect(y@ptr, unit, opt)
+			x@ptr <- x@ptr$vectDistanceDirect(y@ptr, unit, haversine, opt)
 		}
 		messages(x, "distance")
 	}
 )
 
+
+setMethod("distance", signature(x="SpatRaster", y="sf"),
+	function(x, y, unit="m", rasterize=FALSE, haversine=TRUE, filename="", ...) {
+		distance(x, vect(y), unit=unit, rasterize=rasterize, haversine=haversine, filename=filename, ...) 
+	}
+)
 
 
 mat2wide <- function(m, sym=TRUE, keep=NULL) {
@@ -103,7 +108,7 @@ setMethod("distance", signature(x="SpatVector", y="ANY"),
 		}
 
 		if (sequential) {
-			return( x@ptr$distance_self(sequential))
+			return( x@ptr$distance_self(sequential, unit))
 		}
 		unit <- as.character(unit[1])
 		d <- x@ptr$distance_self(sequential, unit)
@@ -137,32 +142,33 @@ setMethod("distance", signature(x="SpatVector", y="SpatVector"),
 
 
 setMethod("distance", signature(x="matrix", y="matrix"),
-	function(x, y, lonlat, pairwise=FALSE, unit="m") {
+	function(x, y, lonlat, pairwise=FALSE) {
 		if (missing(lonlat)) {
 			error("distance", "you must set lonlat to TRUE or FALSE")
 		}
-		unit <- as.character(unit[1])
 		stopifnot(ncol(x) == 2)
 		stopifnot(ncol(y) == 2)
-		crs <- ifelse(lonlat, "+proj=longlat +datum=WGS84",
-							  "+proj=utm +zone=1 +datum=WGS84")
-		x <- vect(x, crs=crs)
-		y <- vect(y, crs=crs)
-		distance(x, y, pairwise, unit=unit)
+		v <- vect()
+		d <- v@ptr$point_distance(x[,1], x[,2], y[,1], y[,2], pairwise[1], 1, lonlat)
+		messages(v)
+		if (pairwise) {
+			d
+		} else {
+			matrix(d, nrow=nrow(x), ncol=nrow(y), byrow=TRUE)
+		}
 	}
 )
 
 
 setMethod("distance", signature(x="matrix", y="missing"),
-	function(x, y, lonlat=NULL, sequential=FALSE, unit="m") {
+	function(x, y, lonlat=NULL, sequential=FALSE, pairs=FALSE, symmetrical=TRUE) {
 		if (is.null(lonlat)) {
 			error("distance", "lonlat should be TRUE or FALSE")
 		}
-		unit <- as.character(unit[1])
 		crs <- ifelse(isTRUE(lonlat), "+proj=longlat +datum=WGS84",
-							  "+proj=utm +zone=1 +datum=WGS84")
+							          "+proj=utm +zone=1 +datum=WGS84")
 		x <- vect(x, crs=crs)
-		distance(x, sequential=sequential, unit=unit)
+		distance(x, sequential=sequential, pairs=pairs, symmetrical=symmetrical)
 	}
 )
 

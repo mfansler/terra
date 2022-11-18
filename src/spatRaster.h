@@ -26,8 +26,8 @@
 #ifdef useRcpp
 #include <Rcpp.h>
 // Rcpp::depends(RcppProgress)
-#include "progress.hpp"
-#include "progress_bar.hpp"
+//#include "progress.hpp"
+//#include "progress_bar.hpp"
 #endif
 
 typedef long long int_64;
@@ -135,7 +135,7 @@ class SpatRasterSource {
 		std::vector<bool> hasCategories;
 		std::vector<SpatCategories> cats;
 		std::vector<unsigned char> valueType;
-		std::vector<std::string> dataType;
+		//std::vector<std::string> dataType;
 
 		std::vector<bool> hasColors;
 		std::vector<SpatDataFrame> cols;
@@ -185,6 +185,7 @@ class BlockSize {
 		unsigned n;
 };
 
+
 class SpatRaster {
 
     private:
@@ -201,7 +202,8 @@ class SpatRaster {
 	public:
 
 #ifdef useRcpp
-		Progress* pbar;
+//		Progress* pbar;
+		SpatProgress pbar;
 		bool progressbar = false;
 #endif
 
@@ -222,7 +224,7 @@ class SpatRaster {
 		void setMessage(std::string s) { msg.setMessage(s); }
 		bool hasError() { return msg.has_error; }
 		bool hasWarning() { return msg.has_warning; }
-		std::string getWarnings() { return msg.getWarnings();}
+		std::vector<std::string> getWarnings() { return msg.getWarnings();}
 		std::string getError() { return msg.getError();}
 		std::string getMessage() { return msg.getMessage();}
 
@@ -284,6 +286,8 @@ class SpatRaster {
 #endif
 
 		bool replaceCellValues(std::vector<double> &cells, std::vector<double> &v, bool bylyr, SpatOptions &opt);
+		bool replaceCellValuesLayer(std::vector<size_t> layers, std::vector<double> &cells, std::vector<double> &v, bool bylyr, SpatOptions &opt);
+
 		void setRange(SpatOptions &opt);
 		
 ////////////////////////////////////////////////////
@@ -301,7 +305,7 @@ class SpatRaster {
 		std::vector<double> range_min();
 		std::vector<double> range_max();
 
-		std::vector<int> getValueType();
+		std::vector<int> getValueType(bool unique);
 		bool setValueType(unsigned char d);
 
 
@@ -340,17 +344,18 @@ class SpatRaster {
 		SpatRaster(std::vector<unsigned> rcl, std::vector<double> ext, std::string crs);
 		SpatRaster(std::vector<std::string> fname, std::vector<int> subds, std::vector<std::string> subdsname, bool multi, std::vector<std::string> drivers, std::vector<std::string> options, std::vector<size_t> x);
 		SpatRaster(std::string fname, std::vector<int> subds, std::vector<std::string> subdsname, std::vector<std::string> drivers, std::vector<std::string> options);
-		SpatRaster(SpatRasterSource s);
+		SpatRaster(SpatRasterSource &s);
 		virtual ~SpatRaster(){}
 
-		void setSource(SpatRasterSource s);
-		void setSources(std::vector<SpatRasterSource> s);
+		void setSource(SpatRasterSource &s);
+		void setSources(std::vector<SpatRasterSource> &s);
 		//SpatRaster(const SpatRaster& x);
 
 
         SpatRaster deepCopy();
 		SpatRaster hardCopy(SpatOptions &opt);
         SpatRaster geometry(long nlyrs=-1, bool properties=false, bool time=true, bool units=false);
+		SpatRaster geometry_opt(long nlyrs, bool properties, bool time, bool units, bool datatype, SpatOptions &opt);
 
 		bool constructFromFile(std::string fname, std::vector<int> subds, std::vector<std::string> subdsname, std::vector<std::string> drivers, std::vector<std::string> options);
 		bool constructFromFileMulti(std::string fname, std::vector<int> sub, std::vector<std::string> subname, std::vector<std::string> drivers, std::vector<std::string> options, std::vector<size_t> xyz);
@@ -360,10 +365,10 @@ class SpatRaster {
 		
 //		bool constructFromNCDFsds(std::string filename, std::vector<std::string> meta, std::vector<int> subds, std::vector<std::string> subdsname);
 
-		void addSource(SpatRaster x, bool warn, SpatOptions &opt);	
+		void addSource(SpatRaster &x, bool warn, SpatOptions &opt);	
 		void checkTime(SpatRaster &x);	
-		SpatRaster combineSources(SpatRaster x, bool warn);
-		void combine(SpatRaster x);
+		SpatRaster combineSources(SpatRaster &x, bool warn);
+		void combine(SpatRaster &x);
 		
 		SpatRaster subset(std::vector<unsigned> lyrs, SpatOptions &opt);
 		SpatRaster replace(SpatRaster x, unsigned layer, SpatOptions &opt);
@@ -523,6 +528,9 @@ class SpatRaster {
 
 		SpatRaster writeRaster(SpatOptions &opt);
 		SpatRaster writeTempRaster(SpatOptions &opt);
+		bool writeDelim(std::string filename, std::string delim, bool cell, bool xy, SpatOptions &opt);
+		bool update_meta(bool names, bool crs, bool ext, SpatOptions &opt);
+
 		//SpatRaster writeRasterGDAL(std::string filename, std::string format, std::string datatype, bool overwrite, SpatOptions &opt);
 		//SpatRaster writeRasterBinary(std::string filename, std::string datatype, std::string bandorder, bool overwrite);
 		//bool checkFormatRequirements(const std::string &driver, std::string &filename);
@@ -566,6 +574,11 @@ class SpatRaster {
 		SpatVector polygonize(bool trunc, bool values, bool narm, bool aggregate, SpatOptions &opt);
 		SpatVector as_lines(SpatOptions &opt);
 		SpatVector as_points(bool values, bool narm, bool nall, SpatOptions &opt);
+		std::vector<std::vector<double>> as_points_value(const double& target, SpatOptions &opt);
+		std::vector<std::vector<double>> cells_notna(SpatOptions &opt);
+
+
+		SpatVector as_multipoints(bool narm, bool nall, SpatOptions &opt);
 		SpatRaster atan_2(SpatRaster x, SpatOptions &opt);
 
 		std::vector<std::vector<double>> bilinearValues(const std::vector<double> &x, const std::vector<double> &y);
@@ -573,21 +586,24 @@ class SpatRaster {
 		std::vector<double> fourCellsFromXY(const std::vector<double> &x, const std::vector<double> &y);
 
 
-		SpatRaster buffer(double d, SpatOptions &opt);
-		SpatRaster clamp(double low, double high, bool usevalue, SpatOptions &opt);
+		SpatRaster buffer(double d, double background, SpatOptions &opt);
+		SpatRaster clamp(std::vector<double> low, std::vector<double> high, bool usevalue, SpatOptions &opt);
+
 		SpatRaster combineCats(SpatRaster x, SpatOptions &opt);
 		SpatRaster dropLevels();
 
 		SpatRaster cover(SpatRaster x, std::vector<double> value, SpatOptions &opt);
 
-		SpatRaster crop(SpatExtent e, std::string snap, SpatOptions &opt);
-		SpatRaster cropmask(SpatVector v, std::string snap, bool touches, SpatOptions &opt);
+		SpatRaster crop(SpatExtent e, std::string snap, bool expand, SpatOptions &opt);
+		SpatRaster cropmask(SpatVector v, std::string snap, bool touches, bool expand, SpatOptions &opt);
 		SpatRaster cum(std::string fun, bool narm, SpatOptions &opt);
         SpatRaster disaggregate(std::vector<unsigned> fact, SpatOptions &opt);
-		SpatRaster distance(double target, double exclude, std::string unit, SpatOptions &opt);
-		SpatRaster disdir_vector_rasterize(SpatVector p, bool align_points, bool distance, bool from, bool degrees, double target, double exclude, std::string unit, SpatOptions &opt);
+		SpatRaster distance(double target, double exclude, std::string unit, bool remove_zero, bool haversine, SpatOptions &opt);
+		SpatRaster distance_rasterize(SpatVector p, double target, double exclude, std::string unit, bool haversine, SpatOptions &opt);
+		SpatRaster direction_rasterize(SpatVector p, bool from, bool degrees, double target, double exclude,  SpatOptions &opt);
 		
-		SpatRaster distance_vector(SpatVector p, std::string unit, SpatOptions &opt);
+		SpatRaster distance_spatvector(SpatVector p, std::string unit, bool haversine, SpatOptions &opt);
+		SpatRaster distance_crds(std::vector<double>& x, std::vector<double>& y, bool haversine, bool skip, bool setNA, std::string unit, SpatOptions &opt);
 
 		SpatRaster direction(bool from, bool degrees, double target, double exclude, SpatOptions &opt);
 		SpatRaster direction_vector(SpatVector p, bool from, bool degrees, SpatOptions &opt);
@@ -595,7 +611,7 @@ class SpatRaster {
 		SpatRaster clumps(int directions, bool zeroAsNA, SpatOptions &opt);
 
 		SpatRaster edges(bool classes, std::string type, unsigned directions, double falseval, SpatOptions &opt);
-		SpatRaster extend(SpatExtent e, std::string snap, SpatOptions &opt);
+		SpatRaster extend(SpatExtent e, std::string snap, double fill, SpatOptions &opt);
 		std::vector<std::vector<std::vector<double>>> extractVector(SpatVector v, bool touches, std::string method, bool cells, bool xy, bool weights, bool exact, SpatOptions &opt);
 		std::vector<double> extractVectorFlat(SpatVector v, bool touches, std::string method, bool cells, bool xy, bool weights, bool exact, SpatOptions &opt);
 		
@@ -625,7 +641,7 @@ class SpatRaster {
 		SpatDataFrame global(std::string fun, bool narm, SpatOptions &opt);
 		SpatDataFrame global_weighted_mean(SpatRaster &weights, std::string fun, bool narm, SpatOptions &opt);
 
-		SpatRaster gridDistance(SpatOptions &opt);
+		SpatRaster gridDistance(double m, SpatOptions &opt);
 		SpatRaster costDistanceRun(SpatRaster &old, bool &converged, double target, double m, bool lonlat, bool global, bool npole, bool spole, bool grid, SpatOptions &opt);
 		SpatRaster costDistance(double target, double m, size_t maxiter, bool grid, SpatOptions &opt);
 
@@ -635,11 +651,14 @@ class SpatRaster {
 		SpatRaster is_in(std::vector<double> m, SpatOptions &opt);
 		std::vector<std::vector<double>> is_in_cells(std::vector<double> m, SpatOptions &opt);
 
-		std::vector<std::string> getDataType();
+		std::vector<std::string> getDataType(bool unique);
+		std::vector<std::string> dataType();
 
 		SpatRaster isnot(SpatOptions &opt);
 		SpatRaster isnan(SpatOptions &opt);
 		SpatRaster isnotnan(SpatOptions &opt);
+		SpatRaster allnan(SpatOptions &opt);
+		SpatRaster anynan(SpatOptions &opt);
 		SpatRaster isfinite(SpatOptions &opt);
 		SpatRaster isinfinite(SpatOptions &opt);
 
@@ -675,6 +694,12 @@ class SpatRaster {
 		SpatRaster rasterizeLyr(SpatVector x, double value, double background, bool touches, bool update, SpatOptions &opt);
 
 		SpatRaster rasterize(SpatVector x, std::string field, std::vector<double> values, double background, bool touches, bool add, bool weights, bool update, bool minmax, SpatOptions &opt);
+		
+		SpatRaster rasterizeWindow(std::vector<double> x, std::vector<double> y, std::vector<double> z, std::string algo, std::vector<double> algops, SpatOptions &opt);
+
+		std::vector<std::vector<double>> win_circle(std::vector<double> x, std::vector<double> y, std::vector<double> z, std::vector<double> win, SpatOptions &opt);
+		std::vector<std::vector<double>> win_rect(std::vector<double> x, std::vector<double> y, std::vector<double> z, std::vector<double> win, SpatOptions &opt);
+		
 		std::vector<double> rasterizeCells(SpatVector &v, bool touches, SpatOptions &opt);
 		//std::vector<std::vector<double>> rasterizeCellsWeights(SpatVector &v, bool touches);
 		SpatRaster rasterizeGeom(SpatVector x, std::string unit, std::string count, SpatOptions &opt);
@@ -685,12 +710,14 @@ class SpatRaster {
 		void rasterizeLinesLength(std::vector<double> &cells, std::vector<double> &weights, SpatVector &v, SpatOptions &opt);
 
 
-		SpatRaster replaceValues(std::vector<double> from, std::vector<double> to, long nl, bool keepcats, SpatOptions &opt);
+		SpatRaster replaceValues(std::vector<double> from, std::vector<double> to, long nl, bool setothers, double others, bool keepcats, SpatOptions &opt);
 		SpatRaster reclassify(std::vector<std::vector<double>> rcl, unsigned openclosed, bool lowest, bool others, double othersValue, bool bylayer, bool brackets, bool keepcats, SpatOptions &opt);
 		SpatRaster reclassify(std::vector<double> rcl, unsigned nc, unsigned openclosed, bool lowest, bool others, double othersValue, bool bylayer, bool brackets, bool keepcats, SpatOptions &opt);
 		//SpatRaster classify_layers(std::vector<std::vector<double>> groups, std::vector<double> id, SpatOptions &opt);
 		//SpatRaster classify_layers(std::vector<double> groups, unsigned nc, std::vector<double> id, SpatOptions &opt);
 
+		SpatRaster intersect(SpatRaster &x, SpatOptions &opt);
+		
 		std::vector<double> readSample(unsigned src, size_t srows, size_t scols);
 		SpatRaster rotate(bool left, SpatOptions &opt);
 
@@ -717,7 +744,8 @@ class SpatRaster {
 
 		SpatRaster transpose(SpatOptions &opt);
 		SpatRaster trig(std::string fun, SpatOptions &opt);
-		SpatRaster trim(double value, unsigned padding, SpatOptions &opt);
+		SpatRaster trim1(double value, unsigned padding, SpatOptions &opt);
+		SpatRaster trim2(double value, unsigned padding, SpatOptions &opt);
 		std::vector<std::vector<double>> unique(bool bylayer, bool narm, SpatOptions &opt);
 		SpatRaster project1(std::string newcrs, std::string method, SpatOptions &opt);
 		SpatRaster project2(SpatRaster &x, std::string method, SpatOptions &opt);
@@ -757,6 +785,8 @@ class SpatRaster {
 		SpatRaster is_false(SpatOptions &opt);
 		SpatRaster not_na(SpatOptions &opt);
 
+		SpatRaster proximity(double target, double exclude, std::string unit, bool buffer, double maxdist, bool remove_zero, SpatOptions &opt);
+		SpatRaster viewshed(const std::vector<double> obs, const std::vector<double> vals, const double curvcoef, const int mode, const double maxdist, const int heightmode, SpatOptions &opt);
 		SpatRaster sieveFilter(int threshold, int connections, SpatOptions &opt);	
 		
 //		SpatRaster panSharpen(SpatRaster pan, SpatOptions &opt);	

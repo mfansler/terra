@@ -16,7 +16,8 @@ parfun <- function(cls, d, fun, model, ...) {
 }
 
 
-.runModel <- function(model, fun, d, nl, const, na.rm, index, cores=1, cls=NULL, ...) {
+.runModel <- function(model, fun, d, nl, const, na.rm, index, cores, ...) {
+	doPar <- !is.null(cores)
 	if (!is.data.frame(d)) {
 		d <- data.frame(d)
 	}
@@ -24,19 +25,19 @@ parfun <- function(cls, d, fun, model, ...) {
 		for (i in 1:ncol(const)) {
 			d <- cbind(d, const[,i,drop=FALSE])
 		}
-	}	
+	}
 	if (na.rm) {
 		n <- nrow(d)
 		i <- rowSums(is.na(d)) == 0
 		d <- d[i,,drop=FALSE]
 		if (nrow(d) > 0) {
-			if (cores > 1) {
-				r <- parfun(cls, d, fun, model, ...)
+			if (doPar) {
+				r <- parfun(cores, d, fun, model, ...)
 			} else {
 				r <- fun(model, d, ...)
 			}
 			if (is.list(r)) {
-				r <- as.data.frame(lapply(r, as.numeric))			
+				r <- as.data.frame(lapply(r, as.numeric))
 			} else if (is.factor(r)) {
 				r <- as.integer(r)
 			} else if (is.data.frame(r)) {
@@ -65,13 +66,13 @@ parfun <- function(cls, d, fun, model, ...) {
 			}
 		}
 	} else {
-		if (cores > 1) {
-			r <- parfun(cls, d, fun, model, ...)
+		if (doPar) {
+			r <- parfun(cores, d, fun, model, ...)
 		} else {
 			r <- fun(model, d, ...)
 		}
 		if (is.list(r)) {
-			r <- as.data.frame(lapply(r, as.numeric))			
+			r <- as.data.frame(lapply(r, as.numeric))
 		} else if (is.factor(r)) {
 			r <- as.integer(r)
 		} else if (is.data.frame(r)) {
@@ -101,7 +102,7 @@ parfun <- function(cls, d, fun, model, ...) {
 		for (i in 1:ncol(const)) {
 			d <- cbind(d, const[,i,drop=FALSE])
 		}
-	}	
+	}
 	if (na.rm) {
 		n <- nrow(d)
 		i <- rowSums(is.na(d)) == 0
@@ -121,7 +122,10 @@ parfun <- function(cls, d, fun, model, ...) {
 		}
 	}
 
-	if (is.list(r) || is.data.frame(r)) {
+	if (is.factor(r)) {
+		levs <- levels(r)
+		data.frame(value=1:length(levs), class=levs)
+	} else if (is.list(r) || is.data.frame(r)) {
 		out <- sapply(r, levels)
 		for (i in 1:length(out)) {
 			if (!is.null(out[[i]])) {
@@ -135,7 +139,7 @@ parfun <- function(cls, d, fun, model, ...) {
 }
 
 setMethod("predict", signature(object="SpatRaster"),
-	function(object, model, fun=predict, ..., factors=NULL, const=NULL, na.rm=FALSE, index=NULL, cores=1, cpkgs=NULL, filename="", overwrite=FALSE, wopt=list()) {
+	function(object, model, fun=predict, ..., const=NULL, na.rm=FALSE, index=NULL, cores=1, cpkgs=NULL, filename="", overwrite=FALSE, wopt=list()) {
 
 		nms <- names(object)
 		if (length(unique(nms)) != length(nms)) {
@@ -193,7 +197,7 @@ setMethod("predict", signature(object="SpatRaster"),
 				}
 			}
 			if (!allna) {
-				r <- .runModel(model, fun, d, nl, const, na.rm, index, ...)
+				r <- .runModel(model, fun, d, nl, const, na.rm, index, cores=NULL, ...)
 				if (ncell(object) > 1) {
 					nl <- ncol(r)
 					cn <- colnames(r)
@@ -210,28 +214,29 @@ setMethod("predict", signature(object="SpatRaster"),
 		levels(out) <- levs
 		if (length(cn) == nl) names(out) <- make.names(cn, TRUE)
 
-		if (cores > 1) {
-			cls <- parallel::makeCluster(cores)
-			on.exit(parallel::stopCluster(cls), add=TRUE)
-			parallel::clusterExport(cls, c("model", "fun"), environment())
+		doclust <- FALSE
+		if (inherits(cores, "cluster")) {
+			doclust <- TRUE
+		} else if (cores > 1) {
+			doclust <- TRUE
+			cores <- parallel::makeCluster(cores)
+			on.exit(parallel::stopCluster(cores), add=TRUE)
+		}
+		if (doclust) {
+			parallel::clusterExport(cores, c("model", "fun"), environment())
 			if (!is.null(cpkgs)) {
-				parallel::clusterExport(cls, "cpkgs", environment())
-				parallel::clusterCall(cls, function() for (i in 1:length(cpkgs)) {library(cpkgs[i], character.only=TRUE) })
+				parallel::clusterExport(cores, "cpkgs", environment())
+				parallel::clusterCall(cores, function() for (i in 1:length(cpkgs)) {library(cpkgs[i], character.only=TRUE) })
 			}
-			dots <- list(...)
-			if (length(dots) > 0) {
-				nms <- names(dots)
-				dotsenv <- new.env()
-				lapply(1:length(dots), function(i) assign(nms[i], dots[[i]], envir=dotsenv))
-				parallel::clusterExport(cls, nms, dotsenv)
-			}
+			export_args(cores, ..., caller="predict")
+			
 		} else {
-			cls <- NULL
+			cores <- NULL
 		}
 		b <- writeStart(out, filename, overwrite, wopt=wopt, n=max(nlyr(out), nlyr(object))*4, sources=sources(object))
 		for (i in 1:b$n) {
 			d <- readValues(object, b$row[i], b$nrows[i], 1, nc, TRUE, TRUE)
-			r <- .runModel(model, fun, d, nl, const, na.rm, index, cores=cores, cls=cls, ...)
+			r <- .runModel(model, fun, d, nl, const, na.rm, index, cores=cores, ...)
 			writeValues(out, r, b$row[i], b$nrows[i])
 		}
 		writeStop(out)
