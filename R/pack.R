@@ -51,7 +51,7 @@ setMethod("unwrap", signature(x="PackedSpatVector"),
 		p <- methods::new("SpatVector")
 		p@ptr <- SpatVector$new()
 		if (!is.na(x@crs)) {
-			crs(p) <- x@crs
+			crs(p, warn=FALSE) <- x@crs
 		}
 		if (nrow(x@coordinates) == 0) {
 			return(p)
@@ -147,7 +147,7 @@ setMethod("wrap", signature(x="SpatRaster"),
 			r@attributes$units <- v
 		}
 		v <- depth(x)
-		if (any(!is.na(v))) {
+		if (!all(v ==0)) {
 			r@attributes$depth <- v
 		}
 		r
@@ -162,7 +162,7 @@ setMethod("unwrap", signature(x="PackedSpatRaster"),
 		if (!is.null(x@attributes$filename)) {
 			rr <- rast(x@attributes$filename)
 			ext(rr) <- ext(r)
-			crs(rr) <- crs(r)
+			crs(rr, warn=FALSE) <- crs(r)
 			r <- rr
 		} else if (!is.null(x@attributes$sources)) {
 			s <- x@attributes$sources
@@ -174,7 +174,7 @@ setMethod("unwrap", signature(x="PackedSpatRaster"),
 				})
 			rr <- rast(rr)
 			ext(rr) <- ext(r)
-			crs(rr) <- crs(r)
+			crs(rr, warn=FALSE) <- crs(r)
 			r <- rr
 		} else {
 			values(r) <- x@values
@@ -184,11 +184,11 @@ setMethod("unwrap", signature(x="PackedSpatRaster"),
 			nms <- names(x@attributes)
 			if (any(nms %in% c("levels", "time", "units", "depth"))) {
 				time(r) <- x@attributes$time
-				units(r) <- x@attributes$units
+				units(r) <- x@attributes$units	
 				depth(r) <- x@attributes$depth
 				if (!is.null(x@attributes$levels)) {
-					if (is.null(x@attributes$levindex)) x@attributes$levindex <- 2
-					set.cats(r, layer=0, x@attributes$levels, index=x@attributes$levindex+1)
+					if (is.null(x@attributes$levindex)) x@attributes$levindex <- 1
+					set.cats(r, layer=0, x@attributes$levels, active=x@attributes$levindex)
 				}
 			}
 		}

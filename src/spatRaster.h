@@ -417,7 +417,7 @@ class SpatRaster {
 		bool createCategories(unsigned layer, SpatOptions &opt);
 		std::vector<bool> hasCategories();
 		bool setCategories(unsigned layer, SpatDataFrame d, unsigned index);
-		bool removeCategories(unsigned layer);
+		bool removeCategories(long layer);
 		std::vector<SpatCategories> getCategories();
 		SpatCategories getLayerCategories(unsigned layer);
 		std::vector<std::string> getLabels(unsigned layer);
@@ -461,7 +461,7 @@ class SpatRaster {
 		}
 
 		void readBlock2(std::vector<std::vector<double>> &v, BlockSize bs, unsigned i);
-		std::vector<double> readBlockIP(BlockSize bs, unsigned i);		
+		void readBlockIP(std::vector<double> &x, BlockSize bs, unsigned i);		
 		std::vector<double> readExtent(SpatExtent e);
 		bool readStop();
 
@@ -563,12 +563,15 @@ class SpatRaster {
 		std::vector<std::vector<double>> sum_area(std::string unit, bool transform, bool by_value, SpatOptions &opt);
 		std::vector<std::vector<double>> area_by_value(SpatOptions &opt);
 
+		SpatRaster roll(size_t n, std::string fun, std::string type, bool circular, bool narm, SpatOptions &opt);
+
 		SpatRaster arith(SpatRaster x, std::string oper, SpatOptions &opt);
 		SpatRaster arith(double x, std::string oper, bool reverse, SpatOptions &opt);
 		SpatRaster arith(std::vector<double> x, std::string oper, bool reverse, SpatOptions &opt);
 		SpatRaster apply(std::vector<unsigned> ind, std::string fun, bool narm, std::vector<std::string> nms, SpatOptions &opt);
 		SpatRaster rapply(SpatRaster x, double first, double last, std::string fun, bool clamp, bool narm, bool circular, SpatOptions &opt);
 		std::vector<std::vector<double>> rappvals(SpatRaster x, double first, double last, bool clamp, bool all, double fill, size_t startrow, size_t nrows, bool circular);
+		SpatRaster fill_range(long limit, bool circular, SpatOptions &opt);
 
 		SpatVector as_polygons(bool trunc, bool dissolve, bool values, bool narm, bool nall, SpatOptions &opt);
 		SpatVector polygonize(bool trunc, bool values, bool narm, bool aggregate, SpatOptions &opt);
@@ -576,6 +579,7 @@ class SpatRaster {
 		SpatVector as_points(bool values, bool narm, bool nall, SpatOptions &opt);
 		std::vector<std::vector<double>> as_points_value(const double& target, SpatOptions &opt);
 		std::vector<std::vector<double>> cells_notna(SpatOptions &opt);
+		std::vector<double> cells_notna_novalues(SpatOptions &opt);
 
 
 		SpatVector as_multipoints(bool narm, bool nall, SpatOptions &opt);
@@ -657,8 +661,9 @@ class SpatRaster {
 		SpatRaster isnot(SpatOptions &opt);
 		SpatRaster isnan(SpatOptions &opt);
 		SpatRaster isnotnan(SpatOptions &opt);
-		SpatRaster allnan(SpatOptions &opt);
-		SpatRaster anynan(SpatOptions &opt);
+		SpatRaster allnan(bool setnan, SpatOptions &opt);
+		SpatRaster anynan(bool setnan, SpatOptions &opt);
+		SpatRaster nonan(bool setnan, SpatOptions &opt);
 		SpatRaster isfinite(SpatOptions &opt);
 		SpatRaster isinfinite(SpatOptions &opt);
 
@@ -670,6 +675,7 @@ class SpatRaster {
 		SpatExtent ext_from_cell(double cell);
 
 		std::vector<std::string> make_tiles(SpatRaster x, bool expand, bool narm, std::string filename, SpatOptions &opt);
+		std::vector<std::string> make_tiles_vect(SpatVector x, bool expand, bool narm, std::string filename, SpatOptions &opt);
 
 		SpatRaster mask(SpatRaster x, bool inverse, double maskvalue, double updatevalue, SpatOptions &opt);
 		SpatRaster mask(SpatRaster x, bool inverse, std::vector<double> maskvalues, double updatevalue, SpatOptions &opt);

@@ -193,7 +193,6 @@ function(x, w=3, fun=mean, ..., na.policy="all", fillvalue=NA, pad=FALSE, padval
 	}
 	if (any((w %% 2) == 0)) {
 		error("focal3D", "w must be odd sized in all dimensions")
-
 	}
 
 	msz <- prod(w)
@@ -407,35 +406,139 @@ function(x, w=3, fun, ..., fillvalue=NA, silent=TRUE, filename="", overwrite=FAL
 )
 
 
+.getRegFun <- function(fun, weighted=FALSE, wopt, nmsx, nl, na.rm=FALSE, intercept=TRUE, ...) {
+
+	ols <- function(x, y, ...) {
+		v <- cbind(y, x)
+		if (any(is.na(v))) return( cbind(rep(NA, NCOL(x)+1)) )
+		X <- cbind(1, v[,-1])
+		XtX <- t(X) %*% X
+		if (det(XtX) == 0) {
+			return(rep(NA, NCOL(y)+1))
+		}
+		invXtX <- solve(XtX) %*% t(X)
+		invXtX %*% v[,1]
+	}
+
+	ols_noi <- function(x, y, ...) {
+		v <- cbind(y, x)
+		if (any(is.na(v))) return( cbind (rep(NA, NCOL(x))) )
+		X <- v[,-1,drop=FALSE]
+		XtX <- t(X) %*% X
+		if (det(XtX) == 0) {
+			return(rep(NA, ncol(y)+1))
+		}
+		invXtX <- solve(XtX) %*% t(X)
+		invXtX %*% v[,1]
+	}
+
+	ols_narm <- function(x, y, ...) {
+		v <- na.omit(cbind(y, x))
+		if (nrow(v) < (NCOL(x) + 1)) {
+			return( cbind(rep(NA, NCOL(x)+1)) )
+		}
+		X <- cbind(1, v[,-1])
+		XtX <- t(X) %*% X
+		if (det(XtX) == 0) {
+			return(NA)
+		}
+		invXtX <- solve(XtX) %*% t(X)
+		invXtX %*% v[,1]
+	}
+	
+	ols_noi_narm <- function(x, y, ...) {
+		v <- na.omit(cbind(y, x))
+		if (nrow(v) < NCOL(x)) {
+			return( cbind(rep(NA, NCOL(y))) )
+		}
+		X <- v[,-1,drop=FALSE]
+		XtX <- t(X) %*% X
+		if (det(XtX) == 0) {
+			return(NA)
+		}
+		invXtX <- solve(XtX) %*% t(X)
+		invXtX %*% v[,1]
+	}
+
+	weighted_ols <- function(x, y, weights, ...) {
+		if (any(is.na(x)) || any(is.na(y))) { 
+			return(rep(NA, NCOL(y)+1))
+		}
+		stats::coefficients(stats::glm(y~x, weights=weights))
+	}
+
+	weighted_ols_noi <- function(x, y, weights, ...) {
+		if (any(is.na(x)) || any(is.na(y))) { 
+			return(rep(NA, NCOL(y)))
+		}
+		v <- na.omit(data.frame(y=y, x, weights=weights))
+		stats::coefficients(stats::glm(y ~ -1 + ., weights=weights))
+	}
+
+	weighted_ols_narm <- function(x, y, weights, ...) {
+		v <- na.omit(data.frame(y=y, x, weights=weights))
+		if (nrow(v) < (NCOL(x) + 1)) {
+			return(rep(NA, NCOL(y)+1))
+		}
+		stats::coefficients(stats::glm(y ~ ., data=v, weights=v$weights))
+	}	
+
+	weighted_ols_noi_narm <- function(x, y, weights, ...) {
+		v <- na.omit(data.frame(y=y, x, weights=weights))
+		if (nrow(v) < (NCOL(x) + 1)) {
+			return(rep(NA, NCOL(y)+1))
+		}
+		stats::coefficients(stats::glm(y ~ -1 + ., data=v, weights=v$weights))
+	}	
+
+	fun <- tolower(fun[1])
+	if (fun != "ols") {
+		return(list(fun=fun, wopt=wopt))
+	}
+	
+	if (intercept) {
+		if (weighted) {
+			if (na.rm) {
+				fun <- weighted_ols_narm
+			} else {
+				fun <- weighted_ols				
+			}
+		} else {
+			if (na.rm) {
+				fun = ols_narm
+			} else {
+				fun = ols				
+			}
+		}
+		if (is.null(wopt$names )) {
+			wopt$names <- c("intercept", nmsx[-1])
+		}
+	} else {
+		if (weighted) {
+			if (na.rm) {
+				fun <- weighted_ols_noi_narm
+			} else {
+				fun <- weighted_ols_noi				
+			}
+		} else {
+			if (na.rm) {
+				fun = ols_noi_narm
+			} else {
+				fun = ols_noi				
+			}
+		}
+		if (is.null(wopt$names )) {
+			wopt$names <- nmsx[-1]
+		}
+		nl = nl-1
+	}
+
+	list(fun=fun, wopt=wopt, nl=nl)
+}
 
 
 setMethod("focalReg", signature(x="SpatRaster"),
-function(x, w=3, na.rm=TRUE, fillvalue=NA, filename="",  ...)  {
-
-	ols <- function(x, y) {
-		v <- cbind(y, x)
-		X <- cbind(1, v[,-1])
-		XtX <- t(X) %*% X
-		if (det(XtX) == 0) {
-			return(NA)
-		}
-		invXtX <- solve(XtX) %*% t(X)
-		invXtX %*% v[,1]
-	}
-
-	ols_narm <- function(x, y) {
-		v <- na.omit(cbind(y, x))
-		if (nrow(v) < (NCOL(x) + 1)) {
-			return(NA)
-		}
-		X <- cbind(1, v[,-1])
-		XtX <- t(X) %*% X
-		if (det(XtX) == 0) {
-			return(NA)
-		}
-		invXtX <- solve(XtX) %*% t(X)
-		invXtX %*% v[,1]
-	}
+function(x, w=3, fun="ols", ..., fillvalue=NA, filename="", overwrite=FALSE, wopt=list()) {
 
 	nl <- nlyr(x)
 	if (nl < 2) error("focalReg", "x must have at least 2 layers")
@@ -443,36 +546,50 @@ function(x, w=3, na.rm=TRUE, fillvalue=NA, filename="",  ...)  {
 	if (!is.numeric(w)) {
 		error("focalReg", "w should be numeric vector or matrix")
 	}
+
+	weighted <- FALSE
 	if (is.matrix(w)) {
 		m <- as.vector(t(w))
+		m[m==0] <- NA
+		test <- na.omit(m)
+		if (length(test) == 0) {
+			error("focalReg", "all values in w are NA and/or zero")
+		}
+		if (any(test != 1)) {
+			weighted <- TRUE
+			message("the focal values are used as weights")
+		} 
 		w <- dim(w)
 	} else {
 		w <- rep_len(w, 2)
 		stopifnot(all(w > 0))
 		m <- rep(1, prod(w))
 	}
-	msz <- prod(w)
-	dow <- !isTRUE(all(m == 1))
-	isnam <- FALSE
-	if (any(is.na(m))) {
-		k <- !is.na(m)
-		mm <- m[k]
-		msz <- sum(k)
-		isnam <- TRUE
-	}
-	out <- rast(x)
 
-	if (na.rm) {
-		fun = function(x, y) {
-			x <- try(ols_narm(x, y), silent=TRUE)
-		}
-		#fun = ols_narm
-	} else {
-		fun = function(x, y) try(ols(x, y), silent=TRUE)
-		#fun = ols
+	msz <- prod(w)
+	if (msz < 2) {
+		error("the effective weight matrix must have positive dimensions, and at least one must be > 1")
 	}
-	names(out) <- paste0("B", 0:(nl-1))
-	b <- writeStart(out, filename, n=msz*4, sources=sources(x), ...)
+
+	hasnam <- FALSE
+	if (any(is.na(m))) {
+		hasnam <- TRUE
+		k <- !is.na(m)
+		msz <- sum(k)
+		weights <- m[k]
+	} else if (weighted) {
+		weights <- m	
+	}
+
+	if (is.character(fun)) {
+		funopt <- .getRegFun(fun, weighted, wopt, names(x), nlyr(x), ...) 
+		fun <- funopt$fun
+		wopt <- funopt$wopt
+		outnl <- funopt$nl
+	}
+	out <- rast(x, nlyr=outnl)
+
+	b <- writeStart(out, filename, n=msz*4, sources=sources(x), wopt=wopt)
 	ry <- x[[1]]
 	rx <- x[[-1]]
 
@@ -480,38 +597,29 @@ function(x, w=3, na.rm=TRUE, fillvalue=NA, filename="",  ...)  {
 		for (i in 1:b$n) {
 			Y <- focalValues(ry, w, b$row[i], b$nrows[i], fillvalue)
 			X <- focalValues(rx, w, b$row[i], b$nrows[i], fillvalue)
-			if (dow) {
-				if (isnam) {
-					Y <- Y[k] * mm
-					X <- X[k] * mm
-				} else {
-					Y <- Y * m
-					X <- X * m
-				}
+			if (hasnam) {
+				Y <- Y[,k,drop=FALSE]
+				X <- X[,k,drop=FALSE]
 			}
-			v <- t(sapply(1:nrow(Y), function(i) fun(X[i,], Y[i,])))
+			if (weighted) {
+				v <- t(sapply(1:nrow(Y), function(i) fun(X[i,], Y[i,], weights, ...)))			
+			} else {
+				v <- t(sapply(1:nrow(Y), function(i) fun(X[i,], Y[i,], ...)))
+			}
 			writeValues(out, v, b$row[i], b$nrows[i])
 		}
 	} else {
 
 		for (i in 1:b$n) {
 			Y <- focalValues(ry, w, b$row[i], b$nrows[i], fillvalue)
-			if (dow) {
-				if (isnam) {
-					Y <- Y[k] * mm
-				} else {
-					Y <- Y * m
-				}
+			if (hasnam) {
+				Y <- Y[,k,drop=FALSE]
 			}
 			X <- list()
 			for (j in 1:(nl-1)) {
 				X[[j]] <- focalValues(rx[[j]], w, b$row[i], b$nrows[i], fillvalue)
-				if (dow) {
-					if (any(is.na(m))) {
-						X[[j]] <- X[[j]][k] * mm
-					} else {
-						X[[j]] <- X[[j]] * m
-					}
+				if (hasnam) {
+					X[[j]] <- X[[j]][,k]
 				}
 			}
 			v <- list()
@@ -521,7 +629,11 @@ function(x, w=3, na.rm=TRUE, fillvalue=NA, filename="",  ...)  {
 					xlst[[j]] <- X[[j]][p,]
 				}
 				pX <- do.call(cbind, xlst)
-				v[[p]] <- fun(pX, Y[p,])
+				if (weighted) {
+					v[[p]] <- fun(pX, Y[p,], weights)
+				} else {
+					v[[p]] <- fun(pX, Y[p,])
+				}
 			}
 			v <- t(do.call(cbind, v))
 			writeValues(out, v, b$row[i], b$nrows[i])
@@ -534,18 +646,41 @@ function(x, w=3, na.rm=TRUE, fillvalue=NA, filename="",  ...)  {
 )
 
 
-
-setMethod("focalCor", signature(x="SpatRaster"),
+setMethod("focalPairs", signature(x="SpatRaster"),
 function(x, w=3, fun, ..., fillvalue=NA, filename="", overwrite=FALSE, wopt=list()) {
 
+	pearson <- function(x, y, ...) { 
+		.pearson(x, y, FALSE)
+	}
+	pearson_narm <- function(x, y, ...) { 
+		.pearson(x, y, TRUE)
+	}
+
+	weighted_pearson <- function(x, y, weights, ...) { 
+		.weighted_pearson(x, y, weights, FALSE)
+	}
+	weighted_pearson_narm <- function(x, y, weights, ...) { 
+		.weighted_pearson(x, y, weights, TRUE)
+	}
+	
 	nl <- nlyr(x)
-	if (nl < 2) error("focalCor", "x must have at least 2 layers")
+	if (nl < 2) error("focalPairs", "x must have at least 2 layers")
 
 	if (!is.numeric(w)) {
-		error("focalCor", "w should be numeric vector or matrix")
+		error("focalPairs", "w should be numeric vector or matrix")
 	}
+	weighted <- FALSE
 	if (is.matrix(w)) {
 		m <- as.vector(t(w))
+		m[m==0] <- NA
+		test <- na.omit(m)
+		if (length(test) == 0) {
+			error("focalPairs", "all values in w are NA and/or zero")
+		}
+		if (any(test != 1)) {
+			weighted <- TRUE
+			message("the focal values are used as weights")
+		} 
 		w <- dim(w)
 	} else {
 		w <- rep_len(w, 2)
@@ -553,16 +688,52 @@ function(x, w=3, fun, ..., fillvalue=NA, filename="", overwrite=FALSE, wopt=list
 		m <- rep(1, prod(w))
 	}
 	msz <- prod(w)
-	dow <- !isTRUE(all(m == 1))
-	isnam <- FALSE
+
+	hasnam <- FALSE
 	if (any(is.na(m))) {
+		hasnam <- TRUE
 		k <- !is.na(m)
-		mm <- m[k]
 		msz <- sum(k)
-		isnam <- TRUE
+		weights <- m[k]
+	} else if (weighted) {
+		weights <- m	
 	}
 
-	test <- do.call(fun, list(1:prod(w), prod(w):1), ...)
+	if (msz < 2) {
+		error("the effective weight matrix must have positive dimensions, and at least one must be > 1")
+	}
+
+	if (is.character(fun)) {
+		narm <- isTRUE(list(...)$na.rm)
+		fun <- tolower(fun[1])
+		if (fun == "pearson") {
+			if (weighted) {
+				if (narm) {
+					fun = weighted_pearson_narm
+				} else {
+					fun = weighted_pearson
+				}
+			} else {
+				if (narm) {
+					fun = pearson_narm
+				} else {
+					fun = pearson
+				}
+			}
+		}
+	}
+	
+	if (weighted) {
+		test <- try(do.call(fun, list(1:prod(w), prod(w):1, weights=rep(1, prod(w)), ...)))
+		if (inherits(test, "try-error")) {
+			error("focalPairs", "'fun' does not work. Does it have a 'weights' argument?")
+		}
+	} else {
+		test <- try(do.call(fun, list(1:prod(w), prod(w):1, ...)))
+		if (inherits(test, "try-error")) {
+			error("focalPairs", "'fun' does not work. Does it have two arguments (one for each layer)")
+		}
+	}
 	if (is.null(wopt$names )) {
 		wopt$names <- colnames(test)
 	}
@@ -570,30 +741,25 @@ function(x, w=3, fun, ..., fillvalue=NA, filename="", overwrite=FALSE, wopt=list
 	outnl <- (nlyr(x) - 1) * length(test)
 	out <- rast(x, nlyr=outnl)
 
-	b <- writeStart(out, filename, n=msz*4, sources=sources(x), ...)
+	b <- writeStart(out, filename, n=msz*4, sources=sources(x), wopt=wopt)
 
 	for (i in 1:b$n) {
 		v <- list()
 		Y <- focalValues(x[[1]], w, b$row[i], b$nrows[i], fillvalue)
-		if (dow) {
-			if (isnam) {
-				Y <- Y[k] * mm
-			} else {
-				Y <- Y * m
-			}
+		if (hasnam) {
+			Y <- Y[,k,drop=FALSE]
 		}
 		for (j in 2:nlyr(x)) {
 			X <- Y
 			Y <- focalValues(x[[j]], w, b$row[i], b$nrows[i], fillvalue)
-			if (dow) {
-				if (isnam) {
-					Y <- Y[k] * mm
-				} else {
-					Y <- Y * m
-				}
+			if (hasnam) {
+				Y <- Y[,k,drop=FALSE]
+			} 
+			if (weighted) {
+				v[[j-1]] <- t(sapply(1:nrow(Y), function(i) fun(X[i,], Y[i,], weights=weights, ...)))
+			} else {
+				v[[j-1]] <- t(sapply(1:nrow(Y), function(i) fun(X[i,], Y[i,], ...)))
 			}
-			corv <- t(sapply(1:nrow(Y), function(i, ...) fun(X[i,], Y[i,], ...)))
-			v[[j-1]] <- corv 
 		}
 		v <- do.call(cbind, v)
 		writeValues(out, v, b$row[i], b$nrows[i])
@@ -602,4 +768,5 @@ function(x, w=3, fun, ..., fillvalue=NA, filename="", overwrite=FALSE, wopt=list
 	return(out)
 }
 )
+
 

@@ -20,6 +20,7 @@
 #include "string_utils.h"
 #include "file_utils.h"
 #include "vecmath.h"
+#include "recycle.h"
 
 #include <unordered_map>
 #include <vector>
@@ -548,10 +549,35 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt, const std::vector<std::string>
 
 	if (writeRGB) nms = {"red", "green", "blue"};
 
+	std::vector<double> scale = opt.get_scale();
+	std::vector<double> offset = opt.get_offset();
+	size_t nl = nlyr();
+	if (((scale.size() > 1) || (offset.size())) || 
+		((scale[0] != 1) || (offset[0] != 0))) {	
+		recycle(scale, nl);
+		recycle(offset, nl);
+	}
+	bool scoff = false;
+	for (size_t i=0; i<scale.size(); i++) {
+		//if (scale[i] == 0) scale[i] = 1;
+		if ((scale[i] != 1) || (offset[i] != 0)) {
+			if (!scoff) {
+				source[0].has_scale_offset = std::vector<bool>(nl, false);
+				scoff = true;
+			}
+			source[0].has_scale_offset[i] = true;
+		}
+	}
+	if (scoff) {
+		source[0].scale  = scale;
+		source[0].offset = offset;
+	}
+
+	bool scoffwarning = false;
+	
 	for (size_t i=0; i < nlyr(); i++) {
 
 		poBand = poDS->GetRasterBand(i+1);
-
 		if ((i==0) && hasCT[i]) {
 			if (!setCT(poBand, ct[i])) {
 				if (warnCT) {
@@ -595,7 +621,6 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt, const std::vector<std::string>
 			} else if (datatype == "INT2S") {
 				poBand->SetNoDataValue(INT16_MIN);
 			} else if (datatype == "INT4U") {
-				//double na = (double)UINT32_MAX;
 				poBand->SetNoDataValue(UINT32_MAX);
 			} else if (datatype == "INT2U") {
 				//double na = (double)INT16_MAX * 2 - 1;
@@ -604,6 +629,19 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt, const std::vector<std::string>
 				poBand->SetNoDataValue(255);
 			} else if (datatype == "INT1S") {
 				poBand->SetNoDataValue(-128); //GDT_Int8
+#if GDAL_VERSION_MAJOR <= 3 && GDAL_VERSION_MINOR < 5
+// no Int64
+#else 
+			} else if (datatype == "INT8S") {
+				//INT64_MIN == -9223372036854775808;
+				if (poBand->SetNoDataValueAsInt64(INT64_MIN) != CE_None) {
+					addWarning("no data problem");
+				}			
+			} else if (datatype == "INT8U") {
+				if (poBand->SetNoDataValueAsUInt64(UINT64_MAX-1101) != CE_None) {
+					addWarning("no data problem");
+				}			
+#endif
 			} else {
 				poBand->SetNoDataValue(NAN);
 			}
@@ -618,9 +656,27 @@ bool SpatRaster::writeStartGDAL(SpatOptions &opt, const std::vector<std::string>
 				poBand->SetColorInterpretation(GCI_BlueBand);
 			}
 		}
-
+		
+		if (scoff) {
+			if (source[0].has_scale_offset[i]) {
+				bool failed = (poBand->SetScale(scale[i])) != CE_None;
+				if (!failed) {
+					failed = ((poBand->SetOffset(offset[i])) != CE_None);
+				}
+				if (failed) {
+					source[0].has_scale_offset[i] = false;
+					source[0].scale[i]  = 1;
+					source[0].offset[i] = 0;
+					scoffwarning = true;
+				}
+			}
+		}
 	}
 
+	if (scoffwarning) {
+		addWarning("could not set offset");
+	}
+	
 	std::vector<double> rs = resolution();
 	SpatExtent extent = getExtent();
 	double adfGeoTransform[6] = { extent.xmin, rs[0], 0, extent.ymax, 0, -1 * rs[1] };
@@ -725,6 +781,8 @@ void minmaxlim(Iterator start, Iterator end, double &vmin, double &vmax, const d
         vmin = NAN;
         vmax = NAN;
     }
+	vmin = std::trunc(vmin);	
+	vmax = std::trunc(vmax);	
 }
 
 
@@ -737,24 +795,42 @@ bool SpatRaster::writeValuesGDAL(std::vector<double> &vals, size_t startrow, siz
 	size_t nl = nlyr();
 	std::string datatype = source[0].dtype;
 
+	size_t n = vals.size() / nl;
+	for (size_t i=0; i<nl; i++) {
+		if (source[0].has_scale_offset[i]) {
+			size_t start = i*n;
+			for (size_t j=start; j<(start+n); j++) {
+				vals[j] = (vals[j] - source[0].offset[i]) / source[0].scale[i];
+			}
+		}
+	}
+
 	if ((compute_stats) && (!gdal_stats)) {
 		bool invalid = false;
 		for (size_t i=0; i < nl; i++) {
 			size_t start = nc * i;
-			if (datatype == "INT4S") {
+			if (datatype == "INT8S") {
+				minmaxlim(vals.begin()+start, vals.begin()+start+nc, vmin, vmax, (double)INT64_MIN, (double)INT64_MAX, invalid);
+			} else if (datatype == "INT4S") {
 				minmaxlim(vals.begin()+start, vals.begin()+start+nc, vmin, vmax, (double)INT32_MIN, (double)INT32_MAX, invalid);
 			} else if (datatype == "INT2S") {
 				minmaxlim(vals.begin()+start, vals.begin()+start+nc, vmin, vmax, (double)INT16_MIN, (double)INT16_MAX, invalid);
+			} else if (datatype == "INT8U") {
+				minmaxlim(vals.begin()+start, vals.begin()+start+nc, vmin, vmax, 0.0, (double)UINT64_MAX, invalid);
 			} else if (datatype == "INT4U") {
 				minmaxlim(vals.begin()+start, vals.begin()+start+nc, vmin, vmax, 0.0, (double)UINT32_MAX, invalid);
 			} else if (datatype == "INT2U") {
 				minmaxlim(vals.begin()+start, vals.begin()+start+nc, vmin, vmax, 0.0, (double)UINT16_MAX, invalid);
 			} else if (datatype == "INT1U") {
 				minmaxlim(vals.begin()+start, vals.begin()+start+nc, vmin, vmax, 0.0, 255.0, invalid);
-			} else if (datatype == "INTSU") {
+			} else if (datatype == "INT1S") {
 				minmaxlim(vals.begin()+start, vals.begin()+start+nc, vmin, vmax, -128.0, 127.0, invalid);
 			} else {
 				minmax(vals.begin()+start, vals.begin()+start+nc, vmin, vmax);
+			}
+			if (source[0].has_scale_offset[i]) {
+				vmin = vmin * source[0].scale[i] + source[0].offset[i];
+				vmax = vmax * source[0].scale[i] + source[0].offset[i];
 			}
 			if (!std::isnan(vmin)) {
 				if (std::isnan(source[0].range_min[i])) {
@@ -771,7 +847,7 @@ bool SpatRaster::writeValuesGDAL(std::vector<double> &vals, size_t startrow, siz
 		}
 	}
 
-	int hasNA=0;
+	int hasNA = 0;
 	double na = source[0].gdalconnection->GetRasterBand(1)->GetNoDataValue(&hasNA);
 	if ((datatype == "FLT8S") || (datatype == "FLT4S")) {
 		if (hasNA) {
@@ -782,7 +858,17 @@ bool SpatRaster::writeValuesGDAL(std::vector<double> &vals, size_t startrow, siz
 		}
 		err = source[0].gdalconnection->RasterIO(GF_Write, startcol, startrow, ncols, nrows, &vals[0], ncols, nrows, GDT_Float64, nl, NULL, 0, 0, 0, NULL );
 	} else {
-		if (datatype == "INT4S") {
+		if (datatype == "INT8S") {
+#if GDAL_VERSION_MAJOR <= 3 && GDAL_VERSION_MINOR < 5
+			setError("cannot write INT8S values with GDAL < 3.5");
+			GDALClose( source[0].gdalconnection );
+			return false;	
+#else 			
+			std::vector<int64_t> vv;
+			tmp_min_max_na(vv, vals, na, (double)INT64_MIN, (double)INT64_MAX);
+			err = source[0].gdalconnection->RasterIO(GF_Write, startcol, startrow, ncols, nrows, &vv[0], ncols, nrows, GDT_Int64, nl, NULL, 0, 0, 0, NULL );
+#endif
+		} else if (datatype == "INT4S") {
 			//min_max_na(vals, na, (double)INT32_MIN, (double)INT32_MAX);
 			//std::vector<int32_t> vv(vals.begin(), vals.end());
 			std::vector<int32_t> vv;
@@ -804,6 +890,17 @@ bool SpatRaster::writeValuesGDAL(std::vector<double> &vals, size_t startrow, siz
 			tmp_min_max_na(vv, vals, na, -127.0, 128.0);
 			err = source[0].gdalconnection->RasterIO(GF_Write, startcol, startrow, ncols, nrows, &vv[0], ncols, nrows, GDT_Int8, nl, NULL, 0, 0, 0, NULL );
 #endif
+
+		} else if (datatype == "INT8U") {
+#if GDAL_VERSION_MAJOR <= 3 && GDAL_VERSION_MINOR < 5
+			setError("cannot write INT8U values with GDAL < 3.5");
+			GDALClose( source[0].gdalconnection );
+			return false;	
+#else 			
+			std::vector<uint64_t> vv;
+			tmp_min_max_na(vv, vals, na, 0, (double)UINT64_MAX);
+			err = source[0].gdalconnection->RasterIO(GF_Write, startcol, startrow, ncols, nrows, &vv[0], ncols, nrows, GDT_UInt64, nl, NULL, 0, 0, 0, NULL );
+#endif			
 		} else if (datatype == "INT4U") {
 			//min_max_na(vals, na, 0, (double)INT32_MAX * 2 - 1);
 			//std::vector<uint32_t> vv(vals.begin(), vals.end());
@@ -859,7 +956,7 @@ bool SpatRaster::writeStopGDAL() {
 					mx = adfMinMax[1];
 				} else {
 					poBand->ComputeStatistics(gdal_approx, &mn, &mx, &av, &sd, NULL, NULL);
-				}
+				}		
 				poBand->SetStatistics(mn, mx, av, sd);
 			} else {
 				if (datatype.substr(0,3) == "INT") {

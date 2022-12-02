@@ -1,5 +1,7 @@
 #if (!isGeneric("#")) { setGeneric("#", function(x, ...) standardGeneric("#")) }
 
+if (!isGeneric("rangeFill")) {setGeneric("rangeFill", function(x, ...) standardGeneric("rangeFill"))}
+if (!isGeneric("roll")) {setGeneric("roll", function(x, ...) standardGeneric("roll"))}
 if (!isGeneric("elongate")) {setGeneric("elongate", function(x, ...) standardGeneric("elongate"))}
 
 if (!isGeneric("update")) {setGeneric("update", function(object, ...) standardGeneric("update"))}
@@ -14,6 +16,7 @@ if (!isGeneric("interpIDW")) {setGeneric("interpIDW", function(x, y, ...) standa
 if (!isGeneric("normalize.longitude")) {setGeneric("normalize.longitude", function(x, ...) standardGeneric("normalize.longitude"))}
 
 if (!isGeneric("allNA")) {setGeneric("allNA", function(x, ...) standardGeneric("allNA"))}
+if (!isGeneric("noNA")) {setGeneric("noNA", function(x, ...) standardGeneric("noNA"))}
 
 if (!isGeneric("scoff")) {setGeneric("scoff", function(x, ...) standardGeneric("scoff"))}
 if (!isGeneric("scoff<-")) {setGeneric("scoff<-", function(x, ..., value) standardGeneric("scoff<-"))}
@@ -58,6 +61,7 @@ if (!isGeneric("selectHighest")) {setGeneric("selectHighest", function(x, ...) s
 if (!isGeneric("focal3D")) { setGeneric("focal3D", function(x, ...) standardGeneric("focal3D")) }
 if (!isGeneric("focalReg")) { setGeneric("focalReg", function(x, ...) standardGeneric("focalReg")) }
 if (!isGeneric("focalCpp")) { setGeneric("focalCpp", function(x, ...) standardGeneric("focalCpp")) }
+if (!isGeneric("focalPairs")) { setGeneric("focalPairs", function(x, ...) standardGeneric("focalPairs")) }
 if (!isGeneric("focalCor")) { setGeneric("focalCor", function(x, ...) standardGeneric("focalCor")) }
 
 if (!isGeneric("clearance")) {setGeneric("clearance", function(x, ...) standardGeneric("clearance"))}

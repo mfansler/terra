@@ -36,7 +36,7 @@ setMethod("hasValues", signature(x="SpatRaster"),
 			v[[b]] = as.logical(v[[b]])
 		}
 	}
-	ii <- (is.int(x) & (!ff))
+	ii <- (is.int(x) & (!ff) & (substr(datatype(x, TRUE), 1, 4) != "INT8"))
 	if (any(ii)) {
 		for (i in which(ii)) {
 			v[[i]] = as.integer(v[[i]])
@@ -209,7 +209,7 @@ setMethod("setValues", signature("SpatRaster"),
 		if (make_factor) {
 			for (i in 1:nlyr(y)) {
 				levs <- data.frame(value=1:length(levs), label=levs)
-				set.cats(y, i, levs, 2)
+				set.cats(y, i, levs)
 			}
 			names(y) <- names(x)
 		}

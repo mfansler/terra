@@ -69,9 +69,9 @@ SpatOptions SpatOptions::deepCopy() {
 
 void SpatOptions::set_def_datatype(std::string d) {
 #if GDAL_VERSION_MAJOR <= 3 && GDAL_VERSION_MINOR < 7
-	std::vector<std::string> ss = {"INT1U", "INT2U", "INT4U", "INT2S", "INT4S", "FLT4S", "FLT8S" } ;
+	std::vector<std::string> ss = {"INT1U", "INT2U", "INT4U", "INT8U", "INT2S", "INT4S", "INT8S", "FLT4S", "FLT8S"} ;
 #else 
-	std::vector<std::string> ss = {"INT1U", "INT2U", "INT4U", "INT1S", "INT2S", "INT4S", "FLT4S", "FLT8S"};
+	std::vector<std::string> ss = {"INT1U", "INT2U", "INT4U", "INT8U", "INT1S", "INT2S", "INT4S", "INT8S", "FLT4S", "FLT8S"};
 #endif
 	if (is_in_vector(d, ss)) def_datatype = d;
 }
@@ -79,9 +79,9 @@ std::string SpatOptions::get_def_datatype() { return def_datatype; }
 
 void SpatOptions::set_datatype(std::string d) {
 #if GDAL_VERSION_MAJOR <= 3 && GDAL_VERSION_MINOR < 7
-	std::vector<std::string> ss = {"INT1U", "INT2U", "INT4U", "INT2S", "INT4S", "FLT4S", "FLT8S" } ;
+	std::vector<std::string> ss = {"INT1U", "INT2U", "INT4U", "INT8U", "INT2S", "INT4S", "INT8S", "FLT4S", "FLT8S"} ;
 #else 
-	std::vector<std::string> ss = {"INT1U", "INT2U", "INT4U", "INT1S", "INT2S", "INT4S", "FLT4S", "FLT8S"};
+	std::vector<std::string> ss = {"INT1U", "INT2U", "INT4U", "INT8U", "INT1S", "INT2S", "INT4S", "INT8S", "FLT4S", "FLT8S"};
 #endif
 	if (is_in_vector(d, ss)) {
 		datatype = d;
@@ -222,6 +222,14 @@ size_t SpatOptions::get_steps(){ return steps; }
 
 void SpatOptions::set_ncopies(size_t n) { ncopies = std::max((size_t)1, n); }
 size_t SpatOptions::get_ncopies(){ return ncopies; }
+
+
+
+void SpatOptions::set_offset(std::vector<double> d) { offset = d ; }
+std::vector<double> SpatOptions::get_offset() {return offset;}
+
+void SpatOptions::set_scale(std::vector<double> d) {scale=d;}
+std::vector<double> SpatOptions::get_scale(){return scale;}
 
 
 bool extent_operator(std::string oper) {

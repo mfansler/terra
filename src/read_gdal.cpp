@@ -543,9 +543,11 @@ std::string getDsPRJ(GDALDataset *poDataset) {
 inline std::string dtypename(const std::string &d) {
 	if (d == "Float64") return "FLT8S";
 	if (d == "Float32") return "FLT4S";
+	if (d == "Int64") return "INT8S";
 	if (d == "Int32") return "INT4S";
 	if (d == "Int16") return "INT2S";
 	if (d == "Int8") return "INT1S";
+	if (d == "UInt64") return "INT8U";
 	if (d == "UInt32") return "INT4U";
 	if (d == "UInt16") return "INT2U";
 	if (d == "Byte") return "INT1U";
@@ -1058,6 +1060,7 @@ void NAso(std::vector<double> &d, size_t n, const std::vector<double> &flags, co
 				std::replace(d.begin()+start, d.begin()+start+n, flag, na);
 			}
 		}
+		
 		if (haveso[i]) {
 			for (size_t j=start; j<(start+n); j++) {
 				d[j] = d[j] * scale[i] + offset[i];
@@ -1087,11 +1090,9 @@ void vflip(std::vector<double> &v, const size_t &ncell, const size_t &nrows, con
 
 void SpatRaster::readChunkGDAL(std::vector<double> &data, unsigned src, size_t row, unsigned nrows, size_t col, unsigned ncols) {
 
-
 	if (source[src].flipped) {
 		row = nrow() - row - nrows;
 	}
-
 
 	if (source[src].multidim) {
 		readValuesMulti(data, src, row, nrows, col, ncols);

@@ -44,14 +44,14 @@ setMethod("levels<-", signature(x="SpatRaster"),
 	function(x, value) {
 		x@ptr <- x@ptr$deepcopy()
 		if (is.null(value)) {
-			x@ptr$removeCategories(0)
+			x@ptr$removeCategories(-1)
 			return(messages(x, "levels<-"))
 		} else if (inherits(value, "list")) {
 			for (i in 1:length(value)) {
 				set.cats(x, i, value[[i]])
 			}
 		} else {
-			set.cats(x, 1, value, 2)
+			set.cats(x, 1, value)
 		}
 		x
 	}
@@ -60,7 +60,7 @@ setMethod("levels<-", signature(x="SpatRaster"),
 
 
 setMethod ("set.cats" , "SpatRaster",
-	function(x, layer=1, value, active=2) {
+	function(x, layer=1, value, active=1) {
 
 		if (missing(value)) {
 			error("set.cats", "value cannot be missing")
@@ -157,7 +157,7 @@ setMethod ("set.cats" , "SpatRaster",
 		index <- max(1, min(ncol(value), active))
 		if (setname) {
 			nms <- names(x)
-			nms[layer] <-  colnames(value)[index]
+			nms[layer] <-  colnames(value)[index+1]
 			if (! x@ptr$setNames(nms, FALSE)) {
 				error("names<-", "cannot set name")
 			}
@@ -170,7 +170,7 @@ setMethod ("set.cats" , "SpatRaster",
 		}
 
 		value <- .makeSpatDF(value)
-		ok <- x@ptr$setCategories(layer-1, value, index-1)
+		ok <- x@ptr$setCategories(layer-1, value, index)
 		x <- messages(x, "set.cats")
 		invisible(ok)
 	}
@@ -179,17 +179,7 @@ setMethod ("set.cats" , "SpatRaster",
 
 
 setMethod ("categories" , "SpatRaster",
-	function(x, layer=1, value, active=2, ...) {
-
-		# backwards compatibility
-		if (isTRUE(active == 2)) {
-			index <- list(...)$index
-			if (!is.null(index)) {
-				active = index
-				warn("categories", "please use argument 'active' in lieu of 'index'")
-			}
-		}
-
+	function(x, layer=1, value, active=1, ...) {
 		x@ptr <- x@ptr$deepcopy()
 		set.cats(x, layer, value, active)
 		x
@@ -207,9 +197,7 @@ setMethod ("activeCat" , "SpatRaster",
 			}
 		}
 		if (layer < 1) {
-			a <- sapply(1:nlyr(x), function(i) x@ptr$getCatIndex(i-1))
-			a[a==0] <- NA
-			a
+			sapply(1:nlyr(x), function(i) x@ptr$getCatIndex(i-1))
 		} else {
 			if (!is.factor(x)[layer]) {
 				return(NA)
@@ -240,6 +228,7 @@ setMethod("activeCat<-" , "SpatRaster",
 				error("activeCat", "invalid category name")
 			}
 		}
+		x <- deepcopy(x)
 		if (!x@ptr$setCatIndex(layer-1, value)) {
 			error("activeCat", "invalid category index")
 		}
@@ -348,7 +337,7 @@ catLayer <- function(x, index, ...) {
 			fact <- unique(data.frame(ton, toc))
 			names(fact) <- c("ID", names(g)[index])
 			fact <- fact[order(fact[,1]), ]
-			set.cats(x, 1, fact, 2)
+			set.cats(x, 1, fact)
 		}
 		x
 }

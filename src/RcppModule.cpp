@@ -10,7 +10,6 @@
 //static void SpatRaster_finalizer( SpatRaster* ptr ){
 //}
 
-
 Rcpp::List getBlockSizeR(SpatRaster* r, unsigned n, double frac) {
 	SpatOptions opt;
 	opt.ncopies = n;
@@ -290,6 +289,10 @@ RCPP_MODULE(spat){
 		.property("steps", &SpatOptions::get_steps, &SpatOptions::set_steps)
 	//	.property("overwrite", &SpatOptions::set_overwrite, &SpatOptions::get_overwrite )
 		//.field("gdaloptions", &SpatOptions::gdaloptions)
+
+		.property("scale", &SpatOptions::get_scale, &SpatOptions::set_scale)
+		.property("offset", &SpatOptions::get_offset, &SpatOptions::set_offset)
+
 	;
 
     class_<SpatDataFrame>("SpatDataFrame")
@@ -776,6 +779,8 @@ RCPP_MODULE(spat){
 		.method("apply", &SpatRaster::apply)
 		.method("rapply", &SpatRaster::rapply)
 		.method("rappvals", &SpatRaster::rappvals)
+		.method("roll", &SpatRaster::roll)
+		.method("fill_range", &SpatRaster::fill_range)
 		.method("arith_rast", ( SpatRaster (SpatRaster::*)(SpatRaster, std::string, SpatOptions&) )( &SpatRaster::arith ))
 		.method("arith_numb", ( SpatRaster (SpatRaster::*)(std::vector<double>, std::string, bool, SpatOptions&) )( &SpatRaster::arith ))
 		.method("rst_area", &SpatRaster::rst_area)
@@ -785,6 +790,7 @@ RCPP_MODULE(spat){
 		.method("as_points", &SpatRaster::as_points)
 		.method("as_points_value", &SpatRaster::as_points_value)
 		.method("cells_notna", &SpatRaster::cells_notna)
+		.method("cells_notna_novalues", &SpatRaster::cells_notna_novalues)
 		.method("as_multipoints", &SpatRaster::as_multipoints)
 
 		.method("as_lines", &SpatRaster::as_lines)
@@ -803,6 +809,7 @@ RCPP_MODULE(spat){
 		.method("rastDistance", &SpatRaster::distance)
 		.method("rastDirection", &SpatRaster::direction)
 		.method("make_tiles", &SpatRaster::make_tiles)
+		.method("make_tiles_vect", &SpatRaster::make_tiles_vect)
 		.method("ext_from_rc", &SpatRaster::ext_from_rc)
 
 		.method("combineCats", &SpatRaster::combineCats)
@@ -847,6 +854,7 @@ RCPP_MODULE(spat){
 		.method("is_in", &SpatRaster::is_in)
 		.method("is_in_cells", &SpatRaster::is_in_cells)
 		.method("anynan", &SpatRaster::anynan)
+		.method("nonan", &SpatRaster::nonan)
 		.method("allnan", &SpatRaster::allnan)
 		.method("isnan", &SpatRaster::isnan)
 		.method("not_na", &SpatRaster::isnotnan)

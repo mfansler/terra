@@ -4,6 +4,15 @@
 # License GPL v3
 
 
+setMethod("rangeFill", signature(x="SpatRaster"),
+	function(x, limit, circular=FALSE, filename="", ...) {
+		opt <- spatOptions(filename, ...)
+		x@ptr <- x@ptr$fill_range(limit, circular, opt)
+		messages(x, "rangeFill")
+	}
+)
+
+
 setMethod("weighted.mean", signature(x="SpatRaster", w="numeric"),
 	function(x, w, na.rm=FALSE, filename="", ...) {
 		opt <- spatOptions(filename, ...)
@@ -289,31 +298,6 @@ setMethod("c", signature(x="SpatRaster"),
 	}
 )
 
-#setMethod("c", signature(x="SpatRaster"),
-#	function(x, ..., warn=TRUE) {
-#		skips <- 0
-#		hv <- hasValues(x)
-#		dots <- list(...)
-#		x@ptr <- x@ptr$deepcopy()
-#		opt <- spatOptions()
-#		for (i in dots) {
-#			if (inherits(i, "SpatRaster")) {
-#				x@ptr$addSource(i@ptr, warn, opt)
-#				if (x@ptr$messages$has_error) {
-#					messages(x, "c")
-#					return()
-#				}
-#			} else {
-#				skips = skips + 1
-#			}
-#		}
-#		if (skips > 0) warn("c,SpatRaster", paste("skipped", skips, "object(s) that are not SpatRaster"))
-#		messages(x, "c")
-#		x
-#	}
-#)
-
-
 
 setMethod("rep", signature(x="SpatRaster"),
 	function(x, ...) {
@@ -322,13 +306,6 @@ setMethod("rep", signature(x="SpatRaster"),
 	}
 )
 
-
-#setMethod("rep", signature(x="SpatVector"),
-#	function(x, ...) {
-#		i <- rep(1:nrow(x), ...)
-#		x[i,]
-#	}
-#)
 
 setMethod("clamp", signature(x="SpatRaster"),
 	function(x, lower=-Inf, upper=Inf, values=TRUE, filename="", ...) {
@@ -1176,7 +1153,7 @@ setMethod("unique", signature(x="SpatRaster", incomparables="ANY"),
 			uid <- 1:nrow(u)
 			x <- subst(x, u, uid-1)
 			lab <- apply(u, 1, function(i) paste(i, collapse="_"))
-			set.cats(x, 1, data.frame(ID=uid-1, label=lab, u), 2)
+			set.cats(x, 1, data.frame(ID=uid-1, label=lab, u))
 			return(x)
 		}
 		u
@@ -1217,7 +1194,10 @@ setMethod("scoff<-", signature("SpatRaster"),
 				error("scoff<-", "value must be a 2-column matrix")
 			}
 			x@ptr <- x@ptr$deepcopy()
+			value[is.na(value[,1]),1] <- 1
+			value[is.na(value[,2]),2] <- 0
 			x@ptr$setScaleOffset(value[,1], value[,2])
+			x@ptr$setValueType(0)
 		}
 		messages(x, "scoff<-")
 	}

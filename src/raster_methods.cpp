@@ -112,6 +112,7 @@ SpatExtent SpatRaster::ext_from_cell(double cell) {
 	return ext_from_rc(rc[0][0], rc[0][0], rc[1][0], rc[1][0]);
 }
 
+
 std::vector<std::string> SpatRaster::make_tiles(SpatRaster x, bool expand, bool narm, std::string filename, SpatOptions &opt) {
 
 	std::vector<std::string> ff;
@@ -121,10 +122,11 @@ std::vector<std::string> SpatRaster::make_tiles(SpatRaster x, bool expand, bool 
 	}
 	x = x.geometry(1, false, false, false);
 	SpatExtent e = getExtent();
+	SpatOptions ops(opt);
 	if (expand) {
-		x = x.extend(e, "out", NAN, opt);
+		x = x.extend(e, "out", NAN, ops);
 	}
-	x = x.crop(e, "out", false, opt);
+	x = x.crop(e, "out", false, ops);
 
 	std::vector<size_t> d(x.ncell());
 	std::iota(d.begin(), d.end(), 1);
@@ -138,6 +140,62 @@ std::vector<std::string> SpatRaster::make_tiles(SpatRaster x, bool expand, bool 
 		SpatExtent exi = x.ext_from_cell(i);
 		opt.set_filenames({fout});
 		SpatRaster out = crop(exi, "near", false, opt);
+		if (out.hasError()) {
+			setError(out.getError());
+			return ff;
+		}
+		if ( out.hasValues() ) {
+			if (narm) {
+				std::vector<double> rmin = out.range_min();
+				size_t cnt = 0;
+				for (double &v : rmin) {
+					if (std::isnan(v)) cnt++;
+				}
+				if (cnt == nl) {
+					remove(fout.c_str());
+					continue;
+				}
+			}
+			ff.push_back(fout);
+		}
+	}
+	return ff;
+}
+
+
+
+std::vector<std::string> SpatRaster::make_tiles_vect(SpatVector x, bool expand, bool narm, std::string filename, SpatOptions &opt) {
+
+	std::vector<std::string> ff;
+	if (!hasValues()) {
+		setError("input raster has no values");
+		return ff;
+	}
+	if (x.type() != "polygons") {
+		setError("The SpatVector must have a polygons geometry");
+		return ff;		
+	}
+	SpatExtent e = getExtent();
+	SpatOptions ops(opt);
+	std::vector<size_t> d(x.size());
+	std::iota(d.begin(), d.end(), 1);
+
+	std::string fext = getFileExt(filename);
+	std::string f = noext(filename);
+	ff.reserve(d.size());
+	size_t nl = nlyr();
+	for (size_t i=0; i<d.size(); i++) {
+		SpatExtent exi = x.geoms[i].extent;
+		std::string fout = f + std::to_string(d[i]) + fext;
+		opt.set_filenames( {fout} );
+		SpatRaster out;
+		if (!e.intersects(exi)) continue;
+		if (expand) {
+			out = crop(exi, "near", false, ops);
+			out = out.extend(exi, "out", NAN, opt);
+		} else {
+			out = crop(exi, "near", false, opt);
+		}
 		if (out.hasError()) {
 			setError(out.getError());
 			return ff;
@@ -888,7 +946,6 @@ SpatRaster SpatRaster::mask(SpatRaster x, bool inverse, double maskvalue, double
 
 	unsigned nl = std::max(nlyr(), x.nlyr());
 	SpatRaster out = geometry(nl, true, true, true);
-
 
 	if (!out.compare_geom(x, false, true, opt.get_tolerance(), true, true, true, false)) {
 		return(out);
@@ -1642,6 +1699,200 @@ SpatRaster SpatRaster::selRange(SpatRaster x, int z, int recycleby, SpatOptions 
 	x.readStop();
 	out.writeStop();
 	return(out);
+}
+
+
+SpatRaster SpatRaster::roll(size_t n, std::string fun, std::string type, bool circular, bool narm, SpatOptions &opt) {
+	
+	SpatRaster out = geometry();
+	if (!hasValues()) {
+		out.setError("no values in input");
+		return(out);
+	}
+	if (!haveFun(fun)) {
+		out.setError("unknown function argument");
+		return out;
+	}
+	if (n >= nlyr()) {
+		out.setError("it makes no sense to use a rolling function with n >= nlyr(x)");
+		return out;		
+	}
+	if (n <= 1) {
+		out.setError("n should be > 1");
+		return out;		
+	}
+	std::vector<std::string> types = {"around", "to", "from"};
+	if (!is_in_vector(type, types)) {
+		out.setError("unknown roll type, should be 'around', 'to', or 'from'");
+		return out;					
+	}
+
+	// to do: use functions that iterate over vector instead of copying
+	
+	std::function<double(std::vector<double>&, bool)> theFun = getFun(fun);
+
+	size_t nl = nlyr();
+ 	if (!out.writeStart(opt, filenames())) {
+		readStop();
+		return out;
+	}
+	if (!readStart()) {
+		out.setError(getError());
+		return(out);
+	}
+
+	if (circular) {
+		for (size_t i=0; i<out.bs.n; i++) {
+			std::vector<double> v;
+			readBlockIP(v, out.bs, i);
+			size_t ncell = out.bs.nrows[i] * ncol();
+			std::vector<double> vv(v.size(), NAN);
+			if (type=="from") {
+				for (size_t j=0; j<ncell; j++) {
+					size_t offset = j*nl;
+					for (size_t k=0; k<nl; k++) {
+						std::vector<double> se;
+						size_t start = offset + k;
+						size_t end = k + n;
+						if (end > nl) {
+							size_t cend = end - nl;
+							se = {v.begin()+offset, v.begin()+offset+cend};
+							end = nl;
+						}
+						end += offset;
+						se.insert(se.end(), v.begin()+start, v.begin()+end);
+						vv[ncell * k + j] = theFun(se, narm);
+					}
+				}
+			} else if (type=="around") {
+				size_t halfn = n / 2;
+				for (size_t j=0; j<ncell; j++) {
+					size_t offset = j*nl;
+					for (size_t k=0; k<nl; k++) {
+						std::vector<double> se;
+						size_t start, end;
+						if (k < halfn) {
+							start = 0;
+							end = n + k - halfn;
+							size_t cbegin = nl - (halfn - k);
+							se = {v.begin()+offset+cbegin, v.begin()+offset+nl};
+						} else {
+							start = k - halfn;
+							end = start + n;
+						}
+						if (end > nl) {
+							end = nl;
+							size_t cend = end - nl + 1;
+							se = {v.begin()+offset, v.begin()+offset+cend};
+						}
+						start += offset;
+						end += offset;
+						se.insert(se.end(), v.begin()+start, v.begin()+end);
+						vv[ncell * k + j] = theFun(se, narm);
+					}
+				}
+			} else if (type=="to") {
+				for (size_t j=0; j<ncell; j++) {
+					size_t offset = j*nl;
+					for (size_t k=0; k<nl; k++) {
+						std::vector<double> se;
+						size_t start;
+						size_t end = offset + k + 1;
+						if (k < (n-1)) {
+							start = offset;
+							size_t cbegin = nl - (n - k - 1);
+							se = {v.begin()+offset+cbegin, v.begin()+offset+nl};
+						} else {
+							start = end - n;
+						}
+						se.insert(se.end(), v.begin()+start, v.begin()+end);
+						vv[ncell * k + j] = theFun(se, narm);
+					}
+				}
+			}	
+			if (!out.writeBlock(vv, i)) return out;
+		}
+	} else { // not circular
+		std::vector<double> se;
+		for (size_t i=0; i<out.bs.n; i++) {
+			std::vector<double> v;
+			readBlockIP(v, out.bs, i);
+			size_t ncell = out.bs.nrows[i] * ncol();
+			std::vector<double> vv(v.size(), NAN);
+			if (type=="from") {
+				for (size_t j=0; j<ncell; j++) {
+					size_t offset = j*nl;
+					for (size_t k=0; k<nl; k++) {
+						size_t start = offset + k;
+						size_t end = k + n;
+						if (end > nl) {
+							if (narm) {
+								end = nl;
+							} else {
+								continue;
+							}
+						}
+						end += offset;
+						se = {v.begin()+start, v.begin()+end};
+						vv[ncell * k + j] = theFun(se, narm);
+					}
+				}
+			} else if (type=="around") {
+				size_t halfn = n / 2;
+				for (size_t j=0; j<ncell; j++) {
+					size_t offset = j*nl;
+					for (size_t k=0; k<nl; k++) {
+						size_t start, end;
+						if (k < halfn) {
+							if (narm) {
+								start = 0;
+								end = n + k - halfn;
+							} else {
+								continue;	
+							}
+						} else {
+							start = k - halfn;
+							end = start + n;
+						}
+						if (end > nl) {
+							if (narm) {
+								end = nl;
+							} else {
+								continue;
+							}
+						}
+						start += offset;
+						end += offset;
+						se = {v.begin()+start, v.begin()+end};
+						vv[ncell * k + j] = theFun(se, narm);
+					}
+				}
+			} else if (type=="to") {
+				for (size_t j=0; j<ncell; j++) {
+					size_t offset = j*nl;
+					for (size_t k=0; k<nl; k++) {
+						size_t start;
+						size_t end = offset + k + 1;
+						if (k < (n-1)) {
+							if (narm) {
+								start = offset;						
+							} else {
+								continue;
+							}
+						} else {
+							start = end - n;
+						}
+						se = {v.begin()+start, v.begin()+end};
+						vv[ncell * k + j] = theFun(se, narm);
+					}
+				}
+			}	
+			if (!out.writeBlock(vv, i)) return out;
+		}
+	}
+	readStop();
+	out.writeStop();	
+	return out;	
 }
 
 
@@ -2750,7 +3001,7 @@ SpatRaster SpatRasterCollection::merge(bool first, SpatOptions &opt) {
 
 bool overlaps(const std::vector<unsigned>& r1, const std::vector<unsigned>& r2, 
 			  const std::vector<unsigned>& c1, const std::vector<unsigned>& c2) {
-	size_t n = r1.size() - 1;
+	size_t n = r1.size();
 	for (size_t i=0; i<(n-1); i++) {
 		for (size_t j=(i+1); j<n; j++) {
 			if ((r1[i] <= r2[j]) && (r2[i] >= r1[j]) && (c1[i] <= c2[j]) && (c2[i] >= c1[j])) {
@@ -3304,18 +3555,26 @@ SpatRaster SpatRaster::replaceValues(std::vector<double> from, std::vector<doubl
 		if (keepcats) {
 			out.source[0].hasCategories[0] = source[0].hasCategories[0];
 			out.source[0].cats[0] = source[0].cats[0];
+			out.source[0].hasColors = source[0].hasColors;
+			out.source[0].cols = source[0].cols;
+			
 		}
 	} else {
 		if (nl == 0) {
 			out = geometry(nlyr());
 			out.source[0].hasCategories = hasCategories();
 			out.source[0].cats = getCategories();
+			out.source[0].hasColors = hasColors();
+			out.source[0].cols = getColors();
+			
 		} else {
 			out = geometry(nl);
 			if (keepcats) {
 				for (long i=0; i<nl; i++) {
 					out.source[0].hasCategories[i] = source[0].hasCategories[0];
 					out.source[0].cats[i] = source[0].cats[0];
+					out.source[0].hasColors[i] = source[0].hasColors[0];
+					out.source[0].cols[i] = source[0].cols[0];
 				}
 			}
 		}
@@ -3978,7 +4237,7 @@ void broom_clumps(std::vector<double> &v, std::vector<double>& above, const size
 	//first cell
 	//Rcpp::Rcout << "r  x i v[i] nc v[i] nc" << std::endl;
 	if ( !std::isnan(v[0]) ) {
-		//Rcpp::Rcout << 0 << " ff " << 0 << " " << v[0] << " " << ncps << " " ;
+		//Rcout << 0 << " ff " << 0 << " " << v[0] << " " << ncps << " " ;
 		if (d4) {
 			if (std::isnan(above[0])) {
 				v[0] = ncps; // new patch
@@ -3993,26 +4252,26 @@ void broom_clumps(std::vector<double> &v, std::vector<double>& above, const size
 			d = {above[0], above[1]} ;
 			clump_replace(v, 0, d, nstart, rcl, ncps);
 		}
-		//Rcpp::Rcout << v[0] << " " << ncps << std::endl;
+		//Rcout << v[0] << " " << ncps << std::endl;
 	}
 	// other cells
 	for (size_t i=1; i<stopnc; i++) {
 
 		if (!std::isnan(v[i])) {
-			//Rcpp::Rcout << 0 << " fm " << i << " " << v[i] << " " << ncps << " " ;
+			//Rcout << 0 << " fm " << i << " " << v[i] << " " << ncps << " " ;
 			if (d4) {
 				d = {above[i], v[i-1]} ;
 			} else {
 				d = {above[i], above[i-1], above[i+1], v[i-1]} ;
 			}
 			clump_replace(v, i, d, nstart, rcl, ncps);
-			//Rcpp::Rcout << v[i] << " " << ncps << std::endl;
+			//Rcout << v[i] << " " << ncps << std::endl;
 		}
 	}
 	// last cell
 	size_t i = stopnc;
 	if (!std::isnan(v[i])) {
-		//Rcpp::Rcout << 0 << " fl " << i << " " << v[i] << " " << ncps << " " ;
+		//Rcout << 0 << " fl " << i << " " << v[i] << " " << ncps << " " ;
 
 		if (is_global) {
 			if (d4) {
@@ -4028,7 +4287,7 @@ void broom_clumps(std::vector<double> &v, std::vector<double>& above, const size
 			}
 		}
 		clump_replace(v, i, d, nstart, rcl, ncps);
-		//Rcpp::Rcout << v[i] << " " << ncps << std::endl;
+		//Rcout << v[i] << " " << ncps << std::endl;
 	}
 
 	////////
@@ -4038,7 +4297,7 @@ void broom_clumps(std::vector<double> &v, std::vector<double>& above, const size
 		size_t i=start;
 		// first cell
 		if (!std::isnan(v[i])) {
-			//Rcpp::Rcout << r << " f " << i << " " << v[i] << " " << ncps << " " ;
+			//Rcout << r << " f " << i << " " << v[i] << " " << ncps << " " ;
 			if (is_global) {
 				if (d4) {
 					if (std::isnan(v[i-nc])) {
@@ -4064,7 +4323,7 @@ void broom_clumps(std::vector<double> &v, std::vector<double>& above, const size
 					clump_replace(v, i, d, nstart, rcl, ncps);
 				}
 			}
-			//Rcpp::Rcout << v[i] << " " << ncps << std::endl;
+			//Rcout << v[i] << " " << ncps << std::endl;
 		}
 
 		size_t stop = start + stopnc;
@@ -4072,21 +4331,21 @@ void broom_clumps(std::vector<double> &v, std::vector<double>& above, const size
 		// other cells
 		for (size_t i=(start+1); i<stop; i++) {
 			if (!std::isnan(v[i])) {
-				//Rcpp::Rcout << r << " m " << i << " " << v[i] << " " << ncps << " " ;
+				//Rcout << r << " m " << i << " " << v[i] << " " << ncps << " " ;
 				if (d4) {
 					d = {v[i-nc], v[i-1]} ;
 				} else {
 					d = {v[i-nc], v[i-nc-1], v[i-nc+1], v[i-1]} ;
 				}
 				clump_replace(v, i, d, nstart, rcl, ncps);
-				//Rcpp::Rcout << v[i] << " " << ncps << std::endl;
+				//Rcout << v[i] << " " << ncps << std::endl;
 			}
 		}
 
 		// last cell
 		i = stop;
 		if (!std::isnan(v[i])) {
-			//Rcpp::Rcout << r << " l " << i << " " << v[i] << " " << ncps << " " ;
+			//Rcout << r << " l " << i << " " << v[i] << " " << ncps << " " ;
 			if (is_global) {
 				if (d4) {
 					d = {v[i-nc], v[i-1], v[start]} ;
@@ -4101,7 +4360,7 @@ void broom_clumps(std::vector<double> &v, std::vector<double>& above, const size
 				}
 			}
 			clump_replace(v, i, d, nstart, rcl, ncps);
-			//Rcpp::Rcout << v[i] << " " << ncps << std::endl;
+			//Rcout << v[i] << " " << ncps << std::endl;
 		}
 	}
 	size_t off = (nr-1) * nc;
@@ -4732,4 +4991,92 @@ SpatRaster SpatRaster::intersect(SpatRaster &x, SpatOptions &opt) {
 }
 
 
-
+SpatRaster SpatRaster::fill_range(long limit, bool circular, SpatOptions &opt) {
+	
+	size_t nl = limit;
+	SpatRaster out = geometry(nl, false, false, false);
+	
+	if (limit < 3) {
+		out.setError("limit must be larger than 3");
+		return out;
+	}
+	if (nlyr() != 2) {
+		out.setError("the input raster must have two layers");
+		return out;		
+	}
+	if (!hasValues()) {
+		out.setError("the input raster must have values");
+		return out;		
+	}
+		
+	if (!readStart()) {
+		out.setError(getError());
+		return(out);
+	}
+	
+  	if (!out.writeStart(opt, filenames())) {
+		readStop();
+		return out;
+	}
+	
+	for (size_t i=0; i<out.bs.n; i++) {
+		size_t nc = out.bs.nrows[i] * ncol();
+		std::vector<double> v;
+		readValues(v, out.bs.row[i], out.bs.nrows[i], 0, ncol());
+		std::vector<double> d(v.size() * nl);
+		if (circular) {
+			for (size_t j=0; j<nc; j++) {
+				size_t jnc = j+nc;
+				size_t start = v[j]-1;
+				size_t end = v[jnc];
+				if (std::isnan(v[j]) || std::isnan(v[jnc])) {
+					for (size_t k=0; k<nl; k++) {
+						d[k*nc+j] = NAN;
+					}									
+				} else {
+					bool circ = false;
+					if (start > end) {
+						std::swap(start, end);
+						circ = true;
+					}
+					if ((start < 1) || (end > nl)) {
+						for (size_t k=0; k<nl; k++) {
+							d[k*nc+j] = NAN;
+						}
+					} else {
+						if (circ) {
+							for (size_t k=start; k<nl; k++) {
+								d[k*nc+j] = 1;
+							}
+							for (size_t k=0; k<end; k++) {
+								d[k*nc+j] = 1;
+							}
+						} else {
+							for (size_t k=start; k<end; k++) {
+								d[k*nc+j] = 1;
+							}
+						}
+					}
+				}
+			}	
+		} else {
+			for (size_t j=0; j<nc; j++) {
+				size_t jnc = j+nc;
+				if (std::isnan(v[j]) || std::isnan(v[jnc]) || (v[j] < 1) || (v[jnc] > nl) || (v[jnc] < v[j])) {
+					for (size_t k=0; k<nl; k++) {
+						d[k*nc+j] = NAN;
+					}				
+				} else {
+					for (size_t k=(v[j]-1); k<v[jnc]; k++) {
+						d[k*nc+j] = 1;
+					}
+				}
+			}
+		}
+		if (!out.writeBlock(d, i)) return out;
+	}
+	readStop();
+	out.writeStop();
+	return(out);
+	
+}

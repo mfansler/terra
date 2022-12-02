@@ -6,14 +6,9 @@
 #include "string_utils.h"
 #include "file_utils.h"
 #include "crs.h"
-//#include <vector>
-//#include <string>
 
 #include "cpl_port.h"
 #include "cpl_conv.h" // CPLFree()
-//#include "gdal_version.h"
-
-
 
 
 void getGDALdriver(std::string &filename, std::string &driver) {
@@ -105,7 +100,6 @@ GDALDataset* openGDAL(std::string filename, unsigned OpenFlag, std::vector<std::
 	for (size_t i=0; i<open_options.size(); i++) {
 		std::vector<std::string> opt = strsplit(open_options[i], "=");
 		if (opt.size() == 2) {
-//			Rcpp::Rcout << opt[0] << "=" << opt[1] << std::endl;
 			openops = CSLSetNameValue(openops, opt[0].c_str(), opt[1].c_str());
 		}
 	}
@@ -438,6 +432,7 @@ std::string gdalinfo(std::string filename, std::vector<std::string> options, std
 
 #endif
 
+
 bool getNAvalue(GDALDataType gdt, double & naval) {
 	if (gdt == GDT_Float32) {
 		naval = NAN;
@@ -453,6 +448,16 @@ bool getNAvalue(GDALDataType gdt, double & naval) {
 		naval = UINT16_MAX;
 	} else if (gdt == GDT_Byte) {
 		naval = 255;
+
+#if GDAL_VERSION_MAJOR <= 3 && GDAL_VERSION_MINOR < 5
+// no Int64
+#else 
+	} else if (gdt == GDT_UInt64) {
+		naval = UINT64_MAX - 1101; 
+	} else if (gdt == GDT_Int64) {
+		naval = INT64_MIN;
+#endif
+
 #if GDAL_VERSION_MAJOR <= 3 && GDAL_VERSION_MINOR < 7
 // no INT1S
 #else 
@@ -483,8 +488,18 @@ bool getGDALDataType(std::string datatype, GDALDataType &gdt) {
 		gdt = GDT_UInt16;
 	} else if (datatype == "INT1U") {
 		gdt = GDT_Byte;
+
+#if GDAL_VERSION_MAJOR <= 3 && GDAL_VERSION_MINOR < 5
+// no Int64
+#else 
+	} else if (datatype == "INT8U") {
+		gdt = GDT_UInt64;
+	} else if (datatype == "INT8S") {
+		gdt = GDT_Int64;
+#endif
+
 #if GDAL_VERSION_MAJOR <= 3 && GDAL_VERSION_MINOR < 7
-// no INT1S
+// no Int8
 #else 
 	} else if (datatype == "INT1S") {
 		GDAL 3.7

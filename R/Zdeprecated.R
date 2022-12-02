@@ -7,14 +7,14 @@ setMethod ("area" , "SpatRaster",
 )
 
 
-if (!isGeneric("setCats")) { setGeneric("setCats", function(x, ...) standardGeneric("setCats")) }
+#if (!isGeneric("setCats")) { setGeneric("setCats", function(x, ...) standardGeneric("setCats")) }
 
-setMethod ("setCats" , "SpatRaster",
-	function (x, ...) {
-		warn("setCats", "this function will be removed. Please can use 'levels<-' or 'set.cats' instead")
-		set.cats(x, ...)
-	}
-)
+#setMethod ("setCats" , "SpatRaster",
+#	function (x, ...) {
+#		warn("setCats", "this function will be removed. Please can use 'levels<-' or 'set.cats' instead")
+#		set.cats(x, ...)
+#	}
+#)
 
 
 setMethod("costDistance", signature(x="SpatRaster"),
@@ -28,5 +28,13 @@ setMethod("gridDistance", signature(x="SpatRaster"),
 	function(x, target=0, scale=1, maxiter=50, filename="", ...) {
 		warn("gridDistance", "'gridDistance' was renamed to 'gridDist'. 'gridDistance' will be removed in a future version")
 		gridDist(x, target=target, scale=scale, maxiter=maxiter, filename=filename, ...) 
+	}
+)
+
+
+setMethod("focalCor", signature(x="SpatRaster"),
+	function(x, ...) {
+		warn("focalCor", "'focalCor' will be removed. It was renamed to 'focalPairs'")
+		focalPairs(x, ...)
 	}
 )
