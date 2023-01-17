@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2022  Robert J. Hijmans
+// Copyright (c) 2018-2023  Robert J. Hijmans
 //
 // This file is part of the "spat" library.
 //
@@ -762,7 +762,9 @@ bool SpatRaster::setTime(std::vector<int_64> time, std::string step, std::string
 	if (time.size() != nlyr()) {
 		return false;
 	}
-	if (!((step == "seconds") || (step == "raw") || (step == "days") || (step == "yearmonths") || (step == "years") || (step == "months"))) {
+	
+	std::vector<std::string> steps = {"seconds", "raw", "days", "yearmonths", "years", "months"};
+	if (!is_in_vector(step, steps)) {
 		return false;
 	}
 	size_t begin=0;
@@ -1003,9 +1005,9 @@ bool SpatRaster::setWindow(SpatExtent x) {
 		source[i].window.expand = exp;
 		source[i].window.expanded  = expand;
 		source[i].window.full_extent = getExtent();
-		source[i].window.full_nrow   = source[i].nrow;
-		source[i].window.full_ncol   = source[i].ncol;
-		source[i].hasWindow     = true;
+		source[i].window.full_nrow = source[i].nrow;
+		source[i].window.full_ncol = source[i].ncol;
+		source[i].hasWindow = true;
 	}
 	setExtent(x, true, true, "");
 
@@ -1949,6 +1951,14 @@ SpatVector SpatRaster::as_points(bool values, bool narm, bool nall, SpatOptions 
 	pv.reserve(ncl);
 	pv.srs = source[0].srs;
 
+	if (!hasValues()) {
+		if (values || narm) {
+			pv.addWarning("raster has no values");
+		}
+		values = false;
+		narm = false;
+	}
+
     std::vector<std::vector<double>> xy;
 	if ((!values) && (!narm)) {
         for (size_t i=0; i<ncl; i++) {
@@ -1956,7 +1966,7 @@ SpatVector SpatRaster::as_points(bool values, bool narm, bool nall, SpatOptions 
 			SpatPart p(xy[0], xy[1]);
 			SpatGeom g(p, points);
 			pv.addGeom(g);
-			g.parts.resize(0);
+			//g.parts.resize(0);
         }
 		return pv;
 	}

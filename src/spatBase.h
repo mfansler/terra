@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2022  Robert J. Hijmans
+// Copyright (c) 2018-2023  Robert J. Hijmans
 //
 // This file is part of the "spat" library.
 //
@@ -369,6 +369,7 @@ class SpatProgress {
 		void init(size_t n, int nmin);
 		bool show = false;
 		void stepit();
+		void finish();
 		void interrupt();
 };
 

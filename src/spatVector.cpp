@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2022  Robert J. Hijmans
+// Copyright (c) 2018-2023  Robert J. Hijmans
 //
 // This file is part of the "spat" library.
 //
@@ -473,6 +473,21 @@ size_t SpatVector::ncoords() {
 		}
 	}
 	return ncrds;
+}
+
+size_t SpatVector::nparts(bool holes) {
+	size_t totnp = 0;
+	size_t ng = geoms.size();
+	for (size_t i=0; i<ng; i++) {
+		size_t np = geoms[i].parts.size();
+		totnp += np;
+		if (holes) {
+			for (size_t j=0; j<np; j++) {
+				totnp += geoms[i].parts[j].nHoles();
+			}
+		}
+	}
+	return totnp;
 }
 
 
@@ -1170,9 +1185,14 @@ SpatVector SpatVectorCollection::append() {
 		return out;
 	}
 	out = v[0];
-	// if out.nrow == 0?
 	std::string gtype = out.type();
 	for (size_t i=1; i<n; i++) {
+		if (v[i].size() == 0) continue;
+		if (out.size() == 0) {
+			out = v[i];
+			gtype = out.type();
+			continue;
+		}
 		if (v[i].type() != gtype) {
 			out.setError("all SpatVectors must have the same geometry type");
 			return out;
@@ -1180,7 +1200,6 @@ SpatVector SpatVectorCollection::append() {
 		//too much copying
 		//out = out.append(v[i], true);
 
-		if (v[i].size() == 0) continue;
 		out.geoms.insert(out.geoms.end(), v[i].geoms.begin(), v[i].geoms.end());
 		out.extent.unite(v[i].extent);
 

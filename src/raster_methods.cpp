@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2022  Robert J. Hijmans
+// Copyright (c) 2018-2023  Robert J. Hijmans
 //
 // This file is part of the "spat" library.
 //
@@ -874,7 +874,7 @@ SpatRaster SpatRaster::stretch(std::vector<double> minv, std::vector<double> max
 
 
 
-SpatRaster SpatRaster::apply(std::vector<unsigned> ind, std::string fun, bool narm, std::vector<std::string> nms, SpatOptions &opt) {
+SpatRaster SpatRaster::apply(std::vector<unsigned> ind, std::string fun, bool narm, std::vector<std::string> nms, std::vector<int_64> time, std::string timestep, std::string timezone, SpatOptions &opt) {
 
 	recycle(ind, nlyr());
 	std::vector<unsigned> ui = vunique(ind);
@@ -882,6 +882,12 @@ SpatRaster SpatRaster::apply(std::vector<unsigned> ind, std::string fun, bool na
 	SpatRaster out = geometry(nl);
 	recycle(nms, nl);
 	out.setNames(nms);
+	if (time.size() > 0) {
+		recycle(time, nl);
+		if (!out.setTime(time, timestep, timezone)) {
+			out.addWarning("could not set time");
+		}
+	}
 
 	if (!haveFun(fun)) {
 		out.setError("unknown function argument");
@@ -2952,7 +2958,9 @@ SpatRaster SpatRasterCollection::merge(bool first, SpatOptions &opt) {
 		hvals[i] = ds[i].hasValues();
 		nl = std::max(nl, ds[i].nlyr());
 	}
-	out = ds[0].geometry(1, false);
+
+	out = ds[0].geometry(nl, true);
+	//out = ds[0].geometry(1, false);
 	out.setExtent(e, true, true, "");
 
 	bool anyvals = false;
@@ -2966,7 +2974,7 @@ SpatRaster SpatRasterCollection::merge(bool first, SpatOptions &opt) {
 		return out;
 	}
 
-	out = out.geometry(nl, true);
+	//out = out.geometry(nl, true);
 	double hxr = out.xres()/2;
 
 	std::vector<int> vt = getValueType(true);
@@ -5023,7 +5031,7 @@ SpatRaster SpatRaster::fill_range(long limit, bool circular, SpatOptions &opt) {
 		size_t nc = out.bs.nrows[i] * ncol();
 		std::vector<double> v;
 		readValues(v, out.bs.row[i], out.bs.nrows[i], 0, ncol());
-		std::vector<double> d(v.size() * nl);
+		std::vector<double> d((v.size() / 2) * nl);
 		if (circular) {
 			for (size_t j=0; j<nc; j++) {
 				size_t jnc = j+nc;

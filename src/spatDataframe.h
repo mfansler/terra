@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2022  Robert J. Hijmans
+// Copyright (c) 2018-2023  Robert J. Hijmans
 //
 // This file is part of the "spat" library.
 //
@@ -44,12 +44,12 @@ class SpatDataFrame {
 		std::vector<std::string> names;
 		std::vector<unsigned> itype; //0 double, 1 long, 2 string, 3 bool, 4 time, 5 factor
 		std::vector<unsigned> iplace;
-		std::vector< std::vector<double>> dv;
-		std::vector< std::vector<long>> iv;
-		std::vector< std::vector<std::string>> sv;
-		std::vector< std::vector<int8_t>> bv;
-		std::vector< SpatTime_v> tv;
-		std::vector< SpatFactor> fv;		
+		std::vector<std::vector<double>> dv;
+		std::vector<std::vector<long>> iv;
+		std::vector<std::vector<std::string>> sv;
+		std::vector<std::vector<int8_t>> bv;
+		std::vector<SpatTime_v> tv;
+		std::vector<SpatFactor> fv;		
 		std::string NAS = "____NA_+";
 		
 		unsigned nrow();

@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2022  Robert J. Hijmans
+// Copyright (c) 2018-2023  Robert J. Hijmans
 //
 // This file is part of the "spat" library.
 //
@@ -232,9 +232,6 @@ bool SpatRaster::writeStart(SpatOptions &opt, const std::vector<std::string> src
 
 	if (opt.progressbar) {
 		pbar.init(bs.n, opt.get_progress());
-		//unsigned long steps = bs.n+2;
-		//pbar = new Progress(steps, opt.show_progress(bs.n));
-		//pbar->increment();
 		progressbar = true;
 	} else {
 		progressbar = false;
@@ -268,9 +265,18 @@ bool SpatRaster::writeValues(std::vector<double> &vals, size_t startrow, size_t 
 		return false;
 	}
 
+	size_t nv = nrows * ncol() * nlyr();
+	if (vals.size() != nv) {
+		if (nv > vals.size()) {
+			setError("incorrect number of values (too many) for writing");
+		} else {
+			setError("incorrect number of values (too few) for writing");
+		}
+		return false;
+	}
+
 	if (source[0].driver == "gdal") {
 		#ifdef useGDAL
-
 		success = writeValuesGDAL(vals, startrow, nrows, 0, ncol());
 		#else
 		setError("GDAL is not available");
@@ -284,20 +290,12 @@ bool SpatRaster::writeValues(std::vector<double> &vals, size_t startrow, size_t 
 #ifdef useRcpp
 	if (checkInterrupt()) {
 		pbar.interrupt();
-		setError("aborted");
+		setError("interrupted");
 		return(false);
 	}
 	if (progressbar) {
 		pbar.stepit();
 	}
-//		if (Progress::check_abort()) {
-//			pbar->cleanup();
-//			delete pbar;
-//			setError("aborted");
-//			return(false);
-//		}
-//		pbar->increment();
-//	}
 #endif
 	return success;
 }
@@ -337,14 +335,6 @@ bool SpatRaster::writeValuesRect(std::vector<double> &vals, size_t startrow, siz
 	if (progressbar) {
 		pbar.stepit();
 	}
-	//	if (Progress::check_abort()) {
-	//		pbar->cleanup();
-	//		delete pbar;
-	//		setError("aborted");
-	//		return(false);
-	//	}
-	//	pbar->increment();
-	//}
 #endif
 	return success;
 }
@@ -385,7 +375,7 @@ bool SpatRaster::writeStop(){
 
 #ifdef useRcpp
 	if (progressbar) {
-		pbar.stepit();
+		pbar.finish();
 	}
 /*
 	if (progressbar) {

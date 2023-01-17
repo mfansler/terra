@@ -37,7 +37,8 @@ parfun <- function(cls, d, fun, model, ...) {
 				r <- fun(model, d, ...)
 			}
 			if (is.list(r)) {
-				r <- as.data.frame(lapply(r, as.numeric))
+				r <- as.data.frame(r)
+				r <- sapply(r, as.numeric)			
 			} else if (is.factor(r)) {
 				r <- as.integer(r)
 			} else if (is.data.frame(r)) {
@@ -53,11 +54,11 @@ parfun <- function(cls, d, fun, model, ...) {
 			#}
 			r <- as.matrix(r)
 			if (!all(i)) {
-				m <- matrix(NA, nrow=nl*n, ncol=ncol(r))
+				m <- matrix(NA, nrow=n, ncol=ncol(r))
 				m[i,] <- r
 				colnames(m) <- colnames(r)
 				r <- m
-			}
+				}
 		} else {
 			if (!is.null(index)) {
 				r <- matrix(NA, nrow=nl*n, ncol=max(index))
@@ -126,6 +127,7 @@ parfun <- function(cls, d, fun, model, ...) {
 		levs <- levels(r)
 		data.frame(value=1:length(levs), class=levs)
 	} else if (is.list(r) || is.data.frame(r)) {
+		r <- as.data.frame(r)
 		out <- sapply(r, levels)
 		for (i in 1:length(out)) {
 			if (!is.null(out[[i]])) {
@@ -237,6 +239,11 @@ setMethod("predict", signature(object="SpatRaster"),
 		for (i in 1:b$n) {
 			d <- readValues(object, b$row[i], b$nrows[i], 1, nc, TRUE, TRUE)
 			r <- .runModel(model, fun, d, nl, const, na.rm, index, cores=cores, ...)
+			if (prod(NROW(r), NCOL(r)) != prod(b$nrows[i], nc, nl)) {
+				msg <- "the number of values returned by the predict function does not match the input."
+				if (!na.rm) msg <- paste(msg, "Try na.rm=TRUE?")
+				error("predict", msg)
+			}
 			writeValues(out, r, b$row[i], b$nrows[i])
 		}
 		writeStop(out)

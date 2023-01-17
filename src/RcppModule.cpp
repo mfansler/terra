@@ -5,7 +5,7 @@
 #include <memory> //std::addressof
 #include "NA.h"
 #include "spatTime.h"
-//#include "spatVector2.h"
+#include "spatVector2.h"
 
 //static void SpatRaster_finalizer( SpatRaster* ptr ){
 //}
@@ -181,11 +181,24 @@ RCPP_EXPOSED_CLASS(SpatVector)
 RCPP_EXPOSED_CLASS(SpatVectorProxy)
 RCPP_EXPOSED_CLASS(SpatVectorCollection)
 RCPP_EXPOSED_CLASS(SpatGraph)
-//RCPP_EXPOSED_CLASS(SpatVector2)
+RCPP_EXPOSED_CLASS(SpatVector2)
 
 RCPP_MODULE(spat){
 
     using namespace Rcpp;
+
+    class_<SpatVector2>("SpatVector2")
+	
+		.constructor()
+		.field("x", &SpatVector2::X)
+		.field("y", &SpatVector2::Y)
+		.field("z", &SpatVector2::Z)
+		.field("g", &SpatVector2::G)
+		.field("p", &SpatVector2::P)
+		.field("h", &SpatVector2::H)
+		.method("from_old", &SpatVector2::from_old)
+		.method("to_old", &SpatVector2::to_old)
+	;
 
     class_<SpatTime_v>("SpatTime_v")
 		.constructor()
@@ -399,8 +412,8 @@ RCPP_MODULE(spat){
 		.method("simplify", &SpatVector::simplify)
 		.method("thin", &SpatVector::thin)
 		//.method("shared_paths", &SpatVector::shared_paths)
-		.method("shared_paths", (SpatVector (SpatVector::*)())( &SpatVector::shared_paths))
-		.method("shared_paths2", (SpatVector (SpatVector::*)(SpatVector))( &SpatVector::shared_paths))
+		.method("shared_paths", (SpatVector (SpatVector::*)(bool))( &SpatVector::shared_paths))
+		.method("shared_paths2", (SpatVector (SpatVector::*)(SpatVector, bool))( &SpatVector::shared_paths))
 		.method("snap", &SpatVector::snap)
 		.method("snapto", &SpatVector::snapto)
 		.method("spatial_index_2d", &SpatVector::index_2d)
@@ -781,8 +794,10 @@ RCPP_MODULE(spat){
 		.method("rappvals", &SpatRaster::rappvals)
 		.method("roll", &SpatRaster::roll)
 		.method("fill_range", &SpatRaster::fill_range)
-		.method("arith_rast", ( SpatRaster (SpatRaster::*)(SpatRaster, std::string, SpatOptions&) )( &SpatRaster::arith ))
-		.method("arith_numb", ( SpatRaster (SpatRaster::*)(std::vector<double>, std::string, bool, SpatOptions&) )( &SpatRaster::arith ))
+		.method("arith_rast", (SpatRaster (SpatRaster::*)(SpatRaster, std::string, SpatOptions&) )( &SpatRaster::arith ))
+		.method("arith_numb", (SpatRaster (SpatRaster::*)(std::vector<double>, std::string, bool, SpatOptions&) )( &SpatRaster::arith))
+		.method("arith_m", &SpatRaster::arith_m)
+		
 		.method("rst_area", &SpatRaster::rst_area)
 		.method("sum_area", &SpatRaster::sum_area)
 		.method("area_by_value", &SpatRaster::area_by_value)
@@ -891,6 +906,7 @@ RCPP_MODULE(spat){
 		.method("scale", &SpatRaster::scale)
 		.method("shift", &SpatRaster::shift)
 		.method("terrain", &SpatRaster::terrain)
+		.method("hillshade", &SpatRaster::hillshade)
 		.method("summary", &SpatRaster::summary)
 		.method("summary_numb", &SpatRaster::summary_numb)
 		.method("transpose", &SpatRaster::transpose)
@@ -991,4 +1007,3 @@ SpatRaster SQRTfree(SpatRaster* g) {
 	return r;
 }
 */
-

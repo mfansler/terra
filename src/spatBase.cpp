@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2022  Robert J. Hijmans
+// Copyright (c) 2018-2023  Robert J. Hijmans
 //
 // This file is part of the "spat" library.
 //
@@ -345,18 +345,19 @@ void SpatRaster::setExtent(SpatExtent ext, bool keepRes, bool expand, std::strin
 		double yrs = res[1];
 		unsigned nc = std::max(1.0, round( (ext.xmax - ext.xmin) / xrs ));
 		unsigned nr = std::max(1.0, round( (ext.ymax - ext.ymin) / yrs ));
-		source[0].ncol = nc;
-		source[0].nrow = nr;
 		ext.xmax = ext.xmin + nc * xrs;
 		ext.ymax = ext.ymin + nr * yrs;
-		source[0].extent = ext;
-	}
-
-	for (size_t i=0; i<nsrc(); i++) {
-		source[i].extent = ext;
-		source[i].extset = true;
-		//source[i].nrow = source[0].nrow;
-		//source[i].ncol = source[0].ncol;
+		for (size_t i=0; i<nsrc(); i++) {
+			source[i].extent = ext;
+			source[i].extset = true;
+			source[i].nrow = nr;
+			source[i].ncol = nc;
+		}
+	} else {
+		for (size_t i=0; i<nsrc(); i++) {
+			source[i].extent = ext;
+			source[i].extset = true;
+		}
 	}
 }
 
@@ -450,8 +451,7 @@ std::vector<double> SpatRaster::origin() {
 }
 
 
-
-bool SpatRaster::compare_geom(SpatRaster x, bool lyrs, bool crs, double tol, bool warncrs, bool ext, bool rowcol, bool res) {
+bool SpatRaster::compare_geom(SpatRaster &x, bool lyrs, bool crs, double tol, bool warncrs, bool ext, bool rowcol, bool res) {
 
 	tol = tol < 0 ? 0 : tol;
 
@@ -584,9 +584,15 @@ void SpatProgress::stepit() {
 			if (n > 0) {
 				for (int i=0; i<n; i++) Rcpp::Rcout << "=";
 			}
-		} else if (step == nstep){
-			Rcpp::Rcout << "\r                                          \r";
 		}
+		step++;
+		R_FlushConsole();
+	}
+}
+
+void SpatProgress::finish() {
+	if (show) {
+		Rcpp::Rcout << "\r                                          \r";
 		step++;
 		R_FlushConsole();
 	}

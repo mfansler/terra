@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2022  Robert J. Hijmans
+// Copyright (c) 2018-2023  Robert J. Hijmans
 //
 // This file is part of the "spat" library.
 //
@@ -178,7 +178,7 @@ SpatCategories GetRAT(GDALRasterAttributeTable *pRAT) {
 			}
 		}
 	}
-	if ((id.size() == 0) && (id2.size() == 1)) {
+	if ((id.size() <= 1) && (id2.size() == 1)) {
 // #790 avoid having just "count" or "histogram" 
 		return(out);
 	}
@@ -460,6 +460,7 @@ std::string basename_sds(std::string f) {
 	if (std::string::npos != i) {
 		f.erase(0, i + 1);
 	}
+	// this may be incorrect of the variable name includes a ":" ?
 	const size_t j = f.find_last_of(":");
 	if (std::string::npos != j) {
 		f.erase(0, j + 1);
@@ -603,7 +604,8 @@ SpatRasterStack::SpatRasterStack(std::string fname, std::vector<int> ids, bool u
 				s.erase(0, pos + delim.length());
 				SpatRaster sub;
 				if (sub.constructFromFile(s, {-1}, {""}, {}, {})) {
-					if (!push_back(sub, basename_sds(s), "", "", true)) {
+					std::string sname = (sub.source[0].source_name != "") ? sub.source[0].source_name : basename_sds(s);
+					if (!push_back(sub, sname, sub.source[0].source_name_long, sub.source[0].unit[0], true)) {
 						addWarning("skipped (different geometry): " + s);
 					}
 				} else {

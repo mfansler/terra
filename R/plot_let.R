@@ -48,12 +48,14 @@ baselayers <- function(tiles, wrap=TRUE) {
 setMethod("plet", signature(x="SpatVector"),
 	function(x, y="", col, alpha=1, fill=0, main=y, cex=1, lwd=2, popup=TRUE, label=FALSE, split=FALSE, tiles=c("Streets", "Esri.WorldImagery", "OpenTopoMap"), wrap=TRUE, legend="bottomright", collapse=FALSE, map=NULL)  {
 
+		stopifnot(utils::packageVersion("leaflet") > "2.1.1")
+		
 		if (missing(col)) col = grDevices::rainbow
 		alpha <- max(0, min(1, alpha))
 		fill <- max(0, min(1, alpha))
 		x <- makelonlat(x)
 
-		#stopifnot(packageVersion("leaflet") > "2.1.1")
+		#stopifnot(utils::packageVersion("leaflet") > "2.1.1")
 		if (is.null(map)) {
 			tiles <- unique(as.character(tiles))
 			tiles <- tiles[tiles!=""]
@@ -93,11 +95,13 @@ setMethod("plet", signature(x="SpatVector"),
 				y <- names(x)[y]
 			}
 			stopifnot(y %in% names(x))
-			u <- unique(x[[y, drop=TRUE]])
+			x <- x[, y]
+			v <- values(x)[,1]
+			u <- unique(v)
 			cols <- .getCols(length(u), col)
 			if (split) { 
 				for (i in seq_along(u)) {
-					s <- x[x[[y]] == u[i], ]
+					s <- x[v == u[i], ]
 					pop <- lab <- NULL
 					if (isTRUE(popup[1])) pop <- popUp(s)
 					if (isTRUE(label[1])) lab <- u
@@ -120,11 +124,10 @@ setMethod("plet", signature(x="SpatVector"),
 						options = leaflet::layersControlOptions(collapsed=collapse))
 				}
 			} else { # do not split
-				values <- x[[y,drop=TRUE]]
-				vcols <- cols[as.numeric(as.factor(values))]
+				vcols <- cols[1:length(v)]
 				pop <- lab <- NULL
 				if (isTRUE(popup[1])) pop <- popUp(x)
-				if (isTRUE(label[1])) lab <- values
+				if (isTRUE(label[1])) lab <- v
 				if (g == "polygons") {
 					map <- leaflet::addPolygons(map, data=x, label=lab,  
 						col=vcols, opacity=alpha, fillOpacity=fill, popup=pop)
@@ -155,7 +158,7 @@ setMethod("plet", signature(x="SpatVector"),
 setMethod("plet", signature(x="SpatVectorCollection"),
 	function(x, col, alpha=1, fill=0, cex=1, lwd=2, popup=TRUE, label=FALSE, tiles=c("Streets", "Esri.WorldImagery", "OpenTopoMap"), wrap=TRUE, legend="bottomright", collapse=FALSE, map=NULL)  {
 
-		#stopifnot(packageVersion("leaflet") > "2.1.1")
+		stopifnot(utils::packageVersion("leaflet") > "2.1.1")
 
 		if (is.null(map)) {
 			tiles <- unique(as.character(tiles))
@@ -324,7 +327,8 @@ make.panel <- function(x, maxcell) {
 
 setMethod("plet", signature(x="SpatRaster"),
 	function(x, y=1, col, alpha=0.8, main=names(x), tiles=NULL, wrap=TRUE, maxcell=500000, legend="bottomright", shared=FALSE, panel=FALSE, collapse=TRUE, map=NULL)  {
-		#stopifnot(packageVersion("leaflet") > "2.1.1")
+
+		stopifnot(utils::packageVersion("leaflet") > "2.1.1")
 
 #		if (!is.null(add)) {
 #			if (inherits(add, "SpatVector")) {
@@ -374,7 +378,7 @@ setMethod("plet", signature(x="SpatRaster"),
 		if (nlyr(x) == 1) {
 			map <- leaflet::addRasterImage(map, x, colors=col, opacity=alpha)
 			if (!is.null(legend)) {
-				if (!hasMinMax(x)) setMinMax(x)
+				if (!all(hasMinMax(x))) setMinMax(x)
 				r <- minmax(x)
 				v <- seq(r[1], r[2], 5)
 				pal <- leaflet::colorNumeric(col, v, reverse = TRUE)
@@ -390,7 +394,7 @@ setMethod("plet", signature(x="SpatRaster"),
 			nms <- make.unique(names(x))
 			many_legends <- one_legend <- FALSE
 			if (!is.null(legend)) {
-				if (!hasMinMax(x)) setMinMax(x)
+				if (!all(hasMinMax(x))) setMinMax(x)
 				r <- minmax(x)
 				if (shared) {
 					rr <- range(r)

@@ -296,7 +296,8 @@ setReplaceMethod("[[", c("SpatVector", "character"),
 
 		if (name %in% names(x)) {
 			d <- values(x)
-			d[[name]] <- value
+			#[] to keep type if NA is used
+			d[[name]][] <- value
 			values(x) <- d
 		} else {
 			if (inherits(value, "factor")) {
@@ -392,15 +393,21 @@ setMethod("vect", signature(x="data.frame"),
 	}
 )
 
-
 setMethod("vect", signature(x="list"),
-	function(x) {
+	function(x, type="points", crs="") {
+		x <- lapply(x, function(i) {
+			if (inherits(i, "SpatVector")) return(i)
+			vect(i, type=type)
+		})
 		x <- svc(x)
 		v <- methods::new("SpatVector")
 		v@ptr <- x@ptr$append()
+		crs(v) <- crs
 		messages(v, "vect")
 	}
 )
+
+
 
 
 setMethod("query", signature(x="SpatVectorProxy"),

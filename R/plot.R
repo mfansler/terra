@@ -100,7 +100,7 @@ setMethod("as.contour", signature(x="SpatRaster"),
 	function(x, maxcells=100000, ...) {
 		x <- spatSample(x[[1]], size=maxcells, method="regular", as.raster=TRUE)
 		z <- grDevices::contourLines(x=xFromCol(x,1:ncol(x)), y=yFromRow(x, nrow(x):1), z=t(as.matrix(x, wide=TRUE)[nrow(x):1,]), ...)
-		y <- sapply(1:length(z), function(i) cbind(z[[i]]$level, i, z[[i]]$x, z[[i]]$y))
+		y <- lapply(1:length(z), function(i) cbind(z[[i]]$level, i, z[[i]]$x, z[[i]]$y))
 		y <- do.call(rbind, y)
 		y[] <- as.numeric(y)
 		u <- unique(y[,1])
@@ -300,23 +300,35 @@ setMethod("barplot", "SpatRaster",
 
 
 
-
 shade <- function(slope, aspect, angle=45, direction=0, normalize=FALSE, filename="", overwrite=FALSE, ...) {
+	stopifnot(inherits(slope, "SpatRaster"))
+	opt <- spatOptions(filename, overwrite=overwrite, ...)
+	slope@ptr <- slope@ptr$hillshade(aspect@ptr, angle, direction, normalize[1], opt)
+	messages(slope, "shade")
+}
 
-	x <- c(slope[[1]], aspect[[1]])
 
-	direction <- direction[1] * pi/180
-	zenith <- (90 - angle[1]) * pi/180
-
-	if (normalize) {
-		fun <- function(slp, asp) {
-			shade <- cos(slp) * cos(zenith) + sin(slp) * sin(zenith) * cos(direction-asp)
-			shade[shade < 0] <- 0
-			shade * 255
-		}
-	} else {
-		fun <- function(slp, asp) { cos(slp) * cos(zenith) + sin(slp) * sin(zenith) * cos(direction-asp) }
+map.pal <- function(name, n=50, ...) { 
+	f <- system.file("colors/palettes.rds", package="terra")
+	v <- readRDS(f)
+	if (missing(name)) {
+		return(names(v))
 	}
-	lapp(x, fun=fun, filename=filename, overwrite=overwrite, wopt=list(...))
+	if (name %in% names(v)) {
+		r <- grDevices::colorRampPalette(v[[name]], ...)
+		r(n)
+	} else {
+		error("map.pal", paste(name, "is not a known palette"))
+	}
+}
+
+map.leg <- function(name) { 
+	f <- system.file("colors/legends.rds", package="terra")
+	v <- readRDS(f)
+	if (name %in% names(v)) {
+		v[[name]]
+	} else {
+		error("map.leg", paste(name, "is not a known legend"))
+	}
 }
 
