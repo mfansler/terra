@@ -1,6 +1,6 @@
 
 setMethod("zonal", signature(x="SpatRaster", z="SpatRaster"),
-	function(x, z, fun="mean", ..., as.raster=FALSE, filename="", wopt=list())  {
+	function(x, z, fun="mean", ..., w=NULL, as.raster=FALSE, filename="", wopt=list())  {
 		if (nlyr(z) > 1) {
 			z <- z[[1]]
 		}
@@ -8,10 +8,12 @@ setMethod("zonal", signature(x="SpatRaster", z="SpatRaster"),
 		txtfun <- .makeTextFun(fun)
 		if (inherits(txtfun, "character") && (txtfun %in% c("max", "min", "mean", "sum", "notNA", "isNA"))) {
 			na.rm <- isTRUE(list(...)$na.rm)
-			old <- isTRUE(list(...)$old)
 			opt <- spatOptions()
-			if (old) { # for testing, to be removed
-				sdf <- x@ptr$zonal_old(z@ptr, txtfun, na.rm, opt)
+			if (!is.null(w)) {
+				if (txtfun != "mean") {
+					error("zonal", "fun must be 'mean' when using weights")
+				}
+				sdf <- x@ptr$zonal_weighted(z@ptr, w@ptr, na.rm, opt)				
 			} else {
 				sdf <- x@ptr$zonal(z@ptr, txtfun, na.rm, opt)
 			}
@@ -48,6 +50,37 @@ setMethod("zonal", signature(x="SpatRaster", z="SpatRaster"),
 				out$zone <- levs[m, 2]
 			}
 			colnames(out)[1] <- zname
+			out
+		}
+	}
+)
+
+setMethod("zonal", signature(x="SpatRaster", z="SpatVector"),
+	function(x, z, fun="mean", ..., w=NULL, weights=FALSE, exact=FALSE, touches=FALSE, as.raster=FALSE, filename="", wopt=list())  {
+		opt <- spatOptions()
+		narm <- isTRUE(list(...)$na.rm)
+		txtfun <- .makeTextFun(fun)
+		if (!inherits(txtfun, "character")) {
+			error("zonal", "this 'fun' is not supported. You can use extract instead")
+		} else {
+			if (is.null(w)) {
+				out <- x@ptr$zonal_poly(z@ptr, txtfun, weights[1], exact[1], touches[1], narm, opt)
+			} else {
+				if (txtfun != "mean") {
+					error("zonal", "fun must be 'mean' when using weights")
+				}
+				out <- x@ptr$zonal_poly_weighted(z@ptr, w@ptr, weights[1], exact[1], touches[1], narm, opt)
+			}
+			messages(out, "zonal")
+			out <- .getSpatDF(out)
+		}
+		if (as.raster) {
+			if (is.null(wopt$names)) {
+				wopt$names <- names(x)
+			}
+			x <- rasterize(z, x, 1:nrow(z))
+			subst(x, 1:nrow(out), out, filename=filename, wopt=wopt)
+		} else {
 			out
 		}
 	}

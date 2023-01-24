@@ -48,11 +48,19 @@ setMethod("writeRaster", signature(x="SpatRaster", filename="character"),
 function(x, filename="", overwrite=FALSE, ...) {
 	filename <- trimws(filename)
 	stopifnot(filename != "")
-	ftp <- list(...)$filetype
-	if (any(tools::file_ext(filename) %in% c("nc", "cdf")) && (is.null(ftp) || isTRUE(ftp=="netCDF"))) {
-		warn("consider writeCDF to write ncdf files")
-	}
 	filename <- enc2utf8(filename)
+
+	ftp <- list(...)$filetype[1]
+	fext <- tools::file_ext(filename)
+	if (any(fext %in% c("nc", "cdf")) && (is.null(ftp) || isTRUE(ftp=="netCDF"))) {
+		warn("writeRaster", "consider writeCDF to write ncdf files")
+	} 
+	#else if ((length(fext)==1) && (any(fext == "rds")) && ((is.null(ftp)) || isTRUE(ftp=="RDS"))) {
+	#	if ((!overwrite) && file.exists(filename)) {
+	#		error("writeRaster", "Use 'overwrite=TRUE' to overwrite an existing file")
+	#	}
+	#	return(saveRDS(x, filename))
+	#}
 	opt <- spatOptions(filename, overwrite, ...)
 	x@ptr <- x@ptr$writeRaster(opt)
 	x <- messages(x, "writeRaster")
@@ -79,6 +87,8 @@ get_filetype <- function(filename) {
 		"KML"
 	} else if (ext == "vct") {
 		"Idrisi"
+	} else if (ext == "rds") {
+		"rds"
 	} else {
 		error("writeVector", "cannot guess filetype from filename")
 	}
@@ -86,13 +96,16 @@ get_filetype <- function(filename) {
 
 setMethod("writeVector", signature(x="SpatVector", filename="character"),
 function(x, filename, filetype=NULL, layer=NULL, insert=FALSE, overwrite=FALSE, options="ENCODING=UTF-8") {
-	filename <- trimws(filename)
+	filename <- trimws(filename[1])
 	filename <- enc2utf8(filename)
 	if (filename == "") {
 		error("writeVector", "provide a filename")
 	}
 	if (is.null(filetype)) {
 		filetype <- get_filetype(filename)
+		if (filetype == "rds") {
+			return(saveRDS(x, filename))
+		}
 	}
 	if (is.null(layer)) layer <- tools::file_path_sans_ext(basename(filename))
 	layer <- trimws(layer)
