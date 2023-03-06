@@ -57,12 +57,23 @@ function(x, row=1, nrows=nrow(x), col=1, ncols=ncol(x), mat=FALSE, dataframe=FAL
 	stopifnot(col > 0 && ncols > 0)
 	v <- x@ptr$readValues(row-1, nrows, col-1, ncols)
 	messages(x, "readValues")
-	if (dataframe || mat) {
+	if (dataframe) {
 		v <- matrix(v, ncol = nlyr(x))
 		colnames(v) <- names(x)
-		if (dataframe) {
-			return(.makeDataFrame(x, v, ...) )
+		return(.makeDataFrame(x, v, ...) )
+	} else if (mat) {
+		if (all(is.int(x))) {
+			v <- matrix(as.integer(v), ncol = nlyr(x))
+		} else if (all(is.bool(x))) {
+			v <- matrix(as.logical(v), ncol = nlyr(x))		
+		} else {
+			v <- matrix(v, ncol = nlyr(x))		
 		}
+		colnames(v) <- names(x)
+	} else if (all(is.int(x))) {
+		v <- as.integer(v)
+	} else if (all(is.bool(x))) {
+		v <- as.logical(v)
 	}
 	v
 }
@@ -325,7 +336,7 @@ setMethod("minmax", signature(x="SpatRaster"),
 		if (!all(have)) {
 			if (compute) {
 				opt <- spatOptions()
-				x@ptr$setRange(opt)
+				x@ptr$setRange(opt, FALSE)
 			} else {
 				warn("minmax", "min and max values not available for all layers. See 'setMinMax' or 'global'")
 			}
@@ -343,9 +354,9 @@ setMethod("setMinMax", signature(x="SpatRaster"),
 	function(x, force=FALSE) {
 		opt <- spatOptions()
 		if (force) {
-			x@ptr$setRange(opt)
+			x@ptr$setRange(opt, TRUE)
 		} else if (!all(hasMinMax(x))) {
-			x@ptr$setRange(opt)
+			x@ptr$setRange(opt, FALSE)
 		}
 		x <- messages(x, "setMinMax")
 	}

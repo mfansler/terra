@@ -28,7 +28,7 @@
 #include "crs.h"
 #include "gdalio.h"
 #include "recycle.h"
-
+#include <sstream>
 
 SpatVector SpatRaster::dense_extent(bool inside, bool geobounds) {
 
@@ -434,13 +434,13 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 		out.source[0].time = getTime();
 	}
 
-	bool use_crs = crs != "";
+	bool use_crs = !crs.empty();
 	if (use_crs) {
 		align = false;
 		resample = false;
 	} else if (!hasValues()) {
 		std::string fname = opt.get_filename();
-		if (fname != "") {
+		if (!fname.empty()) {
 			out.addWarning("raster has no values, not writing to file");
 		}
 		return out;
@@ -450,7 +450,7 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 	}
 
 	if (!resample) {
-		if (srccrs == "") {
+		if (srccrs.empty()) {
 			out.setError("input raster CRS not set");
 			return out;
 		}
@@ -628,7 +628,7 @@ SpatRaster SpatRaster::resample(SpatRaster x, std::string method, bool mask, boo
 	std::string crsin = source[0].srs.wkt;
 	std::string crsout = out.source[0].srs.wkt;
 	bool do_prj = true;
-	if ((crsin == crsout) || (crsin == "") || (crsout == "")) {
+	if ((crsin == crsout) || crsin.empty() || crsout.empty()) {
 		do_prj = false;
 	}
 
@@ -712,12 +712,21 @@ SpatRaster SpatRaster::resample(SpatRaster x, std::string method, bool mask, boo
 
 
 
+bool GCP_geotrans(GDALDataset *poDataset, double* adfGeoTransform) {
+	int n = poDataset->GetGCPCount();
+	if (n == 0) return false;
+	const GDAL_GCP *gcp;
+	gcp	= poDataset->GetGCPs();
+	return GDALGCPsToGeoTransform(n, gcp, adfGeoTransform, true);
+}
+
+//#include <filesystem>
 
 SpatRaster SpatRaster::rectify(std::string method, SpatRaster aoi, unsigned useaoi, bool snap, SpatOptions &opt) {
 	SpatRaster out = geometry(0);
 
 	if (nsrc() > 1) {
-		out.setError("you can transform only one data source at a time");
+		out.setError("you can rectify only one data source at a time");
 		return(out);
 	}
 	if (!source[0].rotated) {
@@ -732,11 +741,34 @@ SpatRaster SpatRaster::rectify(std::string method, SpatRaster aoi, unsigned usea
 	}
 	double gt[6];
 	if( poDataset->GetGeoTransform(gt) != CE_None ) {
-		out.setError("can't get geotransform");
-		GDALClose( (GDALDatasetH) poDataset );
-		return out;
+	
+		if (GCP_geotrans(poDataset, gt)) {
+		
+			GDALClose( (GDALDatasetH) poDataset );
+			std::string tmpfile = tempFile(opt.get_tempdir(), opt.pid, "_rect.tif");
+			//++17 
+			//std::filesystem::copy_file(source[0].filename, tmpfile);	
+
+			std::ifstream  src(source[0].filename, std::ios::binary);
+			std::ofstream  dst(tmpfile,   std::ios::binary);
+			dst << src.rdbuf();	
+		
+			GDALDataset *poDataset = openGDAL(tmpfile, GDAL_OF_RASTER | GDAL_OF_READONLY, source[0].open_drivers, source[0].open_ops);
+			poDataset->SetGeoTransform(gt);
+			GDALClose( (GDALDatasetH) poDataset );
+			SpatRaster tmp(tmpfile,  {-1}, {""}, {}, {});
+			return tmp.rectify(method, aoi, useaoi, snap, opt);
+
+		} else {
+			out.setError("can't get the geotransform");
+			GDALClose( (GDALDatasetH) poDataset );
+			return out;
+		}
 	}
 	GDALClose( (GDALDatasetH) poDataset );
+
+//	gt[1] = std::abs(gt[1]);
+	
 	//SpatExtent e = getExtent();
 	//std::vector<double> x = {e.xmin, e.xmin, e.xmax, e.xmax };
 	//std::vector<double> y = {e.ymin, e.ymax, e.ymin, e.ymax };
@@ -756,10 +788,10 @@ SpatRaster SpatRaster::rectify(std::string method, SpatRaster aoi, unsigned usea
 	double ymax = vmax(yy, TRUE);
 
 	SpatExtent en(xmin, xmax, ymin, ymax);
-	out = out.setResolution(gt[1], -gt[5]);
+	out = out.setResolution(fabs(gt[1]), fabs(gt[5]));
 
-	out.setExtent(en, false, true, "out");
-	SpatExtent e = out.getExtent();
+	out.setExtent(en, true, true, "out");
+	//SpatExtent e = out.getExtent();
 
 	if (useaoi == 1) { // use extent
 		en = aoi.getExtent();
@@ -773,7 +805,8 @@ SpatRaster SpatRaster::rectify(std::string method, SpatRaster aoi, unsigned usea
 		out = aoi.geometry(0);
 	} // else { // if (useaoi == 0) // no aoi
 
-	e = out.getExtent();
+	//e = out.getExtent();
+
 	out = warper(out, "", method, false, false, true, opt);
 
 	return(out);
@@ -801,7 +834,7 @@ SpatVector SpatRaster::polygonize(bool trunc, bool values, bool narm, bool aggre
 //		usemask = true;
 		SpatOptions mopt(topt);
 		mopt.set_datatype("INT1U");
-		mask = tmp.isfinite(mopt);
+		mask = tmp.isfinite(false, mopt);
 	} else if (trunc) {
 		tmp = tmp.math("trunc", topt);
 		trunc = false;
@@ -935,7 +968,7 @@ SpatRaster SpatRaster::rgb2col(size_t r,  size_t g, size_t b, SpatOptions &opt) 
 	std::string filename = opt.get_filename();
 	opt.set_datatype("INT1U");
 	std::string driver;
-	if (filename == "") {
+	if (filename.empty()) {
 		if (canProcessInMemory(opt)) {
 			driver = "MEM";
 		} else {
@@ -946,7 +979,7 @@ SpatRaster SpatRaster::rgb2col(size_t r,  size_t g, size_t b, SpatOptions &opt) 
 	} else {
 		driver = opt.get_filetype();
 		getGDALdriver(filename, driver);
-		if (driver == "") {
+		if (driver.empty()) {
 			out.setError("cannot guess file type from filename");
 			return out;
 		}
@@ -1097,13 +1130,13 @@ SpatRaster SpatRaster::viewshed(const std::vector<double> obs, const std::vector
 
 	std::string filename = opt.get_filename();
 	std::string driver;
-	if (filename == "") {
+	if (filename.empty()) {
 		filename = tempFile(opt.get_tempdir(), opt.pid, ".tif");
 		driver = "GTiff";
 	} else {
 		driver = opt.get_filetype();
 		getGDALdriver(filename, driver);
-		if (driver == "") {
+		if (driver.empty()) {
 			setError("cannot guess file type from filename");
 			return out;
 		}
@@ -1189,7 +1222,7 @@ SpatRaster SpatRaster::proximity(double target, double exclude, std::string unit
 
 	std::string filename = opt.get_filename();
 	std::string driver;
-	if (filename == "") {
+	if (filename.empty()) {
 		if (canProcessInMemory(opt)) {
 			driver = "MEM";
 		} else {
@@ -1200,7 +1233,7 @@ SpatRaster SpatRaster::proximity(double target, double exclude, std::string unit
 	} else {
 		driver = opt.get_filetype();
 		getGDALdriver(filename, driver);
-		if (driver == "") {
+		if (driver.empty()) {
 			setError("cannot guess file type from filename");
 			return out;
 		}
@@ -1325,7 +1358,7 @@ SpatRaster SpatRaster::sieveFilter(int threshold, int connections, SpatOptions &
 
 	std::string filename = opt.get_filename();
 	std::string driver;
-	if (filename == "") {
+	if (filename.empty()) {
 		if (canProcessInMemory(opt)) {
 			driver = "MEM";
 		} else {
@@ -1336,7 +1369,7 @@ SpatRaster SpatRaster::sieveFilter(int threshold, int connections, SpatOptions &
 	} else {
 		driver = opt.get_filetype();
 		getGDALdriver(filename, driver);
-		if (driver == "") {
+		if (driver.empty()) {
 			setError("cannot guess file type from filename");
 			return out;
 		}

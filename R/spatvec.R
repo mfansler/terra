@@ -71,14 +71,25 @@ setMethod("geom", signature(x="SpatVector"),
 )
 
 setMethod("crds", signature(x="SpatVector"),
-	function(x, df=FALSE){
-		g <- x@ptr$coordinates()
-		g <- do.call(cbind, g)
-		colnames(g) <- c("x", "y")
-		if (df) {
-			data.frame(g)
+	function(x, df=FALSE, list=FALSE){
+		if (list) {
+			gt <- geomtype(x) 
+			if (gt == "lines") {
+				x@ptr$linesNA()
+			} else if (gt == "polygons") {
+				x@ptr$polygonsList()			
+			} else {
+				x@ptr$coordinates()
+			}
 		} else {
-			g
+			g <- x@ptr$coordinates()
+			g <- do.call(cbind, g)
+			colnames(g) <- c("x", "y")
+			if (df) {
+				data.frame(g)
+			} else {
+				g
+			}
 		}
 	}
 )
@@ -107,7 +118,7 @@ setMethod("dim", signature(x="SpatVectorProxy"),
 as.data.frame.SpatVector <- function(x, row.names=NULL, optional=FALSE, geom=NULL, ...) {
 	d <- .getSpatDF(x@ptr$df, ...)
 	# fix empty names
-	colnames(d) <- x@ptr$names
+	colnames(d)[1:ncol(x)] <- x@ptr$names
 	if (!is.null(geom)) {
 		geom <- match.arg(toupper(geom), c("WKT", "HEX", "XY"))
 		if (geom == "XY") {

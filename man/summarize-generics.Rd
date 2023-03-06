@@ -92,24 +92,29 @@ This is different than the sample standard deviation returned by \code{sd} (whic
 
 \S4method{anyNA}{SpatRaster}(x)
 
-\S4method{noNA}{SpatRaster}(x, FNA=FALSE)
+\S4method{noNA}{SpatRaster}(x, falseNA=FALSE)
 
-\S4method{allNA}{SpatRaster}(x, FNA=FALSE)
+\S4method{allNA}{SpatRaster}(x, falseNA=FALSE)
 
 }
 
 
 \arguments{
   \item{x}{SpatRaster}
-  \item{...}{additional SpatRaster objects or numeric values; and arguments \code{filename}, \code{overwrite} and \code{wopt} as for \code{\link{writeRaster}}}
+  \item{...}{additional SpatRaster objects or numeric values; and arguments \code{par} for parallel summarization (see Details), and \code{filename}, \code{overwrite} and \code{wopt} as for \code{\link{writeRaster}}}
   \item{na.rm}{logical. If \code{TRUE}, \code{NA} values are ignored. If \code{FALSE}, \code{NA} is returned if \code{x} has any \code{NA} values}
   \item{trim}{ignored}
   \item{pop}{logical. If \code{TRUE}, the population standard deviation is computed. Otherwise the sample standard deviation is computed}
-  \item{FNA}{logical. If \code{TRUE}, cells that would otherwise be \code{FALSE} are set to \code{NA}}
+  \item{falseNA}{logical. If \code{TRUE}, cells that would otherwise be \code{FALSE} are set to \code{NA}}
 }
 
 
 \value{SpatRaster}
+
+\details{
+Additional argument \code{par} can be used for "parallel" summarizing a SpatRaster and a numeric or logical value. If a SpatRaster \code{x} has three layers, \code{max(x, 5)} will return a single layer (the number five is treated as a layer in which all cells have value five). In contrast \code{max(x, 5, par=TRUE)} returns three layers (the number five is treated as another SpatRaster with a single layer with all cells having the value five.
+}
+
 
 \seealso{\code{\link{app}}, \code{\link{Math-methods}}, \code{\link{modal}}, \code{\link{which.lyr}} }
 
@@ -127,7 +132,13 @@ x <- sum(c(r, r[[2]]), 5)
 y <- sum(r, r[[2]], 5)
 
 max(r)
+
+## when adding a number, do you want 1 layer or all layers?
+# 1 layer
 max(r, 0.5)
+
+# all layers
+max(r, 0.5, par=TRUE)
 
 y <- stdev(r)
 # not the same as 

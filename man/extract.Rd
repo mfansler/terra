@@ -14,19 +14,6 @@
 \alias{extract,SpatVector,data.frame-method}
 
 
-\alias{[,SpatVector,SpatVector,missing-method}
-\alias{[,SpatVector,SpatExtent,missing-method}
-\alias{[,SpatRaster,SpatVector,missing-method}
-\alias{[,SpatRaster,missing,missing-method}
-\alias{[,SpatRaster,numeric,missing-method}
-\alias{[,SpatRaster,missing,numeric-method}
-\alias{[,SpatRaster,numeric,numeric-method}
-\alias{[,SpatRaster,data.frame,missing-method}
-\alias{[,SpatRaster,matrix,missing-method}
-\alias{[,SpatRaster,SpatRaster,missing-method}
-\alias{[,SpatRaster,SpatExtent,missing-method}
-
-
 \title{Extract values from a SpatRaster}
 
 \description{
@@ -121,14 +108,14 @@ rf <- system.file("ex/elev.tif", package="terra")
 x <- rast(rf)
 extract(x, v, mean, na.rm=TRUE)
 
-e <- extract(z, v)
+e <- extract(z, v, ID=TRUE)
 e
 tapply(e[,2], e[,1], mean, na.rm=TRUE)
 
 x <- c(z, z*2, z/3)
 names(x) <- letters[1:3]
 
-e <- extract(x, v)
+e <- extract(x, v, ID=TRUE)
 de <- data.frame(e)
 aggregate(de[,2:4], de[,1,drop=FALSE], mean)
 }

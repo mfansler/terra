@@ -36,7 +36,7 @@
 
 
 setMethod("plotRGB", signature(x="SpatRaster"),
-function(x, r=1, g=2, b=3, a=NULL, scale, maxcell=500000, mar=0, stretch=NULL, ext=NULL, smooth=FALSE, colNA="white", alpha, bgalpha, addfun=NULL, zlim=NULL, zlimcol=NULL, axes=FALSE, xlab="", ylab="", asp=NULL, add=FALSE, xlim, ylim, ...) {
+function(x, r=1, g=2, b=3, a=NULL, scale, maxcell=500000, mar=0, stretch=NULL, ext=NULL, smooth=TRUE, colNA="white", alpha, bgalpha, addfun=NULL, zlim=NULL, zlimcol=NULL, axes=FALSE, xlab="", ylab="", asp=NULL, add=FALSE, xlim, ylim, ...) {
 
 	x <- x[[c(r, g, b, a)]]
 
@@ -59,7 +59,7 @@ function(x, r=1, g=2, b=3, a=NULL, scale, maxcell=500000, mar=0, stretch=NULL, e
 	if (!is.null(ext)) {
 		x <- crop(x, ext)
 	}
-	x <- spatSample(x, maxcell, method="regular", as.raster=TRUE)
+	x <- spatSample(x, maxcell, method="regular", as.raster=TRUE, warn=FALSE)
 	if (!is.null(zlim)) {
 		if (length(zlim) == 2) {
 			zlim <- sort(zlim)

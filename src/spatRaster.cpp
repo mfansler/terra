@@ -39,7 +39,7 @@ SpatRaster::SpatRaster(std::string fname, std::vector<int> subds, std::vector<st
 SpatRaster::SpatRaster(std::vector<std::string> fname, std::vector<int> subds, std::vector<std::string> subdsname, bool multi, std::vector<std::string> drivers, std::vector<std::string> options, std::vector<size_t> x) {
 // argument "x" is ignored. It is only there to have four arguments such that the  module
 // can distinguish this constructor from another with three arguments.
-	if (fname.size() == 0) {
+	if (fname.empty()) {
 		setError("no filename");
 		return;
 	}
@@ -163,7 +163,7 @@ SpatRaster::SpatRaster(std::vector<unsigned> rcl, std::vector<double> ext, std::
 	if (!s.srs.set( crs, msg )) {
 		setError(msg);
 		return;
-	} else if (msg != "") {
+	} else if (!msg.empty()) {
 		addWarning(msg);
 	}
 
@@ -203,7 +203,7 @@ SpatRaster::SpatRaster(unsigned nr, unsigned nc, unsigned nl, SpatExtent ext, st
 	if (!s.srs.set(crs, msg )) {
 		setError(msg);
 		return;
-	} else if (msg != "") {
+	} else if (!msg.empty()) {
 		addWarning(msg);
 	}
 #else
@@ -289,8 +289,10 @@ SpatRaster SpatRaster::geometry_opt(long nlyrs, bool properties, bool time, bool
 
 	if (datatype && hasValues() && (!opt.datatype_set)) {
 		std::vector<std::string> dt = getDataType(true);
-		if ((dt.size() == 1) && (dt[0] != "")) {
-			opt.set_datatype(dt[0]);
+		if ((dt.size() == 1) && !dt[0].empty()) {
+			if (!hasScaleOffset()) {
+				opt.set_datatype(dt[0]);
+			}
 		}
 	}	
 	
@@ -333,18 +335,18 @@ SpatRaster SpatRaster::setResolution(double xres, double yres) {
 
 
 size_t SpatRaster::ncol() {
-	if (source.size() > 0) {
-		return source[0].ncol;
-	} else {
+	if (source.empty()) {
 		return 0;
+	} else {
+		return source[0].ncol;
 	}
 }
 
 size_t SpatRaster::nrow() {
-	if (source.size() > 0) {
-		return source[0].nrow;
+	if (source.empty()) {
+		return source[0].ncol;
 	} else {
-		return 0;
+		return source[0].nrow;
 	}
 }
 
@@ -420,7 +422,14 @@ std::vector<double> SpatRaster::range_max() {
 
 
 bool SpatRaster::is_lonlat() {
-	return source[0].srs.is_lonlat();
+	if (source[0].srs.is_lonlat()) {
+		SpatExtent e = getExtent();
+		if ((e.xmin < -181) || (e.xmax > 361) || (e.ymin < -90.001) || (e.ymax > 90.001)) {
+			addWarning("coordinates are out of range for lon/lat");
+		}
+		return true;
+	}
+	return false;
 }
 
 bool SpatRaster::could_be_lonlat() {
@@ -507,7 +516,7 @@ bool SpatRaster::setSRS(std::string crs) {
 	if (!srs.set(crs, msg )) {
 		addWarning("Cannot set raster SRS: "+ msg);
 		return false;
-	} else if (msg != "") {
+	} else if (!msg.empty()) {
 		addWarning(msg);
 	}
 
@@ -749,7 +758,7 @@ std::string SpatRaster::getTimeZone() {
 
 bool SpatRaster::setTime(std::vector<int_64> time, std::string step, std::string zone) {
 
-	if (time.size() == 0 || step == "remove") {
+	if (time.empty() || step == "remove") {
 		for (size_t i=0; i<source.size(); i++)	{
 			source[i].time = std::vector<int_64> (source[i].nlyr);
 			source[i].timestep = "";
@@ -798,7 +807,7 @@ std::vector<double> SpatRaster::getDepth() {
 
 bool SpatRaster::setDepth(std::vector<double> depths) {
 
-	if (depths.size() == 0) {
+	if (depths.empty()) {
 		for (size_t i=0; i<source.size(); i++)	{
 			source[i].depth = std::vector<double>(source[i].nlyr);
 		}
@@ -828,7 +837,7 @@ bool SpatRaster::setDepth(std::vector<double> depths) {
 bool SpatRaster::setUnit(std::vector<std::string> units) {
 	if (units.size() == 1) {
 		bool hu = true;
-		if (units[0] == "") {
+		if (units[0].empty()) {
 			hu = false;
 		}
         for (size_t i=0; i<source.size(); i++)	{
@@ -890,9 +899,9 @@ bool SpatRaster::valid_sources(bool files, bool rotated) {
 	std::vector<std::string> ff;
 	for (size_t i=0; i<source.size(); i++) {
 		std::string f = source[i].filename;
-		if (f == "") continue;
+		if (f.empty()) continue;
 		if (files) {
-			std::size_t found = f.find(":"); // perhaps http: or PG:xxx
+			std::size_t found = f.find(':'); // perhaps http: or PG:xxx
 			if ((found == 1) || (found == std::string::npos)) {
 				if (!file_exists(f)) {
 					setError("missing source: " + f);
@@ -1162,6 +1171,29 @@ std::vector<std::string> SpatRaster::dataType() {
 }
 
 
+std::vector<std::vector<std::string>> SpatRaster::getMetadata(bool layers) {
+	std::vector<std::vector<std::string>> d;
+	size_t n = nsrc();
+	if (layers) {
+		d.reserve(nlyr());
+		for (size_t i=0; i<n; i++) {
+			if (source[i].bmdata.empty()) {
+				d.resize(d.size() + source[i].nlyr);
+			} else {
+				d.insert(d.end(), source[i].bmdata.begin(), source[i].bmdata.end());
+			}
+		}
+	} else {
+		d.resize(n);
+		for (size_t i=0; i<n; i++) {
+			if (!source[i].smdata.empty()) {
+				d[i] = source[i].smdata;
+			}
+		}
+	}
+	return d;
+}
+
 
 
 bool SpatRaster::setLabels(unsigned layer, std::vector<long> values, std::vector<std::string> labels, std::string name) {
@@ -1174,7 +1206,7 @@ bool SpatRaster::setLabels(unsigned layer, std::vector<long> values, std::vector
 		setError("size of values is not the same as the size of labels");
 		return(false);
 	}
-	if (values.size() == 0) {
+	if (values.empty()) {
 		addWarning("no labels");
 		return(true);
 	}
@@ -1265,6 +1297,15 @@ std::vector<std::vector<double>> SpatRaster::getScaleOffset() {
 		so[1].insert(so[1].end(), source[i].offset.begin(), source[i].offset.end());
 	}
 	return so;
+}
+
+bool SpatRaster::hasScaleOffset() {
+	for (size_t i=0; i<source.size(); i++) {
+		for (size_t j=0; j<source[i].has_scale_offset.size(); j++) {
+			if (source[i].has_scale_offset[j]) return true;
+		}
+	}
+	return false;
 }
 
 bool SpatRaster::setScaleOffset(std::vector<double> sc, std::vector<double> of) {
@@ -1476,7 +1517,7 @@ std::vector<bool> SpatRaster::hasColors() {
 }
 
 
-std::vector<double> SpatRaster::cellFromXY (std::vector<double> x, std::vector<double> y) {
+std::vector<double> SpatRaster::cellFromXY (std::vector<double> x, std::vector<double> y, double missing) {
 // size of x and y should be the same
 
 	size_t size = x.size();
@@ -1503,7 +1544,7 @@ std::vector<double> SpatRaster::cellFromXY (std::vector<double> x, std::vector<d
 		long nr = nrow();
 		long nc = ncol();
 		if (row < 0 || row >= nr || col < 0 || col >= nc) {
-			cells[i] = NAN;
+			cells[i] = missing;
 		} else {
 			cells[i] = row * ncol() + col;
 		}
@@ -1513,10 +1554,10 @@ std::vector<double> SpatRaster::cellFromXY (std::vector<double> x, std::vector<d
 }
 
 
-double SpatRaster::cellFromXY (double x, double y) {
+double SpatRaster::cellFromXY (double x, double y, double missing) {
 	std::vector<double> X = {x};
 	std::vector<double> Y = {y};
-	std::vector<double> cell = cellFromXY(X, Y);
+	std::vector<double> cell = cellFromXY(X, Y, missing);
 	return  cell[0];
 }
 

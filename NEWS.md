@@ -1,4 +1,39 @@
-# version 1.7-2
+# version 1.7-18
+
+## new
+
+- argument `order=FALSE` to `sort<SpatRaster>` 
+- `sort<SpatVector>` (and `<data.frame>` method
+- argument `by=NULL` to `rasterize>` [#986](https://github.com/rspatial/terra/issues/986) by Sam Weber
+- `metadata<SpatRaster>` method
+- `compare<SpatRaster>` and `logic<SpatRaster>` methods
+- `vect<SpatExtent>` method
+- `panel<SpatRaster>` for "panel" plots (multiple layers, single legend)
+
+## enhancements
+
+- it is now possible to save terra options across sessions [#995](https://github.com/rspatial/terra/issues/995) by Guillaume Patoine.
+- better warnings for `is.lonlat` [#1006](https://github.com/rspatial/terra/issues/1006) by Andrew Gene Brown.
+- argument `na.rm` to `merge<SpatRaster>`
+- the axes of maps created with `plot` are now snug around the mapped area, instead of at the limits of the graphics figure region.
+- c++ cleaning to avoid warnings by clang-tidy (e.g. now using `.empty()` instead of `.size()==0`). [#1013-1017] by Michael Chirico 
+- `rasterize` with lines and polygons can now use the "fun" argument (for min, max, mean, and sum) [#1041](https://github.com/rspatial/terra/issues/1041) by Bart Huntley
+
+
+## bug fixes
+
+- the legend created by `plet` was not always correct. [#983](https://github.com/rspatial/terra/issues/983) by Simon Rolph
+- `spatSample<SpatRaster>(regular=TRUE)` failed with providing two numbers (row, col) as sample size. [#991](
+https://github.com/rspatial/terra/issues/991) by srfall
+- `merge<SpatRaster>` did not ignore NAs [#1002](https://github.com/rspatial/terra/issues/1002) by jmmonnet.
+- `writeCDF` failed when using argument force_v4 [#1009](https://github.com/rspatial/terra/issues/1009) by R. Kyle Bocinsky
+- `predict` better handling of rasters with many NAs [#988](https://github.com/rspatial/terra/issues/998) by Lucas Johnson
+- `layerCor` did not handle NAs well if they were in different cells across layers [#1034](https://github.com/rspatial/terra/issues/1034} by François Rousseu.
+
+
+# version 1.7-3
+
+Released 2023-01-24
 
 ## new
 
@@ -10,6 +45,7 @@
 
 - in the previous version, a bug was introduced such that the order of operation in arithmetic operations with SpatRasters was ignored. [#978](https://github.com/rspatial/terra/issues/978) by Andrew Marx
 - Fixed `split<SpatVector>`. [#979](https://github.com/rspatial/terra/issues/979) by srfall
+- `spatSample` with `as.df=FALSE` returned a data.frame instead of a matrix [#982](https://github.com/rspatial/terra/issues/982) by Alex Ilich
 
 
 # version 1.6-53
@@ -29,7 +65,7 @@ Released 2023-01-17
 ## bug fixes 
 
 - `writeCDF` now supports writing yearly time steps [#926](https://github.com/rspatial/terra/issues/926) by Andrea Manica
-- as.contour now works for a single level [#966](https://github.com/rspatial/terra/issues/966) by Johannes Signer
+- `as.contour` now works for a single level [#966](https://github.com/rspatial/terra/issues/966) by Johannes Signer
 - subsetting a SpatRaster with a window returned a SpatRaster with the dimensions of the non-windowed raster, thus changing the resolution. [#964](https://github.com/rspatial/terra/issues/964) by Derek Friend
 - removing a factor variable from a SpatVector crashed R. [#969](https://github.com/rspatial/terra/issues/969) by Andrew Gene Brown
 - median did not always return the correct number for a SpatRaster with 3 or more layers [#970](https://github.com/rspatial/terra/issues/970) by MatteaE
@@ -64,7 +100,7 @@ Released 2022-12-02
 - `interpIDW` failed with GDAL 3.6 [#910](https://github.com/rspatial/terra/issues/910) by Roger Bivand
 - `spatSample` with strata bug fix "unable to find an inherited method for function 'trim'" [#919](https://github.com/rspatial/terra/issues/919) by Alfredo Ascanio
 - it is possible to slice a SpatRaster with a SpatExtent [#914](https://github.com/rspatial/terra/issues/914) by Jakub Nowosad.
-- merge/mosaic did not handle NAs when using two layers [#913](https://github.com/rspatial/terra/issues/913) by Joao Carreiras.
+- `merge`/`mosaic` did not handle NAs when using two layers [#913](https://github.com/rspatial/terra/issues/913) by Joao Carreiras.
 
 
 ## name changes
@@ -95,35 +131,35 @@ Released 2022-11-18
 
 ## enhancements
 
-- faster `mosaic` and `merge<SpatRaster>` [#577](https://github.com/rspatial/terra/issues/577) by Jean-Romain
-- `wrap<SpatRaster>` now uses file references if the data is deemed to large to all load into memory. [#801](https://github.com/rspatial/terra/issues/801) by Jean-Romain
+- faster `mosaic` and `merge<SpatRaster>` [#577] by Jean-Romain
+- `wrap<SpatRaster>` now uses file references if the data is deemed to large to all load into memory. [#801] by Jean-Romain
 - `readRDS` and `unserialize` now return a SpatRaster or SpatVector (instead of a PackedSpat*)
-- better support for a "local" arbitrary Euclidean crs [#797](https://github.com/rspatial/terra/issues/797) by Agustin Lobo
+- better support for a "local" arbitrary Euclidean crs [#797] by Agustin Lobo
 - `clamp` can now take low and high values for each layer 
 - The `pax` argument in `plot` now provides more control over what to draw on each axis via paramters `side`, `tick` and `lab`
 - The `pax` argument in `plot` now has argument `retro` to use a sexagesimal notation of degrees
 - `extend` has a new argument `fill=NA`
-- A warning is now given when `c`ombining SpatRasters with different CRSs. [#818](https://github.com/rspatial/terra/issues/818) by Andrew Marx
-- `plotRGB` now accounts for the value of zlim when stretching; allowing to use the same coloring scheme across SpatRasters [#810](https://github.com/rspatial/terra/issues/810) by Agustin Lobo.
+- A warning is now given when `c`ombining SpatRasters with different CRSs. [#818] by Andrew Marx
+- `plotRGB` now accounts for the value of zlim when stretching; allowing to use the same coloring scheme across SpatRasters [#810] by Agustin Lobo.
 - the center of rotation for `spin` is now vectorized
 
 
 ## bug fixes 
 
-- The annoying garbage collection messages `Error in x$.self$finalize() : attempt to apply non-function` is now suppressed in most cases. [#218](https://github.com/rspatial/terra/issues/218) by Charlie Joey Hadley. This problem should go away altogether when a new version of "Rcpp" is released (ETA Jan 2023) thanks to a fix by Kevin Ushey [#30](https://github.com/rspatial/terra/issues/30)
-- `spatSample` with `na.rm` and SpatRasters with multiple layers did not work. [#800](https://github.com/rspatial/terra/issues/800) by Andrea Manica
-- `adjacent<SpatRaster>` with `pairs=TRUE, include=TRUE` ignored `include=TRUE` [#808](https://github.com/rspatial/terra/issues/808) by Joseph Lewis
-- `rasterize` did not accept "NA" as value for updating [#809](https://github.com/rspatial/terra/issues/809)  by Márcia Barbosa
-- `extract` with a perfectly vertical or horizontal line failed in some cases [#823](https://github.com/rspatial/terra/issues/823) by Dimitri Falk
-- `wrap<SpatVector>` failed if there was a single point geometry [#815](https://github.com/rspatial/terra/issues/815) by Patrick Schaefer
-- `extract<SpatRaster>` with `weights=TRUE` did not return values [#814](https://github.com/rspatial/terra/issues/814) by Jean-Luc Dupouey. 
-- `x[["newname"]] <- r` for SpatRasters `x` and `r` did not work [#795](https://github.com/rspatial/terra/issues/795) by Jim Shady
-- fixed support for some non-conventional netCDF files [#869](https://github.com/rspatial/terra/issues/869) by Mike Sumner, [#864](https://github.com/rspatial/terra/issues/864) by eleanorecc, and [#851](https://github.com/rspatial/terra/issues/851) by Philippe Massicotte.
+- The annoying garbage collection messages `Error in x$.self$finalize() : attempt to apply non-function` is now suppressed in most cases. [#218] by Charlie Joey Hadley. This problem should go away altogether when a new version of "Rcpp" is released (ETA Jan 2023) thanks to a fix by Kevin Ushey [#30]
+- `spatSample` with `na.rm` and SpatRasters with multiple layers did not work. [#800] by Andrea Manica
+- `adjacent<SpatRaster>` with `pairs=TRUE, include=TRUE` ignored `include=TRUE` [#808] by Joseph Lewis
+- `rasterize` did not accept "NA" as value for updating [#809]  by Márcia Barbosa
+- `extract` with a perfectly vertical or horizontal line failed in some cases [#823] by Dimitri Falk
+- `wrap<SpatVector>` failed if there was a single point geometry [#815] by Patrick Schaefer
+- `extract<SpatRaster>` with `weights=TRUE` did not return values [#814] by Jean-Luc Dupouey. 
+- `x[["newname"]] <- r` for SpatRasters `x` and `r` did not work [#795] by Jim Shady
+- fixed support for some non-conventional netCDF files [#869] by Mike Sumner, [#864] by eleanorecc, and [#851] by Philippe Massicotte.
 
 ## name changes
 
-- costDistance -> costDist to avoid conflict with {gdistance}
-- gridDistance -> gridDist for consistency
+- `costDistance` -> `costDist` to avoid conflict with {gdistance}
+- `gridDistance` -> `gridDist` for consistency
 
 
 # version 1.6-17
@@ -150,8 +186,8 @@ Released 2022-09-10
 
 ## bug fixes 
 
-- all.equal bug [#756] fixed by John Baums
-- extract<"SpatRaster","sf"> ignored the ID argument. [#755] by Dainius Masiliūnas.
+- `all.equal` bug [#756] fixed by John Baums
+- `extract<"SpatRaster","sf">` ignored the ID argument. [#755] by Dainius Masiliūnas.
 - There is now (in all cases) a check to avoid overwriting (one of) the input file(s) when writing a raster file [#760] by John Baums
 - `vrt` is no longer constrained by the maximum number of files that can be opened [#780] by 8Ginette8	
 - `weighted.mean` crashed with numeric weights and na.rm=TRUE [#777] by David Holstius

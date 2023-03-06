@@ -286,9 +286,6 @@ setMethod("cats" , "SpatRaster",
 }
 
 
-
-
-
 setMethod ("as.numeric", "SpatRaster",
 	function(x, index=NULL, filename="", ...) {
 		if (!any(is.factor(x))) {
@@ -297,25 +294,35 @@ setMethod ("as.numeric", "SpatRaster",
 			return(x)
 		}
 		if (nlyr(x) > 1) {
-			x <- lapply(1:nlyr(x), function(i) as.numeric(x[[i]]))
-			return( rast(x) )
+			x <- lapply(1:nlyr(x), function(i) as.numeric(x[[i]], index=index))
+			x <- rast(x)
+			if (filename != "") {
+				x <- writeRaster(x, filename, ...)
+			}
+			return(x)
 		}
 		g <- cats(x)[[1]]
 		if (!is.null(index)) {
-			if (!((index > 1) & (index <= ncol(g)))) {
+			index <- round(index[1])
+			if (!((index >= 1) & (index < ncol(g)))) {
 				error("as.numeric", "invalid index")
 			}
 		} else {
 			index <- activeCat(x, 1)
 		}
 		from <- g[,1]
-		to <- g[,index]
+		to <- g[,index+1]
 		if (!is.numeric(to)) {
-			to <- as.integer(as.factor(to))
+			suppressWarnings(toto <- as.numeric(to))
+			if (sum(is.na(toto) > sum(is.na(to)))) {
+				to <- as.integer(as.factor(to))
+			} else {
+				to <- toto
+			}
 		}
 		m <- cbind(from, to)
 		m <- m[!is.na(m[,1]), ,drop=FALSE]
-		classify(x, m, names=names(g)[index], filename, ...)
+		classify(x, m, names=names(g)[index+1], filename, ...)
 	}
 )
 
@@ -365,7 +372,7 @@ setMethod("catalyze", "SpatRaster",
 			gg <- g[[i]]
 			if (nrow(gg) > 0) {
 				for (j in 2:ncol(gg)) {
-					z <- as.numeric(y, index=j)
+					z <- as.numeric(y, index=j-1)
 					out <- c(out, z)
 				}
 			} else {

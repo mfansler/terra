@@ -15,13 +15,13 @@
 		return(out)
 	}
 
-	uzi <- unique(z)
+	uzi <- round(unique(z), 12)
 
 	if (type == "depends") {
-		if (length(uzi) < 6) {
+		if (length(uzi) < 9) {
 			return (.as.raster.classes(out, x))
 		}
-	} else if (length(uzi) == 1) {
+	} else if ((length(uzi) == 1) && is.null(out$range)) {
 		return (.as.raster.classes(out, x))
 	}
 
@@ -49,8 +49,7 @@
 			out$leg$digits <- max(0, -floor(log10(dif/10)))
 		}
 	}
-
-	if (is.null(out$leg$loc)) out$leg$loc <- "right"
+	if (is.null(out$leg$x)) out$leg$x <- "right"
 	out
 }
 
@@ -138,14 +137,14 @@ prettyNumbs <- function(x, digits) {
 
 	if (is.null(out$leg$x)) {
 		if (is.null(out$leg$ext)) {
-			out$leg$x = "top"
+			out$leg$x = "default"
 			out$leg$y = NULL
 		} else {
 			if (length(out$leg$ext) == 4) {
 				out$leg$x = out$leg$ext[1]
 				out$leg$y = out$leg$ext[4]
 			} else {
-				out$leg$x = "top"
+				out$leg$x = "default"
 				out$leg$y = NULL
 			}
 		}
@@ -201,11 +200,11 @@ prettyNumbs <- function(x, digits) {
 			mi[is.na(mi)] <- 1
 			mc <- out$coltab[mi, ,drop=FALSE]
 			out$leg$fill <- grDevices::rgb(mc[,2], mc[,3], mc[,4], mc[,5], maxColorValue=255)
-			out$leg$legend <- na.omit(out$cats[, 2])
+			if (is.null(out$leg$legend)) out$leg$legend <- na.omit(out$cats[, 2])
 		} else {	
 			out$levels <- out$levels[!is.na(ilevels)]
 			m <- na.omit(match(out$cats[[1]][ilevels], out$coltab[,1]))
-			out$leg$legend <- na.omit(out$cats[ilevels, 2])
+			if (is.null(out$leg$legend)) out$leg$legend <- na.omit(out$cats[ilevels, 2])
 			out$coltab <- out$coltab[m, ,drop=FALSE]
 		}
 
@@ -213,7 +212,7 @@ prettyNumbs <- function(x, digits) {
 		i <- match(z, out$coltab[,1])
 		z <- out$cols[i]
 	} else {
-		out$leg$legend <- unique(na.omit(out$cats[ilevels, 2]))
+		if (is.null(out$leg$legend)) out$leg$legend <- unique(na.omit(out$cats[ilevels, 2]))
 		levlab <- data.frame(id=out$levels, lab=out$cats[ilevels, 2], stringsAsFactors=FALSE)
 		leglevs <- na.omit(unique(levlab[,2]))
 		if (length(leglevs) == 0) {
@@ -243,14 +242,14 @@ prettyNumbs <- function(x, digits) {
 	out$legend_type <- "classes"
 	if (is.null(out$leg$x)) {
 		if (is.null(out$leg$ext)) {
-			out$leg$x = "top"
+			out$leg$x = "default"
 			out$leg$y = NULL
 		} else {
 			if (length(out$leg$ext) == 4) {
 				out$leg$x = out$leg$ext[1]
 				out$leg$y = out$leg$ext[4]
 			} else {
-				out$leg$x = "top"
+				out$leg$x = "default"
 				out$leg$y = NULL
 			}
 		}
@@ -339,7 +338,7 @@ prettyNumbs <- function(x, digits) {
 		Z[] <- out$leg$fill[out$vcut]
 	}
 	if (is.null(out$leg$x)) { # && is.null(out$leg$ext)) {
-		out$leg$x <- "top"
+		out$leg$x <- "default"
 	}
 	out$r <- as.raster(Z)
 	out
@@ -364,99 +363,154 @@ prettyNumbs <- function(x, digits) {
 	out
 }
 
+.plotit <- function(x) {
 
-# legend
-#	border="black", box.lwd = graphics::par("lwd"), box.lty = graphics::par("lty"),
-#	box.col = graphics::par("fg"), bty = "o", bg = graphics::par("bg"), xjust = 0,
-#	yjust = 1, x.intersp = 1, y.intersp = 1, adj = c(0, 0.5), text.width = NULL,
-#	text.col = graphics::par("col"), text.font = NULL, ncol = 1, horiz = FALSE, title = NULL,
- #   inset = 0, title.col = text.col, title.adj = 0.5,
+	if (is.null(x$r)) {
+		x$values = FALSE
+	}
 
-.plotit <- function(x, xlab="", ylab="", type = "n", yaxs="i", xaxs="i", asp=x$asp, axes=TRUE, new=NA,
-	main="", line=0.5, cex.main=0.8, font.main=graphics::par()$font.main,
-	col.main = graphics::par()$col.main, reset=FALSE, ...) {
-
-#	if (x$add) axes = FALSE
-	if ((!x$add) & (!x$legend_only)) {
-
+	if (x$add) {
+		reset.clip()
+	} else if (!x$legend_only) {
+		#dev.new(noRStudioGD = TRUE)
 		old.mar <- graphics::par()$mar
 		if (!any(is.na(x$mar))) { graphics::par(mar=x$mar) }
-		if (reset) on.exit(graphics::par(mar=old.mar))
+		if (x$reset) on.exit(graphics::par(mar=old.mar))
+		arglist <- c(list(x=x$lim[1:2], y=x$lim[3:4], type="n", xlab="", ylab="", asp=x$asp, xaxs=x$xaxs, yaxs=x$yaxs, axes=FALSE), x$dots)
+		do.call(plot, arglist)
 
 		if (!is.null(x$background)) {
-			usr <- graphics::par("usr")
-			graphics::rect(usr[1], usr[3], usr[2], usr[4], col=x$background)
+			graphics::rect(x$lim[1], x$lim[3], x$lim[2], x$lim[4], col=x$background)			
 		}
-
-		plot(x$lim[1:2], x$lim[3:4], type=type, xlab=xlab, ylab=ylab, asp=asp, xaxs=xaxs, yaxs=yaxs, axes=!x$values, ...)
-
-		graphics::title(main, line=line, cex.main=cex.main, font.main=font.main, col.main=col.main)
 	}
 	if (!x$values) {
+		if (!x$add) try(set.clip(x$lim, x$lonlat))
 		return(x)
 	}
 	if (!x$legend_only) {
 		graphics::rasterImage(x$r, x$ext[1], x$ext[3], x$ext[2], x$ext[4],
 			angle = 0, interpolate = x$interpolate)
 
-		if (axes) x <- .plot.axes(x)
+		if (x$axes) x <- .plot.axes(x)
 	}
+	
 	if (x$legend_draw) {
 		if (x$legend_type == "continuous") {
 			x <- do.call(.plot.cont.legend, list(x=x))
 #		} else if (x$legend_type == "classes") {
 		} else {
-			#y <- do.call(.plot.class.legend, x$leg)
-			leg <- do.call(.plot.class.legend, x$leg)
+			if (x$add) {
+				x$leg$plotlim <- unlist(get.clip()[1:4])
+				if (is.null(x$leg$plotlim)) {
+					x$leg$plotlim <- x$lim			
+				}				
+			} else {
+				x$leg$plotlim <- x$lim			
+			}
+			x$leg$used <- do.call(.plot.class.legend, x$leg)
 		}
 	}
-	x
+	if (isTRUE(x$box)) { 
+		lines(ext(x$lim))	
+	}
+	if ((x$main != "") && (!x$add) && (!x$legend_only)) {
+		pos <- 3
+		if (is.null(x$loc.main)) {
+			x$loc.main <- c(x$lim[1] + diff(x$lim[1:2]) / 2, x$lim[4])
+		} else if (inherits(x$loc.main, "character")) {
+			xyp <- .txt.loc(x)
+			x$loc.main <- xyp[1:2]
+			pos <- xyp[3]
+		}
+		if (isTRUE(x$halo.main)) {
+			.halo(x$loc.main[1], x$loc.main[2], x$main, pos=pos, offset=x$line.main, cex=x$cex.main, 
+				font=x$font.main, col=x$col.main, xpd=TRUE)
+		} else {
+			text(x$loc.main[1], x$loc.main[2], x$main, pos=pos, offset=x$line.main, cex=x$cex.main, 
+				font=x$font.main, col=x$col.main, xpd=TRUE)
+		}
+	}
+	if (!x$add) try(set.clip(x$lim, x$lonlat))
+	invisible(x)
 }
 
 
 
 .prep.plot.data <- function(x, type, cols, mar=NULL, draw=FALSE,
   interpolate=FALSE, legend=TRUE, legend.only=FALSE, pax=list(), plg=list(),
-  levels=NULL, add=FALSE, range=NULL, new=NA, breaks=NULL, breakby="eqint",
+  levels=NULL, add=FALSE, range=NULL, breaks=NULL, breakby="eqint",
   coltab=NULL, cats=NULL, xlim=NULL, ylim=NULL, ext=NULL, colNA=NA, alpha=NULL, reset=FALSE,
-  sort=TRUE, decreasing=FALSE, grid=FALSE, las=0, all_levels=FALSE, decimals=NULL, background=NULL, ...) {
-
-#mar=c(5.1, 4.1, 4.1, 7.1); legend=TRUE; axes=TRUE; pal=list(); pax=list(); maxcell=50000; draw=FALSE; interpolate=FALSE; legend=TRUE; legend.only=FALSE; pax=list(); pal=list(); levels=NULL; add=FALSE; range=NULL; new=NA; breaks=NULL; coltab=NULL; facts=NULL; xlim=NULL; ylim=NULL;
+  sort=TRUE, decreasing=FALSE, grid=FALSE, las=0, all_levels=FALSE, decimals=NULL, background=NULL,
+  xlab="", ylab="", cex.lab=0.8, line.lab=1.5, asp=NULL, yaxs="i", xaxs="i", main="", cex.main=1.2, 
+  line.main=0.5, font.main=graphics::par()$font.main, col.main = graphics::par()$col.main, loc.main=NULL, 
+  halo=FALSE, axes=TRUE, box=TRUE, cex=1, maxcell=500000, buffer=FALSE, ...) {
+#cex is catch and kill
 
 	out <- list()
-
-	out$lim <- out$ext <- as.vector(ext(x))
-	if (!is.null(ext)) {
-		ext <- ext(ext)
-		x <- crop(x, ext)
-		out$ext <- as.vector(ext(x))
-		out$lim <- ext
-	}
-	if (!(is.null(xlim) & is.null(ylim))) {
-		e <- as.vector(ext(x))
-		if (!is.null(xlim)) e[1:2] <- sort(xlim)
-		if (!is.null(ylim)) e[3:4] <- sort(ylim)
-		x <- crop(x, ext(e))
-		out$ext <- as.vector(ext(x))
+	e <- out$lim <- out$ext <- as.vector(ext(x))
+	hadWin <- hasWin <- FALSE
+	if ((!is.null(ext)) || (!is.null(xlim)) || (!is.null(ylim))) {
+		if (!is.null(ext)) {
+			ext <- ext(ext)
+			e <- as.vector(align( intersect(ext, ext(x)), x))
+			out$lim <- out$ext <- e
+		} 
+		if (!is.null(xlim)) {
+			stopifnot(length(xlim) == 2)
+			e[1:2] <- sort(xlim)
+		}
+		if (!is.null(ylim)) {
+			stopifnot(length(ylim) == 2)
+			e[3:4] <- sort(ylim)
+		}
 		out$lim <- e
+		
+		hasWin <- TRUE
+		hadWin <- window(x)
+		oldWin <- ext(x)
+		w <- intersect(ext(x), ext(e))		
+		window(x) <- w
+	} 
+	if (ncell(x) > 1.1 * maxcell) {
+		if (inherits(alpha, "SpatRaster")) {
+			if (nlyr(alpha) > 1) {
+				alpha <- alpha[[y]]
+			}
+			alpha <- spatSample(alpha, maxcell, method="regular", as.raster=TRUE, warn=FALSE)
+		}
+		x <- spatSample(x, maxcell, method="regular", as.raster=TRUE, warn=FALSE)
+		out$lim <- out$ext <- as.vector(ext(x))
+	}
+	
+	if (buffer) {
+		dx <- diff(out$lim[1:2]) / 50
+		dy <- diff(out$lim[3:4]) / 50
+		out$lim[1:2] <- out$lim[1:2] + c(-dx, dx)
+		out$lim[3:4] <- out$lim[3:4] + c(-dy, dy)
 	}
 
 	out$add <- isTRUE(add)
 	out$axs <- as.list(pax)
-
 	if (is.null(out$axs$las)) out$axs$las <- las
+	if (is.null(out$axs$cex.lab)) out$axs$cex.lab <- cex.lab
+	if (is.null(out$axs$line.lab)) out$axs$line.lab <- line.lab
+
 	out$draw_grid <- isTRUE(grid)
 	out$leg$digits <- decimals
 
 	out$leg <- as.list(plg)
 	out$all_levels <- isTRUE(all_levels)
 
-	out$asp <- 1
-	out$lonlat <- is.lonlat(x, perhaps=TRUE, warn=FALSE)
-	if (out$lonlat) {
-		out$asp <- 1/cos((mean(out$ext[3:4]) * pi)/180)
+	if (is.null(asp)) {
+		out$lonlat <- is.lonlat(x, perhaps=TRUE, warn=FALSE)
+		if (out$lonlat) {
+			out$asp <- 1/cos((mean(out$ext[3:4]) * pi)/180)
+		} else {
+			out$asp <- 1
+		}
+	} else {
+		out$asp <- asp
 	}
-
 	if (!is.null(alpha)) {
 		if (!inherits(alpha, "SpatRaster")) {
 			cols <- grDevices::rgb(t(grDevices::col2rgb(cols)), alpha=alpha[1]*255, maxColorValue=255)
@@ -465,12 +519,27 @@ prettyNumbs <- function(x, digits) {
 		alpha <- 255
 	}
 
+	out$dots  <- list(...)
+	out$reset <- reset
+	out$main  <- main
+	out$halo.main <- halo
+	out$loc.main  <- loc.main
+	out$cex.main  <- cex.main
+	out$font.main <- font.main
+	out$col.main  <- col.main
+	out$line.main <- line.main
+	out$axes <- axes
+	out$xaxs <- xaxs
+	out$yaxs <- yaxs
+	out$xlab <- xlab
+	out$ylab <- ylab 
 	out$cols <- cols
 	out$coltab <- coltab
 	out$cats <- cats
 	out$breaks <- breaks
 	out$breakby <- breakby
 	out$interpolate <- FALSE
+	out$background <- background
 	out$legend_draw <- isTRUE(legend)
 	out$legend_only <- isTRUE(legend.only)
 	if (!is.logical(sort)) {
@@ -480,19 +549,17 @@ prettyNumbs <- function(x, digits) {
 		out$legend_sort <- isTRUE(sort)
 	}
 	out$legend_sort_decreasing <- isTRUE(decreasing)
-
-	if (is.null(mar)) {
-		if (out$legend_draw) {
-			out$mar <- c(3.1, 3.1, 2.1, 7.1)
-		} else {
-			out$mar <- c(3.1, 3.1, 2.1, 2.1)
-		}
-	} else {
-		out$mar <- rep_len(mar, 4)
+	out$box <- isTRUE(box)
+	
+	if (!is.null(out$leg$loc)) {
+		out$leg$x <- out$leg$loc
+		out$leg$loc <- NULL
 	}
 
+
 	if (!hasValues(x)) {
-		out$values = FALSE
+		out$values <- FALSE
+		out$legend_draw <- FALSE
 		warn("plot", "SpatRaster has no cell values")
 	} else {
 		out$values <- TRUE
@@ -512,6 +579,32 @@ prettyNumbs <- function(x, digits) {
 			out <- .as.raster.continuous(out, x, type)
 		}
 
+		if (is.null(mar)) {
+			out$mar <- c(2, 2, 2, 2)
+			if (out$legend_draw) {
+				if (is.null(out$leg$ext)) {
+					if (is.null(out$leg$x)) {
+						out$leg$x <- "default"
+						out$mar <- c(2, 2, 2, 4)
+					} else if (out$legend_type == "continuous") {
+						if (out$leg$x == "top") {
+							out$mar <- c(2, 2, 4, 2)
+						} else if (out$leg$x == "bottom") {
+							out$mar <- c(4, 2, 2, 2)
+						} else if (out$leg$x == "left") {
+							out$mar <- c(2, 5, 2, 1)
+						} else {
+							out$mar <- c(2, 2, 2, 4)
+						}
+					} else if (out$leg$x == "default") {
+						out$mar <- c(2, 2, 2, 4)					
+					}
+				} 
+			}
+		} else {
+			out$mar <- rep_len(mar, 4)
+		}
+
 		if (!is.null(colNA)) {
 			if (!is.na(colNA) && out$values) {
 				out$colNA <- grDevices::rgb(t(grDevices::col2rgb(colNA)), alpha=alpha, maxColorValue=255)
@@ -526,15 +619,21 @@ prettyNumbs <- function(x, digits) {
 			out$r <- matrix(grDevices::rgb(t(grDevices::col2rgb(out$r)), alpha=alpha, maxColorValue=255),
 			nrow=nrow(out$r), byrow=TRUE)
 		}
-
-		out <- .plotit(out, new=new, reset=reset, ...)
+		out <- .plotit(out)
+	}
+	
+	if (hasWin) {
+		window(x) <- NULL
+		if (hadWin) {
+			window(x) <- oldWin
+		}
 	}
 	invisible(out)
 }
 
 
 setMethod("plot", signature(x="SpatRaster", y="numeric"),
-	function(x, y=1, col, type, mar=NULL, legend=TRUE, axes=TRUE, plg=list(), pax=list(), maxcell=500000, smooth=FALSE, range=NULL, levels=NULL, all_levels=FALSE, breaks=NULL, breakby="eqint", fun=NULL, colNA=NULL, alpha=NULL, sort=FALSE, decreasing=FALSE, grid=FALSE, ext=NULL, reset=FALSE, add=FALSE, background=NULL, ...) {
+	function(x, y=1, col, type, mar=NULL, legend=TRUE, axes=TRUE, plg=list(), pax=list(), maxcell=500000, smooth=FALSE, range=NULL, levels=NULL, all_levels=FALSE, breaks=NULL, breakby="eqint", fun=NULL, colNA=NULL, alpha=NULL, sort=FALSE, decreasing=FALSE, grid=FALSE, ext=NULL, reset=FALSE, add=FALSE, buffer=FALSE, background=NULL, box=axes, ...) {
 
 		y <- round(y)
 		stopifnot((min(y) > 0) & (max(y) <= nlyr(x)))
@@ -546,7 +645,7 @@ setMethod("plot", signature(x="SpatRaster", y="numeric"),
 					alpha <- alpha[[y]]
 				}
 			}
-			plot(x, col=col, type=type, mar=mar, legend=legend, axes=axes, plg=plg, pax=pax, maxcell=maxcell/(length(x)/2), smooth=smooth, range=range, levels=levels, all_levels=all_levels, breaks=breaks, breakby=breakby, fun=fun, colNA=colNA, alpha=alpha, grid=grid, sort=sort, decreasing=decreasing, ext=ext, reset=reset, add=add, background=background, ...)
+			plot(x, col=col, type=type, mar=mar, legend=legend, axes=axes, plg=plg, pax=pax, maxcell=2*maxcell/length(y), smooth=smooth, range=range, levels=levels, all_levels=all_levels, breaks=breaks, breakby=breakby, fun=fun, colNA=colNA, alpha=alpha, grid=grid, sort=sort, decreasing=decreasing, ext=ext, reset=reset, add=add, buffer=buffer, background=background, box=box, ...)
 			return(invisible())
 		}
 
@@ -557,15 +656,6 @@ setMethod("plot", signature(x="SpatRaster", y="numeric"),
 		}
 
 		x <- x[[y]]
-		if (ncell(x) > 1.1 * maxcell) {
-			if (inherits(alpha, "SpatRaster")) {
-				if (nlyr(alpha) > 1) {
-					alpha <- alpha[[y]]
-				}
-				alpha <- spatSample(alpha, maxcell, ext=ext, method="regular", as.raster=TRUE)
-			}
-			x <- spatSample(x, maxcell, ext=ext, method="regular", as.raster=TRUE)
-		}
 
 		if (is.character(legend)) {
 			plg$x <- legend
@@ -625,7 +715,7 @@ setMethod("plot", signature(x="SpatRaster", y="numeric"),
 			}
 		}
 
-		x <- .prep.plot.data(x, type=type, cols=col, mar=mar, draw=TRUE, plg=plg, pax=pax, legend=isTRUE(legend), axes=isTRUE(axes), coltab=coltab, cats=cats, interpolate=smooth, levels=levels, range=range, colNA=colNA, alpha=alpha, reset=reset, grid=grid, sort=sort, decreasing=decreasing, ext=ext, all_levels=all_levels, breaks=breaks, breakby=breakby, add=add, background=background, ...)
+		x <- .prep.plot.data(x, type=type, cols=col, mar=mar, draw=TRUE, plg=plg, pax=pax, legend=isTRUE(legend), axes=isTRUE(axes), coltab=coltab, cats=cats, interpolate=smooth, levels=levels, range=range, colNA=colNA, alpha=alpha, reset=reset, grid=grid, sort=sort, decreasing=decreasing, ext=ext, all_levels=all_levels, breaks=breaks, breakby=breakby, add=add, buffer=buffer, background=background, box=box, maxcell=maxcell, ...)
 
 		if (!is.null(fun)) {
 			if (!is.null(formals(fun))) {
@@ -641,29 +731,21 @@ setMethod("plot", signature(x="SpatRaster", y="numeric"),
 
 
 setMethod("plot", signature(x="SpatRaster", y="missing"),
-	function(x, y, maxcell=500000, main, mar=NULL, nc, nr, maxnl=16, legend, ...)  {
+	function(x, y, main, mar=NULL, nc, nr, maxnl=16, maxcell=500000, ...)  {
 
 
 		if (has.RGB(x)) {
 			i <- x@ptr$getRGB() + 1
 			if (missing(main)) main = ""
 			if (is.null(mar)) mar = 0
-			if (missing(legend)) {
-				legend <- FALSE
-			} else {
-				legend <- legend
-			}
 			plotRGB(x, i[1], i[2], i[3], maxcell=maxcell, mar=mar, main=main, ...)
 			return(invisible())
 		}
 
 		nl <- max(1, min(nlyr(x), maxnl))
-
-		if (missing(legend)) legend <- TRUE
-
 		if (nl==1) {
 			if (missing(main)) main = ""
-			out <- plot(x, 1, maxcell=maxcell, main=main[1], mar=mar, legend=legend, ...)
+			out <- plot(x, 1, maxcell=maxcell, main=main[1], mar=mar, ...)
 			return(invisible(out))
 		}
 
@@ -671,10 +753,10 @@ setMethod("plot", signature(x="SpatRaster", y="missing"),
 		old.par <- graphics::par(no.readonly = TRUE)
 		on.exit(graphics::par(old.par))
 		if (is.null(mar)) {
-			mar=c(1.5, 1.5, 1.5, 3)
+			mar=c(1.5, 1, 2.5, 3)
 		}
 		graphics::par(mfrow=nrnc)
-		maxcell=maxcell/(nl/2)
+		maxcell= 2 * maxcell / nl
 
 		if (missing("main")) {
 			tm <- time(x)
@@ -686,10 +768,8 @@ setMethod("plot", signature(x="SpatRaster", y="missing"),
 		} else {
 			main <- rep_len(main, nl)
 		}
-		#if (onelegend) { legend <- FALSE }
-		legend <- rep_len(legend, length.out=nl)
 		for (i in 1:nl) {
-			plot(x, i, main=main[i], mar=mar, legend=legend[i], ...)
+			plot(x, i, main=main[i], mar=mar, maxcell=maxcell, ...)
 		}
 	}
 )
@@ -704,4 +784,3 @@ setMethod("plot", signature(x="SpatRaster", y="character"),
 		plot(x, y, ...)
 	}
 )
-

@@ -46,7 +46,7 @@ baselayers <- function(tiles, wrap=TRUE) {
 
 
 setMethod("plet", signature(x="SpatVector"),
-	function(x, y="", col, alpha=1, fill=0, main=y, cex=1, lwd=2, popup=TRUE, label=FALSE, split=FALSE, tiles=c("Streets", "Esri.WorldImagery", "OpenTopoMap"), wrap=TRUE, legend="bottomright", collapse=FALSE, map=NULL)  {
+	function(x, y="", col, alpha=1, fill=0, main=y, cex=1, lwd=2, popup=TRUE, label=FALSE, split=FALSE, tiles=c("Streets", "Esri.WorldImagery", "OpenTopoMap"), wrap=TRUE, legend="bottomright", collapse=FALSE, map=NULL, ...)  {
 
 		stopifnot(utils::packageVersion("leaflet") > "2.1.1")
 		
@@ -55,7 +55,6 @@ setMethod("plet", signature(x="SpatVector"),
 		fill <- max(0, min(1, alpha))
 		x <- makelonlat(x)
 
-		#stopifnot(utils::packageVersion("leaflet") > "2.1.1")
 		if (is.null(map)) {
 			tiles <- unique(as.character(tiles))
 			tiles <- tiles[tiles!=""]
@@ -72,13 +71,13 @@ setMethod("plet", signature(x="SpatVector"),
 			if (isTRUE(label[1])) lab <- 1:nrow(x)
 			if (g == "polygons") {
 				map <- leaflet::addPolygons(map, data=x, label=lab,  
-							col=cols, fillOpacity=fill, opacity=alpha, popup=pop)
+							col=cols, fillOpacity=fill, opacity=alpha, popup=pop, ...)
 			} else if (g == "lines") {
 				map <- leaflet::addPolylines(map, data=x, label=lab,  
-							col=cols, opacity=alpha,  popup=pop)
+							col=cols, opacity=alpha,  popup=pop, ...)
 			} else {
 				map <- leaflet::addCircleMarkers(map, data=x, radius=cex, popup=pop, 
-								label=lab, opacity=alpha, col=cols)
+								label=lab, opacity=alpha, col=cols, ...)
 
 	#			map <- leaflet::addMarkers(map, data=x, label=lab)  
 	##						col=cols, fillOpacity=fill, opacity=alpha, popup=pop)
@@ -107,13 +106,13 @@ setMethod("plet", signature(x="SpatVector"),
 					if (isTRUE(label[1])) lab <- u
 					if (g == "polygons") {
 						map <- leaflet::addPolygons(map, data=s, label=lab[i], group=u[i], 
-							col=cols[i],  fillOpacity=fill, opacity=alpha, popup=pop)
+							col=cols[i],  fillOpacity=fill, opacity=alpha, popup=pop, ...)
 					} else if (g == "lines") {
 						map <- leaflet::addPolylines(map, data=s, label=lab[i], group=u[i], 
-							col=cols[i], opacity=alpha, popup=pop)
+							col=cols[i], opacity=alpha, popup=pop, ...)
 					} else {
 						map <- leaflet::addCircleMarkers(map, data=s, label=lab[i], group=u[i], 
-							col=cols[i], fillOpacity=fill, opacity=alpha, popup=pop, radius=cex)
+							col=cols[i], fillOpacity=fill, opacity=alpha, popup=pop, radius=cex, ...)
 					}
 				}
 				if (length(tiles) > 1) {
@@ -130,13 +129,13 @@ setMethod("plet", signature(x="SpatVector"),
 				if (isTRUE(label[1])) lab <- v
 				if (g == "polygons") {
 					map <- leaflet::addPolygons(map, data=x, label=lab,  
-						col=vcols, opacity=alpha, fillOpacity=fill, popup=pop)
+						col=vcols, opacity=alpha, fillOpacity=fill, popup=pop, ...)
 				} else if (g == "lines") {
 					map <- leaflet::addPolylines(map, data=x, label=lab,  
-						col=vcols, popup=pop, opacity=alpha)
+						col=vcols, popup=pop, opacity=alpha, ...)
 				} else {
 					map <- leaflet::addCircleMarkers(map, data=x, label=lab,  
-						col=vcols, radius=cex, popup=pop, fillOpacity=fill, opacity=alpha)
+						col=vcols, radius=cex, popup=pop, fillOpacity=fill, opacity=alpha, ...)
 				}
 				if (length(tiles) > 1) {
 					map <- leaflet::addLayersControl(map, baseGroups = tiles, 
@@ -201,7 +200,7 @@ setMethod("plet", signature(x="SpatVectorCollection"),
 				lab <- 1:nrow(v)
 			}
 			if (g == "polygons") {
-				map <- leaflet::addPolygons(map, data=v, weight=lwd[i], col=cols[i], fillOpacity=fill[i], opacity=alpha[i], popup=pop, label=lab)
+				map <- leaflet::addPolygons(map, data=v, weight=lwd[i], col=cols[i], fillOpacity=fill[i], opacity=alpha[i], popup=pop, label=lab, group=nms[i])
 			} else if (g == "lines") {
 				map <- leaflet::addPolylines(map, data=v, weight=lwd[i], opacity=alpha[i], col=cols[i], group=nms[i], popup=pop, label=lab)
 			} else {
@@ -221,7 +220,7 @@ setMethod("plet", signature(x="SpatVectorCollection"),
 
 
 setMethod("lines", signature(x="leaflet"),
-	function(x, y, col, lwd=2, alpha=1)  {
+	function(x, y, col, lwd=2, alpha=1, ...)  {
 		if (inherits(y, "SpatVector")) {
 			if (nrow(y) == 0) return(x)
 			y <- makelonlat(y)
@@ -229,7 +228,7 @@ setMethod("lines", signature(x="leaflet"),
 			if (!(geomtype(y) %in% c("lines", "polygons"))) {
 				error("lines", "SpatVector y must have either lines or polygons geometry")
 			}
-			leaflet::addPolylines(x, data=y, weight=lwd, opacity=alpha, col=col)
+			leaflet::addPolylines(x, data=y, weight=lwd, opacity=alpha, col=col, ...)
 		} else if (inherits(y, "SpatVectorCollection")) {
 			nms <- names(y)
 			n <- length(y)
@@ -243,7 +242,7 @@ setMethod("lines", signature(x="leaflet"),
 			lwd <- rep_len(lwd, n) 
 			alpha <- rep_len(alpha, n) 
 			for (i in 1:length(nms)) {
-				x <- leaflet::addPolylines(x, data=y[i], weight=lwd[i], opacity=alpha[i], col=cols[i], group=nms[i])
+				x <- leaflet::addPolylines(x, data=y[i], weight=lwd[i], opacity=alpha[i], col=cols[i], group=nms[i], ...)
 			}
 			collapse=FALSE
 			leaflet::addLayersControl(x, overlayGroups = nms, options = leaflet::layersControlOptions(collapsed=collapse))
@@ -252,7 +251,7 @@ setMethod("lines", signature(x="leaflet"),
 )
 
 setMethod("points", signature(x="leaflet"),
-	function(x, y, col, cex=1, alpha=1, popup=FALSE)  {
+	function(x, y, col, cex=1, alpha=1, popup=FALSE, ...)  {
 		stopifnot(inherits(y, "SpatVector"))
 		if (nrow(y) == 0) return(x)
 		y <- makelonlat(y)
@@ -269,7 +268,7 @@ setMethod("points", signature(x="leaflet"),
 		} else {
 			popup <- NULL
 		}
-		leaflet::addCircleMarkers(x, data=y, radius=cex, popup=popup, label=1:nrow(y), opacity=alpha, col=col)
+		leaflet::addCircleMarkers(x, data=y, radius=cex, popup=popup, label=1:nrow(y), opacity=alpha, col=col, ...)
 	}
 )
 
@@ -277,7 +276,7 @@ setMethod("points", signature(x="leaflet"),
 
 
 make.panel <- function(x, maxcell) {
-	x <- spatSample(x, maxcell/nl, "regular", as.raster=TRUE)
+	x <- spatSample(x, maxcell/nl, "regular", as.raster=TRUE, warn=FALSE)
 	if (is.lonlat(x)) {
 		asp <- 1/cos((mean(ext(x)[3:4]) * pi)/180)
 	} else {
@@ -330,6 +329,11 @@ setMethod("plet", signature(x="SpatRaster"),
 
 		stopifnot(utils::packageVersion("leaflet") > "2.1.1")
 
+		if (is.na(crs(x))) {
+			error("plet", "x must have a crs")
+		}
+
+
 #		if (!is.null(add)) {
 #			if (inherits(add, "SpatVector")) {
 #				add <- svc(makelonlat(add))
@@ -343,6 +347,17 @@ setMethod("plet", signature(x="SpatRaster"),
 #		}
 
 		alpha <- max(0, min(1, alpha))
+		
+		e <- ext(x)
+		if (is.lonlat(x) && ((e$ymin < -85) || (e$ymax > 85))) {
+			yr1 <- e$ymax - e$ymin
+			e$ymin <- max(e$ymin, -85)
+			e$ymax <- min(e$ymax, 85)
+			yr2 <- e$ymax - e$ymin
+			x <- spatSample(x[[y]], (yr1/yr2) * maxcell, "regular", as.raster=TRUE, warn=FALSE)
+			x <- crop(x, e) 
+		}
+		
 		if (panel) {
 			tiles <- NULL
 			p <- make.panel(x, maxcell) #, add)
@@ -351,7 +366,7 @@ setMethod("plet", signature(x="SpatRaster"),
 			add <- p[[3]]
 			main <- ""
 		} else {
-			x <- spatSample(x[[y]], maxcell, "regular", as.raster=TRUE)
+			x <- spatSample(x[[y]], maxcell, "regular", as.raster=TRUE, warn=FALSE)
 		}
 
 		if (is.null(map)) {
@@ -375,12 +390,14 @@ setMethod("plet", signature(x="SpatRaster"),
 		}
 
 
+		notmerc <- isTRUE(crs(x, describe=TRUE)$code != "3857")
+
 		if (nlyr(x) == 1) {
-			map <- leaflet::addRasterImage(map, x, colors=col, opacity=alpha)
+			map <- leaflet::addRasterImage(map, x, colors=col, opacity=alpha, project=notmerc)
 			if (!is.null(legend)) {
 				if (!all(hasMinMax(x))) setMinMax(x)
 				r <- minmax(x)
-				v <- seq(r[1], r[2], 5)
+				v <- seq(r[1], r[2], length.out=5)
 				pal <- leaflet::colorNumeric(col, v, reverse = TRUE)
 				map <- leaflet::addLegend(map, legend, pal=pal, values=v, opacity=1, title=main[1],
 					  labFormat = leaflet::labelFormat(transform = function(x) sort(x, decreasing = TRUE)))
@@ -408,9 +425,9 @@ setMethod("plet", signature(x="SpatRaster"),
 			}
 			for (i in 1:nlyr(x)) {
 				if (one_legend) {
-					map <- leaflet::addRasterImage(map, x[[i]], colors=pal, opacity=alpha, group=nms[i])
+					map <- leaflet::addRasterImage(map, x[[i]], colors=pal, opacity=alpha, group=nms[i], project=notmerc)
 				} else {
-					map <- leaflet::addRasterImage(map, x[[i]], colors=col, opacity=alpha, group=nms[i])
+					map <- leaflet::addRasterImage(map, x[[i]], colors=col, opacity=alpha, group=nms[i], project=notmerc)
 					if (many_legends) {
 						v <- seq(r[1,i], r[2,i], length.out=5)
 						pal <- leaflet::colorNumeric(col, v, reverse=TRUE)

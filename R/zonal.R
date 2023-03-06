@@ -1,11 +1,12 @@
 
 setMethod("zonal", signature(x="SpatRaster", z="SpatRaster"),
-	function(x, z, fun="mean", ..., w=NULL, as.raster=FALSE, filename="", wopt=list())  {
-		if (nlyr(z) > 1) {
-			z <- z[[1]]
-		}
-		zname <- names(z)
+	function(x, z, fun="mean", ..., w=NULL, as.raster=FALSE, filename="", overwrite=FALSE, wopt=list())  {
 		txtfun <- .makeTextFun(fun)
+		
+		if ((nlyr(z) > 1) && (nlyr(x) > 1)) {
+			error("zonal", "x and z cannot both have more than one layer")
+		}
+		
 		if (inherits(txtfun, "character") && (txtfun %in% c("max", "min", "mean", "sum", "notNA", "isNA"))) {
 			na.rm <- isTRUE(list(...)$na.rm)
 			opt <- spatOptions()
@@ -20,6 +21,13 @@ setMethod("zonal", signature(x="SpatRaster", z="SpatRaster"),
 			messages(sdf, "zonal")
 			out <- .getSpatDF(sdf)
 		} else {
+			if (!is.null(w)) {
+				error("zonal", "can only use weights when fun=mean")
+			}
+			compareGeom(x, z, lyrs=FALSE, crs=FALSE, ext=TRUE, rowcol=TRUE)
+			if (nlyr(z) > 1) {
+				z <- z[[1]]
+			}
 			fun <- match.fun(fun)
 			nl <- nlyr(x)
 			res <- list()
@@ -37,21 +45,42 @@ setMethod("zonal", signature(x="SpatRaster", z="SpatRaster"),
 				}
 			}
 		}
-		if (as.raster) {
-			if (is.null(wopt$names)) {
-				wopt$names <- names(x)
+		if (nlyr(z)==1) {
+			if (as.raster) {
+				if (is.null(wopt$names)) {
+					wopt$names <- names(x)
+				}
+				levels(z) <- NULL
+				out <- subst(z, out[,1], out[,-1], filename=filename, wopt=wopt)
+			} else {
+				if (is.factor(z)) {
+					levs <- levels(z)[[1]]
+					m <- match(out$zone, levs[,1])
+					out$zone <- levs[m, 2]
+				}
+				colnames(out)[1] <- names(z)
 			}
-			levels(z) <- NULL
-			subst(z, out[,1], out[,-1], filename=filename, wopt=wopt)
 		} else {
-			if (is.factor(z)) {
-				levs <- levels(z)[[1]]
-				m <- match(out$zone, levs[,1])
-				out$zone <- levs[m, 2]
+			nc <- ncol(out)
+			if (as.raster) { 
+				x <- out
+				nl <- nlyr(z)
+				out <- vector("list", nl)
+				for (i in 1:nl) {
+					lyrout <- x[x[,nc] == i, -nc]
+					out[[i]] <- subst(z[[i]], lyrout[,1], lyrout[,-1], wopt=wopt)
+				}
+				out <- rast(out)
+				if (filename != "") {
+					out <- writeRaster(out, filename=filename, overwrite=overwrite, wopt)
+				}
+			} else {
+				nms <- names(out)
+				out <- stats::reshape(out, direction="wide", idvar=nms[1], timevar=nms[nc]) 
+				names(out)[-1] <- names(z)
 			}
-			colnames(out)[1] <- zname
-			out
 		}
+		out
 	}
 )
 

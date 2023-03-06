@@ -17,6 +17,7 @@
 
 #include "spatVector.h"
 #include <numeric>
+#include "string_utils.h"
 #include "math_utils.h"
 #include "vecmath.h"
 #include "recycle.h"
@@ -94,7 +95,7 @@ SpatGeom::SpatGeom(SpatGeomType g) {
 }
 
 bool SpatGeom::unite(SpatGeom g) {
-	if (parts.size() == 0) {
+	if (parts.empty()) {
 		parts = g.parts;
 		extent = g.extent;
 	} else {
@@ -191,7 +192,7 @@ std::vector<std::vector<double>> SpatGeom::coordinates() {
 }
 
 void SpatGeom::computeExtent() {
-	if (parts.size() == 0) return;
+	if (parts.empty()) return;
 	extent.xmin = *std::min_element(parts[0].x.begin(), parts[0].x.end());
 	extent.xmax = *std::max_element(parts[0].x.begin(), parts[0].x.end());
 	extent.ymin = *std::min_element(parts[0].y.begin(), parts[0].y.end());
@@ -242,7 +243,7 @@ SpatVector::SpatVector(SpatExtent e, std::string crs) {
 }
 
 SpatVector::SpatVector(std::vector<double> x, std::vector<double> y, SpatGeomType g, std::string crs) {
-	if (x.size() == 0) return;
+	if (x.empty()) return;
 
 	if (g == points) {
 		SpatPart p(x[0], y[0]);
@@ -302,8 +303,19 @@ size_t SpatVector::size() {
 	return geoms.size();
 }
 
+bool SpatVector::empty() {
+	return geoms.empty();
+}
+
 bool SpatVector::is_lonlat() {
-	return srs.is_lonlat();
+	if (srs.is_lonlat()) {
+		SpatExtent e = getExtent();
+		if ((e.xmin < -181) || (e.xmax > 361) || (e.ymin < -90.001) || (e.ymax > 90.001)) {
+			addWarning("coordinates are out of range for lon/lat");
+		}
+		return true;
+	}
+	return false;
 }
 
 
@@ -375,7 +387,7 @@ void SpatVector::reserve(size_t n) {
 
 
 void SpatVector::computeExtent() {
-	if (geoms.size() == 0) return;
+	if (geoms.empty()) return;
 	extent = geoms[0].extent;
 	for (size_t i=1; i<geoms.size(); i++) {	
 		extent.unite(geoms[i].extent);
@@ -414,7 +426,7 @@ unsigned SpatVector::nxy() {
 	unsigned n = 0;
 	for (size_t i=0; i < size(); i++) {
 		SpatGeom g = getGeom(i);
-		if (g.size() == 0) {
+		if (g.empty()) {
 			n++; // empty
 		}
 		for (size_t j=0; j < g.size(); j++) {
@@ -530,7 +542,7 @@ SpatDataFrame SpatVector::getGeometryDF() {
 	size_t idx = 0;
 	for (size_t i=0; i < size(); i++) {
 		SpatGeom g = getGeom(i);
-		if (g.size() == 0) { // empty
+		if (g.empty()) { // empty
 			out.iv[0][idx] = i+1;
 			out.iv[1][idx] = 1;
 			out.dv[0][idx] = NAN;
@@ -578,7 +590,7 @@ std::vector<std::vector<double>> SpatVector::getGeometry() {
 	}
 	for (size_t i=0; i < size(); i++) {
 		SpatGeom g = getGeom(i);
-		if (g.size() == 0) { // empty
+		if (g.empty()) { // empty
 			out[0].push_back(i+1);
 			out[1].push_back(1);
 			out[2].push_back(NAN);
@@ -714,7 +726,10 @@ void SpatVector::setGeometry(std::string type, std::vector<unsigned> gid, std::v
 
 	for (size_t i=0; i<gid.size(); i++) {
 		if ((lastgeom != gid[i]) || (lastpart != part[i]) || (lasthole != hole[i])) {
-			if (X.size() > 0) {
+			if (X.empty()) {
+				SpatPart p(NAN, NAN);
+				g.addPart(p);
+			} else {
 				if (g.gtype == polygons) {
 					if ((X[0] != X[X.size()-1]) || (Y[0] != Y[Y.size()-1])) {
 						X.push_back(X[0]);
@@ -731,9 +746,6 @@ void SpatVector::setGeometry(std::string type, std::vector<unsigned> gid, std::v
 					SpatPart p(X, Y);
 					g.addPart(p);
 				}
-			} else {
-				SpatPart p(NAN, NAN);
-				g.addPart(p);
 			}
 			lastpart = part[i];
             lasthole = hole[i];
@@ -752,7 +764,10 @@ void SpatVector::setGeometry(std::string type, std::vector<unsigned> gid, std::v
 		}
 	}
 
-	if (X.size() > 0) {
+	if (X.empty()) {
+		SpatPart p(NAN, NAN);
+		g.addPart(p);
+	} else {
 		if (g.gtype == polygons) {
 			if ((X[0] != X[X.size()-1]) || (Y[0] != Y[Y.size()-1])) {
 				X.push_back(X[0]);
@@ -769,9 +784,6 @@ void SpatVector::setGeometry(std::string type, std::vector<unsigned> gid, std::v
 			SpatPart p(X, Y);
 			g.addPart(p);
 		}
-	} else {
-		SpatPart p(NAN, NAN);
-		g.addPart(p);
 	}
 	addGeom(g);
 }
@@ -951,7 +963,7 @@ SpatVector SpatVector::subset_cols(int i) {
 
 SpatVector SpatVector::append(SpatVector x, bool ingnorecrs) {
 	if (size() == 0) return x;
-	if (x.size() == 0) return *this;
+	if (x.empty()) return *this;
 
 	SpatVector out;
 	if (type() != x.type()) {
@@ -1021,7 +1033,7 @@ SpatVector SpatVector::as_points(bool multi, bool skiplast) {
 			g.gtype = points;
 			for (size_t j=0; j<geoms[i].parts.size(); j++) {
 				SpatPart p = geoms[i].parts[j];
-				if (p.size() > 0) {
+				if (!p.empty()) {
 					size_t n = p.size();
 					for (size_t k=0; k<n; k++) {
 						g.addPart(SpatPart(p.x[k], p.y[k]));
@@ -1037,7 +1049,7 @@ SpatVector SpatVector::as_points(bool multi, bool skiplast) {
 			g.gtype = points;
 			for (size_t j=0; j<geoms[i].parts.size(); j++) {
 				SpatPart p = geoms[i].parts[j];
-				if (p.size() > 0) {
+				if (!p.empty()) {
 					size_t n = p.size() - skip;
 					for (size_t k=0; k<n; k++) {
 						g.addPart(SpatPart(p.x[k], p.y[k]));
@@ -1187,8 +1199,8 @@ SpatVector SpatVectorCollection::append() {
 	out = v[0];
 	std::string gtype = out.type();
 	for (size_t i=1; i<n; i++) {
-		if (v[i].size() == 0) continue;
-		if (out.size() == 0) {
+		if (v[i].empty()) continue;
+		if (out.empty()) {
 			out = v[i];
 			gtype = out.type();
 			continue;
@@ -1405,4 +1417,5 @@ std::vector<std::vector<std::vector<std::vector<double>>>> SpatVector::polygonsL
 	}
 	return out;
 }
+
 

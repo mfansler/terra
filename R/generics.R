@@ -12,6 +12,19 @@ setMethod("rangeFill", signature(x="SpatRaster"),
 	}
 )
 
+setMethod("meta", signature(x="SpatRaster"),
+	function(x, layers=FALSE) {
+		f <- function(i) {
+			if (length(i) == 0) {
+				matrix(ncol=2, nrow=0)
+			} else {
+				matrix(unlist(regmatches(i, regexpr("=", i), invert=TRUE)), ncol=2, byrow=TRUE)
+			}
+		}
+		lapply(x@ptr$metadata(layers), f)
+	}
+)
+
 
 setMethod("weighted.mean", signature(x="SpatRaster", w="numeric"),
 	function(x, w, na.rm=FALSE, filename="", ...) {
@@ -120,8 +133,9 @@ setMethod("intersect", signature(x="SpatRaster", y="SpatRaster"),
 
 
 setMethod("cellSize", signature(x="SpatRaster"),
-	function(x, mask=TRUE, unit="m", transform=TRUE, rcx=100, filename="", ...) {
+	function(x, mask=FALSE, lyrs=FALSE, unit="m", transform=TRUE, rcx=100, filename="", ...) {
 		opt <- spatOptions(filename, ...)
+		if (!lyrs) x <- x[[1]]
 		x@ptr <- x@ptr$rst_area(mask, unit, transform, rcx, opt)
 		messages(x, "cellSize")
 	}
@@ -481,9 +495,14 @@ setMethod("crop", signature(x="SpatRaster", y="ANY"),
 				e <- ext(y)
 				x@ptr <- x@ptr$crop(e@ptr, snap[1], extend[1], mopt)
 				x <- messages(x, "crop")
-				if (!compareGeom(x, y, lyrs=FALSE, crs=FALSE, warncrs=FALSE, ext=TRUE, rowcol=TRUE, res=FALSE, stopOnError=FALSE, messages=TRUE)) {
+				if (compareGeom(x, y, lyrs=FALSE, crs=FALSE, warncrs=FALSE, ext=TRUE, rowcol=TRUE, res=FALSE, stopOnError=FALSE, messages=FALSE)) {
 					return(mask(x, y, filename=filename, ...))
 				} else {
+					warn("crop", "cannot mask with a raster that is not aligned to x")
+					# should check earlier if masking will be possible to avoid writing to disk twice.
+					if (filename != "") {
+						x <- writeRaster(x, filename, ...)
+					}
 					return(x)
 				}
 			} else {
@@ -546,7 +565,7 @@ setMethod("diff", signature(x="SpatRaster"),
 		y <- x[[-((n-lag+1):n)]]
 		x <- x[[-(1:lag)]]
 		opt <- spatOptions(filename, ...)
-		x@ptr <- x@ptr$arith_rast(y@ptr, "-", opt)
+		x@ptr <- x@ptr$arith_rast(y@ptr, "-", FALSE, opt)
 		messages(x, "diff")
 	}
 )
@@ -554,7 +573,7 @@ setMethod("diff", signature(x="SpatRaster"),
 
 setMethod("disagg", signature(x="SpatRaster"),
 	function(x, fact, method="near", filename="", ...) {
-		stopifnot(method %in% c("near", "bilinear"))
+		method <- match.arg(tolower(method), c("near", "bilinear"))
 		if (method == "bilinear") {
 			y <- disagg(rast(x), fact)
 			r <- resample(x, y, "bilinear", filename=filename, ...)
@@ -1041,7 +1060,7 @@ setMethod("summary", signature(object="SpatRaster"),
 		if (warn && (ncell(object) > size)) {
 			warn("summary", "used a sample")
 		}
-		s <- spatSample(object, size, method="regular")
+		s <- spatSample(object, size, method="regular", warn=FALSE)
 		summary(s, ...)
 	}
 )
@@ -1221,10 +1240,35 @@ setMethod("scoff<-", signature("SpatRaster"),
 )
 
 setMethod("sort", signature(x="SpatRaster"),
-	function (x, decreasing=FALSE, filename="", ...) {
+	function (x, decreasing=FALSE, order=FALSE, filename="", ...) {
 		opt <- spatOptions(filename, ...)
-		x@ptr <- x@ptr$sort(decreasing[1], opt)
+		x@ptr <- x@ptr$sort(decreasing[1], order[1], opt)
 		messages(x, "sort")
 	}
 )
 
+
+setMethod("sort", signature(x="SpatVector"),
+	function (x, v, decreasing=FALSE) {
+		if (length(v) > 1) {
+			v <- data.frame(x)[,v]
+			i <- do.call(order, lapply(v, function(i) i))
+		} else {
+			i <- order(x[[v]][[1]], decreasing=decreasing)
+		}
+		x[i, ]
+	}
+)
+
+
+setMethod("sort", signature(x="data.frame"),
+	function (x, v, decreasing=FALSE) {
+		if (length(v) > 1) {
+			v <- data.frame(x)[, v]
+			i <- do.call(order, lapply(v, function(i) i))
+		} else {
+			i <- order(x[[v]], decreasing=decreasing)
+		}
+		x[i, ]
+	}
+)

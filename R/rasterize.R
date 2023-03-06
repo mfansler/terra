@@ -29,15 +29,11 @@ setMethod("rasterizeGeom", signature(x="SpatVector", y="SpatRaster"),
 
 rasterize_points <- function(x, y, field, values, fun="last", background=NA, update=FALSE, filename="", overwrite=FALSE, wopt=list(), ...) {
 
-	if (update) {
-		if (!hasValues(y)) {
-			update <- FALSE
-		} else {
-			background <- NA
-		}
-	}
+	if (missing(fun)) fun <- "last"
+	if (update && (!hasValues(y))) update <- FALSE
 	nrx <- nrow(x)
-	cnms <- colnames(values)
+
+
 	if (!is.data.frame(values)) {
 		values <- as.data.frame(values)
 	}
@@ -46,15 +42,12 @@ rasterize_points <- function(x, y, field, values, fun="last", background=NA, upd
 		if (!is.data.frame(values)) { # dropped if nrx==1
 			values <- as.data.frame(values)
 		}
-	} else {
-		if (nrow(values) != nrx) {
-			error("rasterize", "the number or rows in values does not match the number of points")
-		}
+	} else if (nrow(values) != nrx) {
+		error("rasterize", paste0("the number or rows in values is ", nrow(values), "\nThat does not match the number of points: ", nrx))
 	}
-#	values(r) <- background
+	cnms <- colnames(values)
 	nl <- ncol(values)
 	r <- rast(y, nlyrs=nl)	
-
 	levs <- list()
 	has_levels <- FALSE
 	for (i in 1:nl) {
@@ -63,8 +56,38 @@ rasterize_points <- function(x, y, field, values, fun="last", background=NA, upd
 			levs[[i]] <- levels(f)
 			values[,i] <- as.integer(f) - 1
 			has_levels <- TRUE
+		} else if (is.factor(values[,i])) {
+			f <- values[,i]
+			levs[[i]] <- levels(f)
+			values[,i] <- as.integer(f) - 1
+			has_levels <- TRUE
 		}
 	}
+
+	if (NCOL(values) == 1 && (!has_levels)) {
+		txtfun <- .makeTextFun(fun)
+		if (inherits(txtfun, "character")) {
+			if (txtfun %in% c("first", "last", "pa", "sum", "mean", "count", "min", "max", "prod")) {	
+				if (is.null(wopt$names)) {
+					wopt$names <- txtfun
+				}
+				if (update) {
+					ops <- spatOptions("", TRUE, wopt)	
+				} else {
+					ops <- spatOptions(filename, overwrite, wopt=wopt)				
+				}
+				narm <- isTRUE(list(...)$na.rm)
+				r <- rast()
+				r@ptr <- y@ptr$rasterizePointsXY(x[,1], x[,2], txtfun, values[[1]], narm, background, ops)
+				messages(r)
+				if (update) {
+					r <- cover(r, y, filename=filename, overwrite=overwrite, wopt)
+				}
+				return(r)
+			}
+		}
+	}
+
 
 	g <- cellFromXY(y, x)
 	i <- which(!is.na(g))
@@ -74,48 +97,20 @@ rasterize_points <- function(x, y, field, values, fun="last", background=NA, upd
 	}
 	values <- values[i, ,drop=FALSE]
 
-	if (missing(fun)) fun <- "last"
-	if (is.character(fun) && (fun %in% c("first", "last", "pa"))) {
-		narm <- isTRUE(list(...)$na.rm)
-		if (fun == "pa") {
-			if (narm) {
-				values <- aggregate(values, list(g), function(i) length(na.omit(i)))
-				values[values < 1] <- background
-			} else {
-				values <- aggregate(values, list(g), function(i) 1)
-			}
-			has_levels <- FALSE
-		} else if (fun == "first") {
-			if (narm) {
-				values <- aggregate(values, list(g), function(i) na.omit(i)[1])
-			} else {
-				values <- aggregate(values, list(g), function(i) i[1])
-			}
-		} else if (fun == "last") {
-			if (narm) {
-				values <- aggregate(values, list(g), function(i) rev(na.omit(i))[1])
-			} else {
-				values <- aggregate(values, list(g), function(i) rev(i)[1])
-			}
-		}
-		#r[values[,1]] <- as.matrix(values[,-1])
-		wopt <- .set_names(wopt, cnms, fun, NCOL(values))
-
-	} else {
-		has_levels <- FALSE
-		values <- aggregate(values, list(g), fun, ...)
-		# allow for multiple fields
-		#r[a[,1]] <- as.matrix(a[,-1])
-		levs <- NULL
-		if (is.null(wopt$names)) {
-			fun <- .makeTextFun(fun)
-			if (inherits(fun, "character")) {
-				wopt <- .set_names(wopt, cnms, fun, NCOL(values))
-			} else if (!is.null(cnms)) {
-				wopt$names <- cnms
-			}
+	has_levels <- FALSE
+	values <- aggregate(values, list(g), fun, ...)
+	# allow for multiple fields
+	#r[a[,1]] <- as.matrix(a[,-1])
+	levs <- NULL
+	if (is.null(wopt$names)) {
+		fun <- .makeTextFun(fun)
+		if (inherits(fun, "character")) {
+			wopt <- .set_names(wopt, cnms, fun, NCOL(values))
+		} else if (!is.null(cnms)) {
+			wopt$names <- cnms
 		}
 	}
+
 	values <- as.matrix(values)
 	nl <- max(1, ncol(values)-1)
 	r <- rast(r, nlyrs=nl)	
@@ -152,7 +147,23 @@ rasterize_points <- function(x, y, field, values, fun="last", background=NA, upd
 
 
 setMethod("rasterize", signature(x="matrix", y="SpatRaster"),
-	function(x, y, values=1, fun, ..., background=NA, update=FALSE, filename="", overwrite=FALSE, wopt=list()) {
+	function(x, y, values=1, fun, ..., background=NA, update=FALSE, by=NULL, filename="", overwrite=FALSE, wopt=list()) {
+
+		if (!is.null(by)) {
+			by <- rep_len(by, nrow(x))
+			values <- rep_len(values, nrow(x))
+
+			x <- lapply(split(data.frame(x), by), as.matrix)
+			values <- split(values, by)
+
+			out <- rast(lapply(1:length(x), function(i) rasterize(x[[i]], y, values[[i]], fun, background=background, update=update)))
+			names(out) <- unique(by)
+			if (filename != "") {
+				out <- writeRaster(out, filename, overwrite=overwrite, wopt=wopt)
+			}
+			return(out)
+		}
+
 		lonlat <- .checkXYnames(colnames(x))
 
 		if (NCOL(values) <= 1) {
@@ -171,14 +182,24 @@ setMethod("rasterize", signature(x="matrix", y="SpatRaster"),
 			}
 		}
 		rasterize_points(x=x, y=y, field="", values=values, fun=fun, background=background, update=update, filename=filename, overwrite=overwrite, wopt=wopt, ...)
-
 	}
 )
 
 
 setMethod("rasterize", signature(x="SpatVector", y="SpatRaster"),
-	function(x, y, field="", fun, ..., background=NA, touches=FALSE, update=FALSE, sum=FALSE, cover=FALSE, filename="", overwrite=FALSE, wopt=list()) {
+	function(x, y, field="", fun, ..., background=NA, touches=FALSE, update=FALSE, cover=FALSE, by=NULL, filename="", overwrite=FALSE, wopt=list()) {
 
+		if (!is.null(by)) {
+			uby <- unlist(unique(x[[by]]))
+			x <- split(x, by)
+			out <- rast(lapply(x, function(i) rasterize(i, y, field=field, fun, background=background, touches=touches, update=update, cover=cover, ...)))
+			names(out) <- uby
+			if (filename != "") {
+				out <- writeRaster(out, filename, overwrite=overwrite, wopt=wopt)
+			}
+			return(out)
+		}
+		
 		values <- 1
 		if (!is.character(field)) {
 			values <- as.numeric(field)
@@ -196,15 +217,18 @@ setMethod("rasterize", signature(x="SpatVector", y="SpatRaster"),
 		if (grepl("points", g)) {
 			nrx <- nrow(x)
 			# also allow for multiple columns to multiple layers
-			if (field[1] != "") {
+			xy <- crds(x)
+			if (field[1] == "") {
+				values <- matrix(1, ncol=1, nrow=nrx)
+			} else if (field[1] != "") {
 				values <- x[[field]]
-			}
-			x <- crds(x)
-			if (nrow(x) != nrx) { # multi-points
-				values <- sapply(1:ncol(values), function(i) values[g[,1], i])
+				if (nrow(xy) != nrx) { # multi-points
+					g <- geom(x)
+					values <- values[g[,1], ,drop=FALSE]
+				}
 			}
 			return(
-				rasterize_points(x=x, y=y, field=field, values=values, fun=fun, background=background, update=update, filename=filename, overwrite=overwrite, wopt=wopt, ...)
+				rasterize_points(x=xy, y=y, field=field, values=values, fun=fun, background=background, update=update, filename=filename, overwrite=overwrite, wopt=wopt, ...)
 			)
 		}
 
@@ -212,11 +236,66 @@ setMethod("rasterize", signature(x="SpatVector", y="SpatRaster"),
 		pols <- grepl("polygons", g)
 
 		if (cover[1] && pols) {
-			y@ptr <- y@ptr$rasterize(x@ptr, "", 1, background, touches[1], sum[1], TRUE, FALSE, TRUE, opt)
+			y@ptr <- y@ptr$rasterize(x@ptr, "", 1, background, touches[1], "", TRUE, FALSE, TRUE, opt)
 		} else {
+			dots <- list(...)
+			if (missing(fun)) {
+				if (!is.null(dots$sum)) {
+					# backward compatibility
+					fun <- dots$sum				
+				} else {
+					fun <- ""
+				}
+			}
+			if (!inherits(fun, "character")) {
+				fun <- .makeTextFun(fun)
+				if (!inherits(fun, "character")) {
+					error("rasterize", "'fun' must be 'min', 'max', 'mean', or 'sum'")
+				}
+			}
+			if (fun != "") {
+				fun <- tolower(fun)
+				if (!(fun %in% c("sum", "mean", "min", "max"))) {
+					error("rasterize", "'fun' must be 'min', 'max' 'mean', or 'sum'")
+				}
+				if (field != "") {
+					if (fun == "min") {
+						x <- sort(x[,field], field, TRUE)
+						fun <- ""
+					} else if (fun == "max") {
+						x <- sort(x[,field], field, FALSE)
+						fun <- ""
+					}
+				}
+			}
+			if ((field != "") && isTRUE(dots$na.rm)) {
+				x <- x[!is.na(x[[field]]), ]
+			}
 			background <- as.numeric(background[1])
-			y@ptr <- y@ptr$rasterize(x@ptr, field, values, background, touches[1], sum[1], FALSE, update[1], TRUE, opt)
-		}
+			if (fun == "sum") {
+				xopt = spatOptions()
+				y@ptr <- y@ptr$rasterize(x@ptr, field, values, background, touches[1], fun, FALSE, update[1], TRUE, xopt)
+				messages(y, "rasterize")
+				yy <- rast(y)
+				yy@ptr <- y@ptr$rasterize(x@ptr, "", values, NA, touches[1], ""	, FALSE, update[1], TRUE, xopt)
+				messages(yy, "rasterize")
+				return(mask(y, yy, updatevalue=background, filename=filename, overwrite=overwrite, wopt=wopt))
+			} else if (fun == "mean") {
+				xopt = spatOptions()
+				y@ptr <- y@ptr$rasterize(x@ptr, field, values, background, touches[1], "sum", FALSE, update[1], TRUE, xopt)
+				messages(y, "rasterize")
+				yy <- rast(y)
+				yy@ptr <- y@ptr$rasterize(x@ptr, "", values, NA, touches[1], "sum", FALSE, update[1], TRUE, xopt)
+				messages(yy, "rasterize")
+				y <- y / yy
+				if (filename != "") {
+					y <- writeRaster(y, filename=filename, overwrite=overwrite, wopt=wopt)
+				}
+				return(y)
+			} else {
+				y@ptr <- y@ptr$rasterize(x@ptr, field, values, background, touches[1], fun, FALSE, update[1], TRUE, opt)
+			}
+		}	
 		messages(y, "rasterize")
 	}
 )

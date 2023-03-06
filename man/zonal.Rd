@@ -11,13 +11,14 @@
 \description{
 Compute zonal statistics, that is summarize values of a SpatRaster for each "zone" defined by another SpatRaster, or by a SpatVector with polygon geometry. 
 
-If \code{fun} is a true R \code{function}, the <SpatRaster,SpatRaster> method when using very large SpatRasters, except for the functions ("mean", "min", "max", "sum", "isNA", and "notNA"). 
+If \code{fun} is a true R \code{function}, the <SpatRaster,SpatRaster> method may fail when using very large SpatRasters, except for the functions ("mean", "min", "max", "sum", "isNA", and "notNA"). 
 
 You can also summarize values of a SpatVector for each polygon (zone) defined by another SpatVector. 
 }
 
 \usage{
-\S4method{zonal}{SpatRaster,SpatRaster}(x, z, fun=mean, ..., w=NULL, as.raster=FALSE, filename="", wopt=list())
+\S4method{zonal}{SpatRaster,SpatRaster}(x, z, fun=mean, ..., w=NULL, 
+		as.raster=FALSE, filename="", overwrite=FALSE, wopt=list())
 
 \S4method{zonal}{SpatRaster,SpatVector}(x, z, fun=mean, ..., w=NULL, weights=FALSE,
 		exact=FALSE, touches=FALSE, as.raster=FALSE, filename="", wopt=list())
@@ -33,6 +34,7 @@ You can also summarize values of a SpatVector for each polygon (zone) defined by
   \item{w}{SpatRaster with weights. Should have a single-layer with non-negative values}
   \item{as.raster}{logical. If \code{TRUE}, a SpatRaster is returned with the zonal statistic for each zone}  
   \item{filename}{character. Output filename (ignored if \code{as.raster=FALSE}}
+  \item{overwrite}{logical. If \code{TRUE}, \code{filename} is overwritten}
   \item{wopt}{list with additional arguments for writing files as in \code{\link{writeRaster}}}
 
   \item{weights}{logical. If \code{TRUE} and \code{y} has polygons, the approximate fraction of each cell that is covered is returned as well, for example to compute a weighted mean}
@@ -47,8 +49,7 @@ You can also summarize values of a SpatVector for each polygon (zone) defined by
 A \code{data.frame} with a value for each zone, or a SpatRaster, or SpatVector of polygons.
 }
 
-\seealso{ See \code{\link{global}} for "global" statistics (i.e., all of \code{x} is considered a single zone), \code{\link{app}} for local statistics, and \code{\link{extract}} for summarizing values for polygons
-\code{\link{extract}} for an alternative way to summarize values of a SpatRaster with a SpatVector. 
+\seealso{ See \code{\link{global}} for "global" statistics (i.e., all of \code{x} is considered a single zone), \code{\link{app}} for local statistics, and \code{\link{extract}} for an alternative way to summarize values of a SpatRaster with a SpatVector. 
 }
 
 \examples{

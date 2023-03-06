@@ -40,6 +40,12 @@ Change the coordinate reference system ("project") of a SpatVector, SpatRaster o
 	\code{cubic}: cubic interpolation.
 
 	\code{cubicspline}: cubic spline interpolation.
+
+	\code{lanczos}: Lanczos windowed sinc resampling.
+
+	\code{sum}: the weighted sum of all non-NA contributing grid cells.	
+	
+	\code{min, q1, med, q3, max, average, mode, rms}: the minimum, first quartile, median, third quartile, maximum, mean, mode, or root-mean-square value of all non-NA contributing grid cells.	
   }
 
   \item{mask}{logical. If \code{TRUE}, mask out areas outside the input extent (see example with Robinson projection)}
@@ -70,7 +76,7 @@ SpatVector or SpatRaster
 \seealso{\code{\link{crs}}, \code{\link{resample}}}
 
 \note{
-The PROJ.4 notation of coordinate reference systems has been partly deprecated in the GDAL/PROJ library that is used by this function. You can still use this notation, but *only* with the the WGS84 datum. Other datums are silently ignored. 
+The PROJ.4 notation of coordinate reference systems has been partly deprecated in the GDAL/PROJ library that is used by this function. You can still use this notation, but *only* with the WGS84 datum. Other datums are silently ignored. 
 
 Transforming (projecting) raster data is fundamentally different from transforming vector data. Vector data can be transformed and back-transformed without loss in precision and without changes in the values. This is not the case with raster data. In each transformation the values for the new cells are estimated in some fashion. Therefore, if you need to match raster and vector data for analysis, you should generally transform the vector data. 
 

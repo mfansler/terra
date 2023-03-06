@@ -83,39 +83,48 @@ SpatDataFrame readAttributes(OGRLayer *poLayer, bool as_proxy) {
 		for (size_t i = 0; i < nfields; i++ ) {
 			poFieldDefn = poFDefn->GetFieldDefn( i );
 			unsigned j = df.iplace[i];
+			int not_null = poFeature->IsFieldSetAndNotNull(i);
 			switch( poFieldDefn->GetType() ) {
 				case OFTReal:
-					if (poFeature->IsFieldNull(i)) {
-						df.dv[j].push_back(NAN);
-					} else {
+					if (not_null) {
 						df.dv[j].push_back(poFeature->GetFieldAsDouble(i));
+					} else {
+						df.dv[j].push_back(NAN);
 					}
 					break;
 				case OFTInteger:
 					if (poFieldDefn->GetSubType() == OFSTBoolean) {
-						df.bv[j].push_back(poFeature->GetFieldAsInteger( i ));
+						if (not_null) {
+							df.bv[j].push_back(poFeature->GetFieldAsInteger(i));
+						} else {
+							df.bv[j].push_back(2);
+						}
 					} else {
-						df.iv[j].push_back(poFeature->GetFieldAsInteger( i ));
+						if (not_null) {
+							df.iv[j].push_back(poFeature->GetFieldAsInteger(i));
+						} else {
+							df.iv[j].push_back(longNA);
+						}
 					}
 					break;
 				case OFTInteger64:
-					if (poFeature->IsFieldNull(i)) {
-						df.iv[j].push_back(longNA);
+					if (not_null) {
+						df.iv[j].push_back(poFeature->GetFieldAsInteger64(i));
 					} else {
-						df.iv[j].push_back(poFeature->GetFieldAsInteger64( i ));
+						df.iv[j].push_back(longNA);
 					}
 					break;
 	//          case OFTString:
 				default:
-					if (poFeature->IsFieldNull(i)) {
-						df.sv[j].push_back(df.NAS);
+					if (not_null) {
+						df.sv[j].push_back(poFeature->GetFieldAsString(i));
 					} else {
-						df.sv[j].push_back(poFeature->GetFieldAsString( i ));
+						df.sv[j].push_back(df.NAS);
 					}
 					break;
 			}
 		}
-		OGRFeature::DestroyFeature( poFeature );
+		OGRFeature::DestroyFeature(poFeature);
 		if (as_proxy) break;
 	}
 	return df;
@@ -332,7 +341,7 @@ std::vector<std::string> SpatVector::layer_names(std::string filename) {
 
 	std::vector<std::string> out;
 
-	if (filename == "") {
+	if (filename.empty()) {
 		setError("empty filename");
 		return out;
 	}
@@ -381,15 +390,8 @@ bool SpatVector::read_ogr(GDALDataset *poDS, std::string layer, std::string quer
 
 	OGRLayer *poLayer;
 
-	if (query != "") {
-		poLayer = poDS->ExecuteSQL(query.c_str(), NULL, NULL);
-		if (poLayer == NULL) {
-			setError("Query failed");
-			return false;
-		}
-		read_query = query;
-	} else {
-		if (layer == "") {
+	if (query.empty()) {
+		if (layer.empty()) {
 			#if GDAL_VERSION_MAJOR <= 2 && GDAL_VERSION_MINOR <= 2
 				// do nothing
 			#else
@@ -427,6 +429,13 @@ bool SpatVector::read_ogr(GDALDataset *poDS, std::string layer, std::string quer
 				return false;
 			}
 		}
+	} else {
+		poLayer = poDS->ExecuteSQL(query.c_str(), NULL, NULL);
+		if (poLayer == NULL) {
+			setError("Query failed");
+			return false;
+		}
+		read_query = query;
 	}
 
 
@@ -471,7 +480,7 @@ bool SpatVector::read_ogr(GDALDataset *poDS, std::string layer, std::string quer
 		}
 		OGRFeature::DestroyFeature( fFeature );
 		GDALClose(filterDS);
-	} else if (extent.size() > 0) {
+	} else if (!extent.empty()) {
 		poLayer->SetSpatialFilterRect(extent[0], extent[2], extent[1], extent[3]);
 		read_extent = extent;
 	}
@@ -480,7 +489,7 @@ bool SpatVector::read_ogr(GDALDataset *poDS, std::string layer, std::string quer
 		df = readAttributes(poLayer, as_proxy);
 	}
 	if (what == "attributes") {
-		if (query != "") {
+		if (!query.empty()) {
 			poDS->ReleaseResultSet(poLayer);
 		}
 		return true;
@@ -634,7 +643,7 @@ bool SpatVector::read_ogr(GDALDataset *poDS, std::string layer, std::string quer
 	}
 
 
-	if (query != "") {
+	if (!query.empty()) {
 		poDS->ReleaseResultSet(poLayer);
 	}
 

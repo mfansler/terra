@@ -4,6 +4,31 @@
 # License GPL v3
 
 
+character_crs <- function(x, caller="") {
+
+	if (!inherits(x, "character")) {
+		if (is.atomic(x)) {
+			# for logical NA 
+			x <- as.character(x)
+		} else {
+			x <- crs(x)
+		}
+	}
+
+	if (is.na(x)) {
+		""
+	} else {
+		if (tolower(x) == "local") {
+			x <- 'LOCAL_CS["Cartesian (Meter)", LOCAL_DATUM["Local Datum",0], UNIT["Meter",1.0], AXIS["X",EAST], AXIS["Y",NORTH]]'
+		} else if (tolower(x) == "lonlat") {
+			x <- "+proj=longlat"
+		}
+		x
+	}
+}
+
+
+
 is.proj <- function(crs) {
 	substr(crs, 1, 6) == "+proj="
 }
@@ -107,6 +132,12 @@ setMethod("crs", signature("character"),
 	function(x, proj=FALSE, describe=FALSE, parse=FALSE) {
 		x <- rast(crs=x)
 		.get_CRS(x, proj=proj, describe=describe, parse=parse)
+	}
+)
+
+setMethod("crs", signature("SpatExtent"),
+	function(x, proj=FALSE, describe=FALSE, parse=FALSE) {
+		return("")
 	}
 )
 
@@ -245,14 +276,16 @@ setMethod("is.lonlat", signature("SpatRaster"),
 		if (perhaps) {
 			ok <- x@ptr$isLonLat()
 			if (ok) {
+				messages(x, "is.lonlat")
 				if (global) {
 					return(x@ptr$isGlobalLonLat())
 				} else {
 					return(ok)
 				}
-			}
+			} 
 			ok <- x@ptr$couldBeLonLat()
 			if (ok) {
+				messages(x, "is.lonlat")
 				if (global) {
 					ok <- x@ptr$isGlobalLonLat()
 				}
@@ -262,11 +295,14 @@ setMethod("is.lonlat", signature("SpatRaster"),
 			}
 		} else {
 			ok <- x@ptr$isLonLat()
-			if (ok && global) {
-				ok <- x@ptr$isGlobalLonLat()
-			}
-			if ((!ok) && (crs(x) == "")) {
+			if (ok) {
+				messages(x, "is.lonlat")
+				if (global) {
+					ok <- x@ptr$isGlobalLonLat()
+				}
+			} else if (crs(x) == "") {
 				ok <- NA
+				warn("is.lonlat", "unknown crs")
 			}
 		}
 		ok
@@ -276,18 +312,8 @@ setMethod("is.lonlat", signature("SpatRaster"),
 
 setMethod("is.lonlat", signature("SpatVector"),
 	function(x, perhaps=FALSE, warn=TRUE) {
-		if (perhaps) {
-			ok <- x@ptr$couldBeLonLat()
-			if (ok && warn) {
-				if (crs(x) == "") warn("is.lonlat", "assuming lon/lat crs")
-			}
-		} else {
-			ok <- x@ptr$isLonLat()
-			if ((!ok) && (crs(x) == "")) {
-				ok <- NA
-			}
-		}
-		ok
+		x <- rast(x)
+		is.lonlat(x, perhaps=perhaps, warn=warn, global=FALSE)
 	}
 )
 

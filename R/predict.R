@@ -21,7 +21,7 @@ parfun <- function(cls, d, fun, model, ...) {
 	if (!is.data.frame(d)) {
 		d <- data.frame(d)
 	}
-	if (! is.null(const)) {
+	if (!is.null(const)) {
 		for (i in 1:ncol(const)) {
 			d <- cbind(d, const[,i,drop=FALSE])
 		}
@@ -38,27 +38,18 @@ parfun <- function(cls, d, fun, model, ...) {
 			}
 			if (is.list(r)) {
 				r <- as.data.frame(r)
-				r <- sapply(r, as.numeric)			
+				# data.frame(lapply) instead of sapply to catch a one-row case
+				r <- data.frame(lapply(r, as.numeric))
 			} else if (is.factor(r)) {
 				r <- as.integer(r)
-			} else if (is.data.frame(r)) {
-				r <- sapply(r, as.numeric)
-			}
-			#how could it not be numeric?
-			#else if (is.data.frame(r)) {
-			#	if (nrow(r) > 1) {
-			#		r <- apply(r, as.numeric)
-			#	} else {
-			#		r[] <- as.numeric(r)
-			#	}
-			#}
+			} 
 			r <- as.matrix(r)
 			if (!all(i)) {
 				m <- matrix(NA, nrow=n, ncol=ncol(r))
 				m[i,] <- r
 				colnames(m) <- colnames(r)
 				r <- m
-				}
+			}
 		} else {
 			if (!is.null(index)) {
 				r <- matrix(NA, nrow=nl*n, ncol=max(index))
@@ -169,36 +160,40 @@ setMethod("predict", signature(object="SpatRaster"),
 		if (nc==1) rnr <- min(nr, 20) - testrow + 1
 		d <- readValues(object, testrow, rnr, 1, nc, TRUE, TRUE)
 		cn <- NULL
+		levs <- NULL
 		if (!is.null(index)) {
 			nl <- length(index)
 		} else {
 			allna <- FALSE
 			if (na.rm) {
-				allna <- all(is.na(d))
+				allna <- all(nrow(na.omit(d)) == 0)
 				if (allna) {
 					testrow <- ceiling(testrow - 0.25*nr)
 					d <- readValues(object, testrow, rnr, 1, nc, TRUE, TRUE)
-					allna <- all(is.na(d))
+					allna <- all(nrow(na.omit(d)) == 0)
 				}
 				if (allna) {
 					testrow <- floor(testrow + 0.5*nr)
 					if ((testrow + rnr) > nr) rnr = nr - testrow + 1
 					d <- readValues(object, testrow, rnr, 1, nc, TRUE, TRUE)
-					allna <- all(is.na(d))
+					allna <- all(nrow(na.omit(d)) == 0)
 				}
 				if (allna && (ncell(object) < 1000)) {
 					d <- readValues(object, 1, nr, 1, nc, TRUE, TRUE)
-					allna <- all(is.na(d))
+					allna <- all(nrow(na.omit(d)) == 0)
 					#if (allna) {
 					#	error("predict", "all predictor values are NA")
 					#}
 				}
 				if (allna) {
-					d <- spatSample(object, min(1000, ncell(object)), "regular")
-					allna <- all(is.na(d))
+					d <- spatSample(object, min(1000, ncell(object)), "regular", warn=FALSE)
+					allna <- all(nrow(na.omit(d)) == 0)
+				}
+				if (allna) {
+					d[] <- stats::runif(prod(dim(d)))
 				}
 			}
-			if (!allna) {
+#			if (!allna) {
 				r <- .runModel(model, fun, d, nl, const, na.rm, index, cores=NULL, ...)
 				if (ncell(object) > 1) {
 					nl <- ncol(r)
@@ -207,10 +202,9 @@ setMethod("predict", signature(object="SpatRaster"),
 					nl <- length(r)
 				}
 				levs <- .getFactors(model, fun, d, nl, const, na.rm, index, ...)
-			} else {
-				warn("predict", "Cannot determine the number of output variables. Assuming 1. Use argument 'index' to set it manually")
-				levs <- NULL
-			}
+#			} else {
+#				warn("predict", "Cannot determine the number of output variables. Assuming 1. Use argument 'index' to set it manually")
+#			}
 		}
 		out <- rast(object, nlyrs=nl)
 		levels(out) <- levs

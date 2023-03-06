@@ -39,36 +39,42 @@ Rcpp::List getDataFrame(SpatDataFrame* v) {
 	if (n == 0) {
 		return(out);
 	}
-
+	long longNA = NA<long>::value;
+	std::string stringNA = v->NAS;
+	SpatTime_t timeNA = NA<SpatTime_t>::value;
+	
 	std::vector<std::string> nms = v->names;
 	std::vector<unsigned> itype = v->itype;
 	for (size_t i=0; i < n; i++) {
 		if (itype[i] == 0) {
 			out[i] = v->getD(i);
 		} else if (itype[i] == 1) {
-			Rcpp::NumericVector iv = Rcpp::wrap(v->getI(i));
-			long longNA = NA<long>::value;
-			for (R_xlen_t j=0; j<iv.size(); j++) {
-				if (iv[j] == longNA) {
-					iv[j] = NA_REAL;
+			//gives warning with NA #1031
+			// Rcpp::wrap(v->getI(i));
+			std::vector<long> ints = v->getI(i);
+			size_t n = ints.size();
+			Rcpp::IntegerVector iv(n, NA_INTEGER);
+			for (size_t j=0; j<n; j++) {
+				if (ints[j] != longNA) {
+					iv[j] = ints[j]; 
 				}
 			}
 			out[i] = iv;
 
 		} else if (itype[i] == 2){
-			Rcpp::CharacterVector s = Rcpp::wrap(v->getS(i));
+			Rcpp::StringVector s = Rcpp::wrap(v->getS(i));
 			for (R_xlen_t j=0; j<s.size(); j++) {
-				if (s[j] == "____NA_+") {
+				if (s[j] == stringNA) {
 					s[j] = NA_STRING;
 				}
 			}
 			out[i] = s;
 		} else if (itype[i] == 3){
 			std::vector<int8_t> b = v->getB(i);
-			Rcpp::NumericVector d(b.size());
+			Rcpp::LogicalVector d(b.size());
 			for (size_t j=0; j<b.size(); j++) {
 				if (b[j] > 1) {
-					d[j] = NA_REAL;
+					d[j] = NA_LOGICAL;
 				} else {
 					d[j] = b[j];
 				}
@@ -77,7 +83,6 @@ Rcpp::List getDataFrame(SpatDataFrame* v) {
 		} else if (itype[i] == 4){
 			SpatTime_v tx = v->getT(i);
 			Rcpp::NumericVector tv = Rcpp::wrap(tx.x);
-			SpatTime_t timeNA = NA<SpatTime_t>::value;
 			for (R_xlen_t j=0; j<tv.size(); j++) {
 				if (tv[j] == timeNA) {
 					tv[j] = NA_REAL;
@@ -710,6 +715,7 @@ RCPP_MODULE(spat){
 		.property("timezone", &SpatRaster::getTimeZone)
 		.method("settime", &SpatRaster::setTime)
 		//.property("timestr", &SpatRaster::getTimeStr)
+		.method("metadata", &SpatRaster::getMetadata)
 
 		.property("depth", &SpatRaster::getDepth)
 		.method("set_depth", &SpatRaster::setDepth)
@@ -745,7 +751,7 @@ RCPP_MODULE(spat){
 		.method("set_resolution", &SpatRaster::setResolution)
 		.method("subset", &SpatRaster::subset)
 
-		.method("cellFromXY", ( std::vector<double> (SpatRaster::*)(std::vector<double>,std::vector<double>) )( &SpatRaster::cellFromXY ))
+		.method("cellFromXY", ( std::vector<double> (SpatRaster::*)(std::vector<double>,std::vector<double>, double) )( &SpatRaster::cellFromXY ))
 		.method("vectCells", &SpatRaster::vectCells)
 		.method("extCells", &SpatRaster::extCells)
 
@@ -794,8 +800,8 @@ RCPP_MODULE(spat){
 		.method("rappvals", &SpatRaster::rappvals)
 		.method("roll", &SpatRaster::roll)
 		.method("fill_range", &SpatRaster::fill_range)
-		.method("arith_rast", (SpatRaster (SpatRaster::*)(SpatRaster, std::string, SpatOptions&) )( &SpatRaster::arith ))
-		.method("arith_numb", (SpatRaster (SpatRaster::*)(std::vector<double>, std::string, bool, SpatOptions&) )( &SpatRaster::arith))
+		.method("arith_rast", (SpatRaster (SpatRaster::*)(SpatRaster, std::string, bool, SpatOptions&) )( &SpatRaster::arith ))
+		.method("arith_numb", (SpatRaster (SpatRaster::*)(std::vector<double>, std::string, bool, bool,SpatOptions&) )( &SpatRaster::arith))
 		.method("arith_m", &SpatRaster::arith_m)
 		
 		.method("rst_area", &SpatRaster::rst_area)
@@ -876,16 +882,24 @@ RCPP_MODULE(spat){
 		.method("not_na", &SpatRaster::isnotnan)
 		.method("isfinite", &SpatRaster::isfinite)
 		.method("isinfinite", &SpatRaster::isinfinite)
+		.method("is_true", &SpatRaster::is_true)
+		.method("is_false", &SpatRaster::is_false)
+
 		.method("logic_rast", ( SpatRaster (SpatRaster::*)(SpatRaster, std::string, SpatOptions&) )( &SpatRaster::logic ))
 		.method("logic_numb", ( SpatRaster (SpatRaster::*)(bool, std::string, SpatOptions&) )( &SpatRaster::logic ))
-		.method("mask_raster", ( SpatRaster (SpatRaster::*)(SpatRaster, bool, std::vector<double>, double, SpatOptions&) )( &SpatRaster::mask))
-		.method("mask_vector", ( SpatRaster (SpatRaster::*)(SpatVector, bool, double, bool, SpatOptions&) )( &SpatRaster::mask))
+		.method("mask_self", ( SpatRaster (SpatRaster::*)(SpatOptions&) )( &SpatRaster::mask))
+		.method("mask_raster", ( SpatRaster (SpatRaster::*)(SpatRaster&, bool, std::vector<double>, double, SpatOptions&) )( &SpatRaster::mask))
+		.method("mask_vector", ( SpatRaster (SpatRaster::*)(SpatVector&, bool, double, bool, SpatOptions&) )( &SpatRaster::mask))
 		.method("math", &SpatRaster::math)
 		.method("math2", &SpatRaster::math2)
 		.method("modal", &SpatRaster::modal)
 		.method("quantile", &SpatRaster::quantile)
 		.method("rasterize", &SpatRaster::rasterize)
-		.method("rasterizePoints", &SpatRaster::rasterizePoints)
+		
+		.method("rasterizePointsV", ( SpatRaster (SpatRaster::*)(SpatVector&, std::string, std::vector<double>&, bool, double, SpatOptions&) )( &SpatRaster::rasterizePoints))
+
+		.method("rasterizePointsXY", ( SpatRaster (SpatRaster::*)(std::vector<double>&, std::vector<double>&, std::string, std::vector<double>&, bool, double, SpatOptions&) )( &SpatRaster::rasterizePoints))
+
 		.method("rasterizeLyr", &SpatRaster::rasterizeLyr)
 		.method("rasterizeGeom", &SpatRaster::rasterizeGeom)
 		.method("rasterizeWindow", &SpatRaster::rasterizeWindow)
@@ -929,8 +943,6 @@ RCPP_MODULE(spat){
 		.method("zonal_poly", &SpatRaster::zonal_poly)		
 		.method("zonal_poly_weighted", &SpatRaster::zonal_poly_weighted)		
 //		.method("zonal_old", &SpatRaster::zonal_old)
-		.method("is_true", &SpatRaster::is_true)
-		.method("is_false", &SpatRaster::is_false)
 	;
 
     class_<SpatRasterCollection>("SpatRasterCollection")
