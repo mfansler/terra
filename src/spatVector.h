@@ -174,7 +174,7 @@ class SpatVector {
 		size_t ncoords();
 		std::vector<std::vector<double>> coordinates();
 
-		SpatVector project(std::string crs);
+		SpatVector project(std::string crs, bool partial);
 		std::vector<double> project_xy(std::vector<double> x, std::vector<double> y, std::string fromCRS, std::string toCRS);
 
 		SpatVector subset_cols(int i);
@@ -334,7 +334,7 @@ class SpatVector {
 		SpatVector centroid(bool check_lonlat);
 		SpatVector point_on_surface(bool check_lonlat);
 
-		SpatVector crop(SpatExtent e);
+		SpatVector crop(SpatExtent e, bool wrap);
 		SpatVector crop(SpatVector e);
 		SpatVector voronoi(SpatVector bnd, double tolerance, int onlyEdges);		
 		SpatVector delaunay(double tolerance, int onlyEdges);		
@@ -345,7 +345,7 @@ class SpatVector {
 		SpatVector erase_agg(SpatVector v);
 		SpatVector erase(SpatVector v);
 		SpatVector erase(bool sequential);
-		SpatVector elongate(double length);
+		SpatVector elongate(double length, bool flat);
 		SpatVector mask(SpatVector x, bool inverse);
 		SpatVector gaps();		
 		SpatVector cover(SpatVector v, bool identity, bool expand);

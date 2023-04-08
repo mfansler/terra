@@ -94,9 +94,9 @@ retro_labels <- function(x, lat=TRUE) {
 	if (is.null(x$axs$tcl)) {
 		x$axs$tcl <- -0.25
 	}
-	if (x$draw_grid) {
+	if ((!x$clip) & x$draw_grid) {
 		x$axs$tck <- 1
-		x$axs$mgp = c(2, .15, 0)
+		x$axs$mgp <- c(2, .15, 0)
 	}
 
 	xlab <- ylab <- NULL
@@ -139,20 +139,32 @@ retro_labels <- function(x, lat=TRUE) {
 	labs <- x$axs$lab
 	if (is.null(labs)) {
 		x$axs$lab <- labs <- sides
-	} 
+	}
 
-#	usr <- graphics::par("usr")
-	usr <- x$lim
+	if (x$clip) {
+		usr <- x$lim
+	} else {
+		usr <- graphics::par("usr")
+	}
+	
 	y <- x$axs
-	retro <- isTRUE(y$retro)
+	retro <- isTRUE(y$retro) 
+	if (retro && (!x$lonlat)) {
+		warn("plot", "'retro' labels can only be used with lonlat data") 
+		retro <- FALSE
+	}
 	y$retro <- y$lab <- y$tick <- NULL
 	y$line <- NA
 	y$outer <- FALSE
 	y$line.lab <- NULL
 	if (is.null(y$col)) y$col <- "black"
-	lnpts <- crds(as.points(ext(x$lim)))
-	lnpts <- rbind(lnpts[4,], lnpts)
-	
+	if (x$clip) {
+		lnpts <- crds(as.points(ext(x$lim)))
+		lnpts <- rbind(lnpts[4,], lnpts)
+	} else {
+		lnpts <- crds(as.points(ext(usr)))
+		lnpts <- rbind(lnpts[4,], lnpts)
+	}
 	for (s in 1:4) {
 		y$side <- s
 		y$labels <- NULL
@@ -172,6 +184,14 @@ retro_labels <- function(x, lat=TRUE) {
 			}
 			y$pos <- ifelse(s==1, usr[3], usr[4])
 
+			if (x$clip && x$draw_grid && s == 1) {
+				clp <- get.clip()
+				if (!is.null(clp)) {
+					for (i in seq_along(y$at)) {
+						lines(rbind(c(y$at[i], clp[3]), c(y$at[i], clp[4])), col=y$col)
+					}
+				}
+			}
 		} else {
 			ur <- usr[4] - usr[3]
 			edg <- c(usr[3]-10*ur, usr[4]+10*ur)
@@ -187,6 +207,15 @@ retro_labels <- function(x, lat=TRUE) {
 				y$labels <- ylab
 			}
 			y$pos <- ifelse(s==2, usr[1], usr[2])
+
+			if (x$clip && x$draw_grid && s == 2) {
+				clp <- get.clip()
+				if (!is.null(clp)) {
+					for (i in seq_along(y$at)) {
+						lines(rbind(c(clp[1], y$at[i]), c(clp[2], y$at[i])), col=y$col)
+					}
+				}
+			}
 		}
 		z <- y
 		z$lwd <- 0
@@ -235,7 +264,11 @@ retro_labels <- function(x, lat=TRUE) {
 .get.leg.coords <- function(x) {
 
 	if (is.null(x$leg$ext)) {
-		p <- x$leg$ext <- x$lim
+		if (x$clip) {
+			p <- x$leg$ext <- x$lim
+		} else {
+			p <- x$leg$ext <- graphics::par("usr")		
+		}
 	} else {
 		p <- as.vector(x$leg$ext)
 	}
@@ -344,10 +377,15 @@ retro_labels <- function(x, lat=TRUE) {
 	#usr <- graphics::par("usr")
 	dxy <- graphics::par("cxy") * graphics::par("cex")
 	loc <- x$leg$x
-	xmin <- x$lim[1]
-	xmax <- x$lim[2]
-	ymin <- x$lim[3]
-	ymax <- x$lim[4]
+	if (x$clip) {
+		usr <- x$lim
+	} else {
+		usr <- graphics::par("usr")
+	}
+	xmin <- usr[1]
+	xmax <- usr[2]
+	ymin <- usr[3]
+	ymax <- usr[4]
 	p <- NULL
 	if (is.character(loc)) {
 		if (loc == "left") {
@@ -535,3 +573,21 @@ get_legxy <- function(r, e, pos, yshift) {
 	}
 	leg
 }
+
+
+add_legend <- function(x, y, ...) {
+	if (inherits(x, "character")) {
+		e <- unlist(get.clip())
+		if (!is.null(e)) {
+			rct <- graphics::legend(x=x, y=y, plot=FALSE, ...)$rect
+			xy <- get_legxy(rct, e[1:4], x, NULL)
+			graphics::legend(x=xy[1], y=xy[2], ...)
+		} else {
+			graphics::legend(x=x, y=y, ...)
+		}
+	} else {
+		graphics::legend(x=x, y=y, ...)
+	}
+}
+
+

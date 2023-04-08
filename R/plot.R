@@ -172,6 +172,10 @@ setMethod("pairs", signature(x="SpatRaster"),
 	graphics::text(xy$x, xy$y, labels, col=col, ... )
 }
 
+halo <- function(x, y=NULL, labels, col="black", hc="white", hw=0.1, ... ) {
+	.halo(x=x, y=y, labels=labels, col=col, hc=hc, hw=hw, ...) 
+}
+
 
 setMethod("text", signature(x="SpatRaster"),
 	function(x, labels, digits=0, halo=FALSE, ...) {
@@ -192,7 +196,7 @@ setMethod("text", signature(x="SpatRaster"),
 		} else {
 			p <- as.points(x, values=FALSE, na.rm=FALSE)
 		}
-		xy <- geom(p)[, c("x", "y")]
+		xy <- geom(p)[, c("x", "y"), drop=FALSE]
 		if (is.factor(labels)) {
 			labels <- substr(as.character(labels), 1, max(1, digits))
 		} else if (is.numeric(labels)) {

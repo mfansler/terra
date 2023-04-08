@@ -37,6 +37,13 @@ setMethod("vect", signature(x="SpatExtent"),
 	}
 )
 
+setMethod("vect", signature(x="SpatVectorCollection"),
+	function(x) {
+		vect(as.list(x))
+	}
+)
+
+
 setMethod("vect", signature(x="character"),
 	function(x, layer="", query="", extent=NULL, filter=NULL, crs="", proxy=FALSE, what="") {
 
@@ -75,7 +82,7 @@ setMethod("vect", signature(x="character"),
 		}
 		#if (proxy) query <- ""
 		if (is.null(filter)) {
-			filter <- vect()@ptr
+			filter <- SpatVector$new()
 		} else {
 			if (proxy) {
 				error("vect", "you cannot use 'filter' when proxy=TRUE")
@@ -405,7 +412,9 @@ setMethod("vect", signature(x="list"),
 		x <- svc(x)
 		v <- methods::new("SpatVector")
 		v@ptr <- x@ptr$append()
-		crs(v) <- crs
+		if (crs != "") {
+			crs(v) <- crs
+		}
 		messages(v, "vect")
 	}
 )
@@ -416,7 +425,10 @@ setMethod("vect", signature(x="list"),
 setMethod("query", signature(x="SpatVectorProxy"),
 	function(x, start=1, n=nrow(x), vars=NULL, where=NULL, extent=NULL, filter=NULL) {
 		f <- x@ptr$v$source
-		layer <- x@ptr$v$layer
+		slayer <- x@ptr$v$layer
+		#1058
+		layer <- paste0("\"", slayer, "\"")
+
 		e <- x@ptr$v$read_extent
 		if (is.null(extent)) {
 			if (length(e) == 4) {
@@ -467,8 +479,12 @@ setMethod("query", signature(x="SpatVectorProxy"),
 			qy <- paste(qy, "LIMIT", n)
 		}
 
-		if ((qy != "") && (x@ptr$v$read_query != "")) {
-			error("query", "A query was used to create 'x'; you can only subset it with extent or filter")
+		if (qy != "") {
+			if (x@ptr$v$read_query != "") {
+				error("query", "A query was used to create 'x'; you can only subset it with extent or filter")
+			}
+		} else {
+			layer <- slayer
 		}
 
 		vect(f, layer, query=qy, extent=extent, filter=filter, crs="", FALSE)

@@ -1,88 +1,163 @@
 
-setMethod("zonal", signature(x="SpatRaster", z="SpatRaster"),
-	function(x, z, fun="mean", ..., w=NULL, as.raster=FALSE, filename="", overwrite=FALSE, wopt=list())  {
-		txtfun <- .makeTextFun(fun)
-		
-		if ((nlyr(z) > 1) && (nlyr(x) > 1)) {
-			error("zonal", "x and z cannot both have more than one layer")
+replace_with_label <- function(x, v, colnr) {
+	ff <- is.factor(x)
+	if (any(ff)) {
+		cgs <- cats(x)
+		for (f in which(ff)) {
+			cg <- cgs[[f]]
+			if (length(ff) == 1) {
+				r <- 1:nrow(v)
+			} else {
+				r <- which(v[,1] == f)
+			}
+			i <- match(v[r,colnr], cg[,1])
+			act <- activeCat(x, f) + 1
+			if (!inherits(cg[[act]], "numeric")) {
+				v[r, colnr] <- as.character(factor(cg[i, act], levels=unique(cg[[act]])))
+			} else {
+				v[r, colnr] <- cg[i, act]
+			}
 		}
-		
-		if (inherits(txtfun, "character") && (txtfun %in% c("max", "min", "mean", "sum", "notNA", "isNA"))) {
+	}
+	v
+}
+
+
+setMethod("zonal", signature(x="SpatRaster", z="SpatRaster"),
+	function(x, z, fun="mean", ..., w=NULL, wide=TRUE, as.raster=FALSE, filename="", overwrite=FALSE, wopt=list())  {
+
+		group <- FALSE
+		made_unique <- FALSE
+		grast <- rast()
+		nlz <- nlyr(z)
+		znms <- names(z)
+		if (nlz == 1) {
+			group <- FALSE
+		} else if ((!as.raster) && (nlz == 2)) {
+			grast <- z[[2]]
+			z <- z[[1]]
+			group <- TRUE
+		} else {
+			ff <- is.factor(z)
+			if (any(ff)) {
+				levs <- levels(z)
+				levels(z) <- NULL
+			}
+			z <- unique(z, as.raster=TRUE)
+			made_unique <- TRUE
+		}
+		txtfun <- .makeTextFun(fun)
+		if (inherits(txtfun, "character") && 
+			(txtfun %in% c("max", "min", "mean", "sum", "notNA", "isNA"))) {
+
+			if ((nlyr(z) > 1) && (nlyr(x) > 1)) {
+				error("zonal", "x and z cannot both have more than one layer")
+			}
 			na.rm <- isTRUE(list(...)$na.rm)
 			opt <- spatOptions()
 			if (!is.null(w)) {
 				if (txtfun != "mean") {
 					error("zonal", "fun must be 'mean' when using weights")
 				}
-				sdf <- x@ptr$zonal_weighted(z@ptr, w@ptr, na.rm, opt)				
+				sdf <- x@ptr$zonal_weighted(z@ptr, w@ptr, na.rm, opt)			
 			} else {
-				sdf <- x@ptr$zonal(z@ptr, txtfun, na.rm, opt)
+				sdf <- x@ptr$zonal(z@ptr, grast@ptr, txtfun, na.rm, opt)
 			}
 			messages(sdf, "zonal")
 			out <- .getSpatDF(sdf)
+			nz <- 1
+			if (group) {
+				out$layer <- out$layer + 1
+				out <- replace_with_label(z, out, 2)
+				out <- replace_with_label(grast, out, 3)
+				if (nlyr(x) > 1) {
+					out <- split(out[-1], out$layer)
+					out <- Reduce(function(x, y) merge(x=x, y=y, by=1:2, all=TRUE), out)
+					out <- out[order(out[,1], out[,2]), ]
+				} else {
+					out <- out[,-1]
+				}
+				colnames(out) <- c(znms, names(x))
+				nz <- 2
+			} else {
+				if (made_unique && (!as.raster)) {
+					ulevs <- cats(z)[[1]][, -c(1:2)]
+					if (any(ff)) {
+						for (f in which(ff)) {
+							i <- match(ulevs[,f], levs[[f]][,1])
+							ulevs[,f] <- levs[[f]][i,2]
+						}
+					}
+					out <- cbind(ulevs, out[,-1,drop=FALSE])
+					nz <- ncol(ulevs)
+				} else {
+					out <- replace_with_label(z, out, 1)
+					colnames(out)[1] <- znms
+				}
+			}
+			colnames(out) <- make.unique(colnames(out))
 		} else {
 			if (!is.null(w)) {
 				error("zonal", "can only use weights when fun=mean")
 			}
 			compareGeom(x, z, lyrs=FALSE, crs=FALSE, ext=TRUE, rowcol=TRUE)
-			if (nlyr(z) > 1) {
-				z <- z[[1]]
-			}
+			#if (nlyr(z) > 1) {
+			#	warn("zonal", "z can only have one layer with this function")
+			#	z <- z[[1]]
+			#}
+
 			fun <- match.fun(fun)
 			nl <- nlyr(x)
-			res <- list()
-			vz <- values(z)
 			nms <- names(x)
-			for (i in 1:nl) {
-				d <- stats::aggregate(values(x[[i]]), list(zone=vz), fun, ...)
-				colnames(d)[2] <- nms[i]
-				res[[i]] <- d
-			}
-			out <- res[[1]]
-			if (nl > 1) {
-				for (i in 2:nl) {
-					out <- merge(out, res[[i]])
-				}
-			}
-		}
-		if (nlyr(z)==1) {
-			if (as.raster) {
-				if (is.null(wopt$names)) {
-					wopt$names <- names(x)
-				}
-				levels(z) <- NULL
-				out <- subst(z, out[,1], out[,-1], filename=filename, wopt=wopt)
+			if (group) {
+				xzg <- c(grast, z, x)
+				v <- as.data.frame(xzg, na.rm=TRUE)
+				out <- stats::aggregate(v[,-c(1:2)], v[,1:2], fun, ...)
+				colnames(out)[-c(1:2)] <- nms			
 			} else {
-				if (is.factor(z)) {
-					levs <- levels(z)[[1]]
-					m <- match(out$zone, levs[,1])
-					out$zone <- levs[m, 2]
-				}
-				colnames(out)[1] <- names(z)
-			}
-		} else {
-			nc <- ncol(out)
-			if (as.raster) { 
-				x <- out
-				nl <- nlyr(z)
-				out <- vector("list", nl)
 				for (i in 1:nl) {
-					lyrout <- x[x[,nc] == i, -nc]
-					out[[i]] <- subst(z[[i]], lyrout[,1], lyrout[,-1], wopt=wopt)
+					xz <- c(x[[i]], group, z)
+					v <- as.data.frame(xz, na.rm=TRUE)
+					d <- stats::aggregate(v[,1], v[,2,drop=FALSE], fun, ...)
+					colnames(d)[2] <- nms[i]
+					if (i == 1) {
+						out <- d
+					} else {
+						out <- merge(out, d, by=1)				
+					}
 				}
-				out <- rast(out)
-				if (filename != "") {
-					out <- writeRaster(out, filename=filename, overwrite=overwrite, wopt)
-				}
-			} else {
-				nms <- names(out)
-				out <- stats::reshape(out, direction="wide", idvar=nms[1], timevar=nms[nc]) 
-				names(out)[-1] <- names(z)
 			}
+		}		
+		if (as.raster) {
+			if (is.null(wopt$names) && (nlyr(x) == 1)) {
+				wopt$names <- names(x)
+			}
+			levels(z) <- NULL
+			out <- subst(z, out[,1], out[,-1], filename=filename, wopt=wopt)
+		}		
+		if (wide) {
+			if (group) {
+				nms <- names(out)
+				isch <- inherits(out[,2], "character")
+				#out <- stats::reshape(out, direction="wide", idvar=nms[c(1,3)], timevar=nms[2])
+				out <- stats::reshape(out, direction="wide", idvar=nms[1], timevar=nms[2])
+				if (isch) {
+					colnames(out) <- gsub(paste0("^", nms[3], "."), "", colnames(out))
+				}
+				if (inherits(txtfun, "character") && (txtfun == "sum")) {
+					out[is.na(out)] <- 0
+				}
+			}
+		} else if (nz == 1){
+			nls <- as.character(1:nlyr(x))
+			colnames(out)[-1] <- nls
+			out <- stats::reshape(out, direction="long", varying=nls, timevar="layer",v.names="value")
+			out <- out[, c(2,1,3)]
 		}
 		out
 	}
 )
+
 
 setMethod("zonal", signature(x="SpatRaster", z="SpatVector"),
 	function(x, z, fun="mean", ..., w=NULL, weights=FALSE, exact=FALSE, touches=FALSE, as.raster=FALSE, filename="", wopt=list())  {
@@ -196,18 +271,29 @@ setMethod("global", signature(x="SpatRaster"),
 			na.rm <- isTRUE(list(...)$na.rm)
 			ptr <- x@ptr$global_weighted_mean(weights@ptr, txtfun, na.rm, opt)
 			messages(ptr, "global")
-			res <- (.getSpatDF(ptr))
+			res <- .getSpatDF(ptr)
 			rownames(res) <- nms
 			return(res)
 		}
 
 		if (inherits(txtfun, "character")) {
-			if (txtfun %in% c("prod", "max", "min", "mean", "sum", "range", "rms", "sd", "sdpop", "notNA", "isNA")) {
+			if (any(is.na(txtfun))) error("global", "fun cannot be NA")
+			if (all(txtfun %in% c("prod", "max", "min", "mean", "sum", "range", "rms", "sd", "std", "sdpop", "notNA", "isNA"))) {
+				txtfun[txtfun == "sdpop"] <- "std"
+				i <- grep("range", txtfun)
+				if (length(i) > 0) {
+					txtfun <- txtfun[-i]
+					txtfun <- c(txtfun, "min", "max")
+				}
+				txtfun <- unique(txtfun)
 				na.rm <- isTRUE(list(...)$na.rm)
-				ptr <- x@ptr$global(txtfun, na.rm, opt)
+				if (isTRUE(list(...)$old)) {
+					ptr <- x@ptr$global(txtfun, na.rm, opt)			
+				} else {
+					ptr <- x@ptr$mglobal(txtfun, na.rm, opt)
+				}
 				messages(ptr, "global")
 				res <- .getSpatDF(ptr)
-
 				rownames(res) <- nms
 				return(res)
 			}
@@ -232,3 +318,207 @@ setMethod("global", signature(x="SpatRaster"),
 		res
 	}
 )
+
+
+
+setMethod("freq", signature(x="SpatRaster"),
+	function(x, digits=0, value=NULL, bylayer=TRUE, usenames=FALSE, zones=NULL, wide=FALSE) {
+
+		if (!is.null(zones)) {
+			vna <- (!is.null(value) && is.na(value[1]))
+#			if (vna) levels(x) <- NULL
+			if (inherits(zones, "SpatVector")) {
+				out <- vector("list", nrow(zones))
+				for (i in 1:nrow(zones)) {
+					z <- zones[i,]
+					e <- align(ext(z), x, snap="near")
+					if (!is.null(intersect(e, ext(x)))) {
+						r <- crop(x, zones[i,], mask=TRUE, touches=FALSE)
+						if (vna) {
+							ra <- rasterize(zones[i,], r, NA, background=0, touches=FALSE)
+							r <- cover(ra, r)
+						}
+						out[[i]] <- freq(r, digits=digits, value=value, bylayer=bylayer, usenames=usenames, zones=NULL)
+						out[[i]]$zone <- i
+					}
+				}
+			} else if (inherits(zones, "SpatRaster")) {
+				compareGeom(x, zones, crs=FALSE)
+				if (nlyr(zones) > 1) zones <- zones[[1]]
+				u <- unlist(unique(zones))
+				out <- vector("list", length(u))
+				for (i in 1:length(u)) {
+					r <- mask(x, zones, maskvalues=u[i], inverse=TRUE)
+					out[[i]] <- freq(r, digits=digits, value=value, bylayer=bylayer, usenames=usenames, zones=NULL, wide=FALSE)
+					out[[i]]$zone <- i
+				}
+			} else {
+				error("freq", "zones must be a SpatVector or a SpatRaster")
+			}
+			out <- do.call(rbind, out)
+			if (is.null(out)) return(out)
+			out <- out[!is.na(out$count), ]
+			if (nrow(out) == 0) return(out)
+			out <- out[order(out$layer), ]
+			if (wide) {
+				out$count[is.na(out$count)] <- 0
+				if (vna) {
+					out$value <- "NA"
+				}
+				out <- stats::reshape(out, idvar=c("layer", "zone"), timevar="value", direction="wide")
+				colnames(out) <- gsub("count.", "", colnames(out))
+				out[is.na(out)] <- 0
+			}
+			return(out)
+		}
+
+		opt <- spatOptions()
+		if (!bylayer) usenames <- FALSE
+
+		if (!is.null(value)) {
+			value <- unique(value)
+			if (length(value) > 1) {
+				error("freq", "value must have a length of one")
+			}
+			if (is.character(value)) {
+				value <- value[value != ""]
+				if (length(value) == 0) {
+					error("freq", "no valid value")
+				}
+				ff <- is.factor(x)
+				if (!any(ff)) {
+					error("freq", "a character value is only meaningful for categorical rasters")
+				}
+				f <- freq(x[[ff]])
+				if (usenames) {
+					f$layer <- names(x)[f$layer]
+				}
+				f <- f[f$label == value,]
+				return(f)
+			}
+
+			if (is.na(digits)) {
+				v <- x@ptr$count(value, bylayer[1], FALSE, 0, opt)
+			} else {
+				v <- x@ptr$count(value, bylayer[1], TRUE, digits, opt)
+				value <- round(value, digits)
+			}
+			if (bylayer) {
+				v <- data.frame(layer=1:nlyr(x), value=value, count=v)
+			} else {
+				v <- data.frame(value=value, count=v)
+			}
+
+		} else {
+			if (is.na(digits)) {
+				v <- x@ptr$freq(bylayer[1], FALSE, 0, opt)
+			} else {
+				v <- x@ptr$freq(bylayer[1], TRUE, digits, opt)
+			}
+			v <- lapply(v, function(i) if (length(i) == 0) NA else i)
+
+			v <- lapply(1:length(v), function(i) cbind(i, matrix(v[[i]], ncol=2)))
+			v <- do.call(rbind, v)
+			v <- as.data.frame(v)
+			colnames(v) <- c("layer", "value", "count")
+			ff <- is.factor(x)
+			if (any(ff)) {
+				cgs <- cats(x)
+				v <- data.frame(v)
+				for (f in which(ff)) {
+					cg <- cgs[[f]]
+					j <- which(v[,1] == f)
+					i <- match(v[j,2], cg[,1])
+					act <- activeCat(x, f) + 1
+					if (!inherits(cg[[act]], "numeric")) {
+						v[j, 2] <- as.character(factor(cg[i, act], levels=unique(cg[[act]])))
+					} else {
+						v[j, 2] <- cg[i, act]
+					}
+				}
+			}
+			if (!bylayer) {
+#				if (nlyr(x) > 1)
+#					v <- aggregate(v[,"count",drop=FALSE], v[,"value", drop=FALSE], sum)
+#				} 
+				v <- v[,-1]
+			}
+		}
+		if (usenames) {
+			v$layer <- names(x)[v$layer]
+		}
+		if (wide) {
+			v$count[is.na(v$count)] <- 0
+			if ((!is.null(value)) && is.na(value)) {
+				v$value <- "NA"
+			}
+			v <- stats::reshape(v, idvar="layer", timevar="value", direction="wide")
+			colnames(v) <- gsub("count.", "", colnames(v))
+			v[is.na(v)] <- 0
+		}
+	
+		v
+	}
+)
+
+
+
+
+
+setMethod ("expanse", "SpatRaster",
+	function(x, unit="m", transform=TRUE, byValue=FALSE, zones=NULL, wide=FALSE) {
+		opt <- spatOptions()
+		if (!is.null(zones)) {
+			if (!inherits(zones, "SpatRaster")) {
+				error("expanse", "zones must be a SpatRaster")
+			}
+			compareGeom(x, zones, lyrs=FALSE, crs=FALSE, ext=TRUE, rowcol=TRUE)
+			v <- x@ptr$sum_area_group(zones@ptr, unit[1], transform[1], byValue[1], opt)
+			messages(x)
+			v <- lapply(v, function(i) matrix(i, ncol=4, byrow=TRUE))
+			v <- data.frame(do.call(rbind, v))
+			colnames(v) <- c("layer", "value", "zone", "area")
+			v[,1] <- v[,1] + 1
+			if (byValue) {
+				v <- replace_with_label(x, v, 2)	
+				v <- replace_with_label(zones, v, 3)	
+			} else {
+				v <- replace_with_label(zones, v, 3)	
+				v$value <- NULL
+			}
+			if (wide) {
+				if (byValue) {
+					v <- stats::reshape(v, idvar=c("layer", "zone"), timevar="value", direction="wide")
+					colnames(v) <- gsub("area.", "", colnames(v))
+				} else {
+					v <- stats::reshape(v, idvar=c("layer"), timevar="zone", direction="wide")
+					colnames(v) <- gsub("area.", "", colnames(v))
+				}
+				v[is.na(v)] <- 0
+			}
+			return(v)
+		} else {
+			v <- x@ptr$sum_area(unit, isTRUE(transform[1]), isTRUE(byValue[1]), opt)
+			x <- messages(x, "expanse")
+			if (byValue) {
+				v <- lapply(1:length(v), function(i) cbind(i, matrix(v[[i]], ncol=2, byrow=TRUE)))
+				v <- data.frame(do.call(rbind, v))
+				colnames(v) <- c("layer", "value", "area")
+				v <- replace_with_label(x, v, 2)	
+			} else {
+				v <- v[[1]]
+				v <- data.frame(layer=1:length(v), area=v)
+			}
+			if (wide) {
+				if (byValue) {
+					v <- stats::reshape(v, idvar="layer", timevar="value", direction="wide")
+					colnames(v) <- gsub("area.", "", colnames(v))
+				}
+				v[is.na(v)] <- 0
+			}
+			v
+		}
+	}
+)
+
+

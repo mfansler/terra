@@ -142,25 +142,6 @@ setMethod("cellSize", signature(x="SpatRaster"),
 )
 
 
-
-setMethod ("expanse", "SpatRaster",
-	function(x, unit="m", transform=TRUE, byValue=FALSE) {
-		opt <- spatOptions()
-		v <- x@ptr$sum_area(unit, isTRUE(transform[1]), isTRUE(byValue[1]), opt)
-		x <- messages(x, "expanse")
-		if (byValue) {
-			v <- lapply(1:length(v), function(i) cbind(i, matrix(v[[i]], ncol=2, byrow=TRUE)))
-			v <- do.call(rbind, v)
-			colnames(v) <- c("layer", "value", "area")
-		} else {
-			v <- v[[1]]
-		}
-		v
-	}
-)
-
-
-
 setMethod("atan2", signature(y="SpatRaster", x="SpatRaster"),
 	function(y, x) {
 		opt <- spatOptions(filename="", overwrite=TRUE)
@@ -324,10 +305,28 @@ setMethod("rep", signature(x="SpatRaster"),
 setMethod("clamp", signature(x="SpatRaster"),
 	function(x, lower=-Inf, upper=Inf, values=TRUE, filename="", ...) {
 		opt <- spatOptions(filename, ...)
-		x@ptr <- x@ptr$clamp(lower, upper, values[1], opt)
+		rlow <- inherits(lower, "SpatRaster")
+		rupp <- inherits(upper, "SpatRaster")
+		r <- rast()
+		if (rlow & rupp) {
+			x@ptr <- x@ptr$clamp_raster(lower@ptr, upper@ptr, NA, NA, values[1], opt)
+		} else if (rlow) {
+			if (any(is.na(upper))) error("clamp", "upper limit cannot be NA")
+			x@ptr <- x@ptr$clamp_raster(lower@ptr, r@ptr, NA, upper, values[1], opt)
+		} else if (rupp) {
+			if (any(is.na(lower))) error("clamp", "lower limit cannot be NA")
+			x@ptr <- x@ptr$clamp_raster(r@ptr, upper@ptr, lower, NA, values[1], opt)
+		} else {
+			if (any(is.na(lower))) error("clamp", "lower limit cannot be NA")
+			if (any(is.na(upper))) error("clamp", "upper limit cannot be NA")
+			x@ptr <- x@ptr$clamp_raster(r@ptr, r@ptr, lower, upper, values[1], opt)
+			#x@ptr <- x@ptr$clamp(lower, upper, values[1], opt)
+		}
 		messages(x, "clamp")
 	}
 )
+
+
 
 setMethod("clamp_ts", signature(x="SpatRaster"),
 	function(x, min=FALSE, max=TRUE, filename="", ...) {
@@ -596,87 +595,6 @@ setMethod("flip", signature(x="SpatRaster"),
 )
 
 
-setMethod("freq", signature(x="SpatRaster"),
-	function(x, digits=0, value=NULL, bylayer=TRUE, usenames=FALSE) {
-
-		opt <- spatOptions()
-		if (!bylayer) usenames <- FALSE
-
-		if (!is.null(value)) {
-			value <- unique(value)
-			if (length(value) > 1) {
-				error("freq", "value must have a length of one")
-			}
-			if (is.character(value)) {
-				value <- value[value != ""]
-				if (length(value) == 0) {
-					error("freq", "no valid value")
-				}
-				ff <- is.factor(x)
-				if (!any(ff)) {
-					error("freq", "a character value is only meaningful for categorical rasters")
-				}
-				f <- freq(x[[ff]])
-				if (usenames) {
-					f$layer <- names(x)[f$layer]
-				}
-				f <- f[f$label == value,]
-				return(f)
-			}
-
-			if (is.na(digits)) {
-				v <- x@ptr$count(value, bylayer[1], FALSE, 0, opt)
-			} else {
-				v <- x@ptr$count(value, bylayer[1], TRUE, digits, opt)
-				value <- round(value, digits)
-			}
-			if (bylayer) {
-				v <- data.frame(layer=1:nlyr(x), value=value, count=v)
-			} else {
-				v <- data.frame(value=value, count=v)
-			}
-
-		} else {
-			if (is.na(digits)) {
-				v <- x@ptr$freq(bylayer[1], FALSE, 0, opt)
-			} else {
-				v <- x@ptr$freq(bylayer[1], TRUE, digits, opt)
-			}
-			v <- lapply(1:length(v), function(i) cbind(i, matrix(v[[i]], ncol=2)))
-			v <- do.call(rbind, v)
-			v <- as.data.frame(v)
-			colnames(v) <- c("layer", "value", "count")
-			ff <- is.factor(x)
-			if (any(ff)) {
-				cgs <- cats(x)
-				v <- data.frame(v)
-				for (f in which(ff)) {
-					cg <- cgs[[f]]
-					j <- which(v[,1] == f)
-					i <- match(v[j,2], cg[,1])
-					act <- activeCat(x, f) + 1
-					if (!inherits(cg[[act]], "numeric")) {
-						v[j, 2] <- as.character(factor(cg[i, act], levels=unique(cg[[act]])))
-					} else {
-						v[j, 2] <- cg[i, act]
-					}
-				}
-			}
-			if (!bylayer) {
-#				if (nlyr(x) > 1)
-#					v <- aggregate(v[,"count",drop=FALSE], v[,"value", drop=FALSE], sum)
-#				} 
-				v <- v[,-1]
-			}
-		}
-		if (usenames) {
-			v$layer <- names(x)[v$layer]
-		}
-		v
-	}
-)
-
-
 
 setMethod("mask", signature(x="SpatRaster", mask="SpatRaster"),
 	function(x, mask, inverse=FALSE, maskvalues=NA, updatevalue=NA, filename="", ...) {
@@ -752,17 +670,19 @@ setMethod("project", signature(x="SpatRaster"),
 
 
 setMethod("project", signature(x="SpatVector"),
-	function(x, y)  {
+	function(x, y, partial=FALSE)  {
 		if (!is.character(y)) {
 			y <- as.character(crs(y))
 		}
-		x@ptr <- x@ptr$project(y)
+		x@ptr <- x@ptr$project(y, partial)
 		messages(x, "project")
 	}
 )
 
 setMethod("project", signature(x="SpatExtent"),
 	function(x, from, to)  {
+		if (missing(from)) error("project", "'from' cannot be missing")
+		if (missing(to)) error("project", "'to' cannot be missing")
 		x <- as.polygons(x, crs=from)
 		x <- densify(x, 10000)
 		ext(project(x, to))
@@ -1146,24 +1066,17 @@ setMethod("trans", signature(x="SpatRaster"),
 
 
 setMethod("unique", signature(x="SpatRaster", incomparables="ANY"),
-	function(x, incomparables=FALSE, na.rm=TRUE, as.raster=FALSE) {
+	function(x, incomparables=FALSE, digits=NA, na.rm=TRUE, as.raster=FALSE) {
 
 		opt <- spatOptions()
 
 		if (as.raster) incomparables = FALSE
-		u <- x@ptr$unique(incomparables, na.rm[1], opt)
+		u <- x@ptr$unique(incomparables, digits, na.rm[1], opt)
 
-		isfact <- is.factor(x)
-		if (any(isfact)) {
-			ff <- which(isfact)
-			levs <- levels(x)
-			for (f in ff) {
-				lvs <- levs[[f]]
-				fv <- factor(lvs[,2])
-				i <- match(u[[f]], lvs[,1])
-				u[[f]] = fv[i]
-			}
+		if (!as.raster) {
+			u <- get_labels(x, u)
 		}
+		
 		if (!incomparables) {
 			#if (!length(u)) return(u)
 			u <- do.call(data.frame, u)
@@ -1177,18 +1090,20 @@ setMethod("unique", signature(x="SpatRaster", incomparables="ANY"),
 			}
 		}
 
-		if (na.rm & (NCOL(u) > 1)) {
-			i <- apply(is.na(u), 1, all)
-			u <- u[!i, , drop=FALSE]
+		if ((!incomparables) && (na.rm || as.raster)) {
+			i <- rowSums(is.na(u)) < ncol(u)
+			u <- u[i, , drop=FALSE]
 		}
+
 		if (as.raster) {
-			if (any(isfact)) {
-				warn("unique", "cannot do 'as.raster=TRUE' with categorical rasters (but you can use 'concats' for that)")
-				return(u)
+			lab <- apply(get_labels(x, u), 1, function(i) paste(i, collapse="_"))
+			if (!is.na(digits)) {
+				x <- round(x, digits)
+			} else {
+				levels(x) <- NULL
 			}
-			uid <- 1:nrow(u)
+			uid <- 1:nrow(u)		
 			x <- subst(x, u, uid-1)
-			lab <- apply(u, 1, function(i) paste(i, collapse="_"))
 			set.cats(x, 1, data.frame(ID=uid-1, label=lab, u))
 			return(x)
 		}

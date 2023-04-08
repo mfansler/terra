@@ -365,9 +365,8 @@ setMethod("setMinMax", signature(x="SpatRaster"),
 
 setMethod("compareGeom", signature(x="SpatRaster", y="SpatRaster"),
 	function(x, y, ..., lyrs=FALSE, crs=TRUE, warncrs=FALSE, ext=TRUE, rowcol=TRUE, res=FALSE, stopOnError=TRUE, messages=FALSE) {
-		dots <- list(...)
 		opt <- spatOptions("")
-		res <- x@ptr$compare_geom(y@ptr, lyrs, crs, opt$tolerance, warncrs, ext, rowcol, res)
+		out <- x@ptr$compare_geom(y@ptr, lyrs, crs, opt$tolerance, warncrs, ext, rowcol, res)
 		if (stopOnError) {
 			messages(x, "compareGeom")
 		} else {
@@ -382,14 +381,18 @@ setMethod("compareGeom", signature(x="SpatRaster", y="SpatRaster"),
 				message(paste(m, collapse="\n"))
 			}
 		}
-		if (length(dots)>1) {
+		dots <- list(...)
+		if (length(dots) > 0) {
 			for (i in 1:length(dots)) {
-				bool <- x@ptr$compare_geom(dots[[i]]@ptr, lyrs, crs, warncrs, ext, rowcol, res)
+				if (!inherits(dots[[i]], "SpatRaster")) {
+					error("compareGeom", "all additional arguments must be a SpatRaster")
+				}
+				bool <- x@ptr$compare_geom(dots[[i]]@ptr, lyrs, crs, opt$tolerance, warncrs, ext, rowcol, res)
 				if (stopOnError) messages(x, "compareGeom")
-				res <- bool & res
+				res <- bool & out
 			}
 		}
-		res
+		out
 	}
 )
 

@@ -1,11 +1,50 @@
+# version 1.7-23
+
+## new
+
+- The `halo` function for adding halo-ed text to plots is now exposed
+- `add_legend` to allow using a keyword such as "topleft" to position a custom legend. [#1053](https://github.com/rspatial/terra/issues/1053) by Márcia Barbosa
+- the `same.crs` function is now exported
+- `countNA<SpatRaster>` method
+
+
+## enhancements
+
+- better support for other color spaces than RGB [#1060](https://github.com/rspatial/terra/issues/1060) by Dominic Royé
+- path expansion in writeVector [#1055](https://github.com/rspatial/terra/issues/1055) by Andrew Gene Brown.
+- `clamp<SpatRaster>` now also accepts cSpatRasters to set the lower and upper boundaries.
+- `freq` has new arguments "zones=NULL" and "wide=FALSE", to allow tabulation of values by zone.
+- `expanse<SpatRaster>` has new arguments "zones=NULL" and "wide=FALSE", to allow tabulation of values by zone.
+- `unique<SpatRaster>` has new argument "digits=NA"
+- `rasterize<SpatRaster,SpatVector>` now accepts fun="table" to tabulate cells by cell value
+- `rast<character>` has new argument "snap" to snap the window in or out. [#1094](https://github.com/rspatial/terra/issues/1094) by Derek Friend
+- `plot` has new argument "clip=TRUE" that can be set to FALSE to avoid clipping the axes to the mapped area [#1080](https://github.com/rspatial/terra/issues/1080) by Márcia Barbosa
+
+
+## bug fixes
+
+- A SpatRaster with RGB layers was forced to INT1U when writing [#1051](https://github.com/rspatial/terra/issues/1051) by Cesar Aybar
+- In files with multiple vector layers, the crs of the first layer was always used; ignoring that the crs could be different for other layers [#1052](https://github.com/rspatial/terra/issues/1052) by Andrew Gene Brown
+- `sieve` was not able to write to file [#1061](https://github.com/rspatial/terra/issues/1061) by leo
+- `rasterize` did not work with sf objects [#1054](https://github.com/rspatial/terra/issues/1054) by Jakub Nowosad
+- `query` did not work for hyphenated layer names [#1058](https://github.com/rspatial/terra/issues/1058) by Robbie Price
+- `focal3D` na.policy did not work [#1057](https://github.com/rspatial/terra/issues/1057) by Flávio Mota
+- `layerCor` with `na.rm=TRUE` failed for a SpatRaster with more than 2 layers [#1056](https://github.com/rspatial/terra/issues/1056) by Alex Ilich.
+- inset with keyword positioning did not work well [#1053](https://github.com/rspatial/terra/issues/1053) by Márcia Barbosa
+- yearmonths time stamps were not read from file for years <1970 and >2037 [#1062](https://github.com/rspatial/terra/issues/1062) by Colin Brust
+- `compareGeom` did not work for multiple SpatRasters [#1063](https://github.com/rspatial/terra/issues/1064)
+
+
 # version 1.7-18
+
+Released 2023-03-06
 
 ## new
 
 - argument `order=FALSE` to `sort<SpatRaster>` 
 - `sort<SpatVector>` (and `<data.frame>` method
 - argument `by=NULL` to `rasterize>` [#986](https://github.com/rspatial/terra/issues/986) by Sam Weber
-- `metadata<SpatRaster>` method
+- `meta<SpatRaster>` method to get metadata
 - `compare<SpatRaster>` and `logic<SpatRaster>` methods
 - `vect<SpatExtent>` method
 - `panel<SpatRaster>` for "panel" plots (multiple layers, single legend)
@@ -13,10 +52,10 @@
 ## enhancements
 
 - it is now possible to save terra options across sessions [#995](https://github.com/rspatial/terra/issues/995) by Guillaume Patoine.
-- better warnings for `is.lonlat` [#1006](https://github.com/rspatial/terra/issues/1006) by Andrew Gene Brown.
+- better warnings for `is.lonlat` [#1006](https://github.com/rspatial/terra/issues/1006) by Andrew Gene Brown
 - argument `na.rm` to `merge<SpatRaster>`
 - the axes of maps created with `plot` are now snug around the mapped area, instead of at the limits of the graphics figure region.
-- c++ cleaning to avoid warnings by clang-tidy (e.g. now using `.empty()` instead of `.size()==0`). [#1013-1017] by Michael Chirico 
+- C++ cleaning to avoid warnings by clang-tidy (e.g. now using `.empty()` instead of `.size()==0`). [#1013-1017] by Michael Chirico 
 - `rasterize` with lines and polygons can now use the "fun" argument (for min, max, mean, and sum) [#1041](https://github.com/rspatial/terra/issues/1041) by Bart Huntley
 
 
@@ -760,4 +799,4 @@ Released 2021-04-14
 
 # version 1.1-4
 
-- No news recorded for this version and earlier versions
+- No news recorded for this and earlier versions

@@ -37,8 +37,7 @@ class SpatCategories {
 	public:
 		virtual ~SpatCategories(){}
 		SpatDataFrame d;
-		unsigned index = 0;
-		
+		int index = 0;	
 		bool combine(SpatCategories &x);
 		bool concatenate(SpatCategories &x);
 };
@@ -415,7 +414,7 @@ class SpatRaster {
         std::vector<unsigned> lyrsBySource();
         unsigned nsrc();
 
-		SpatRaster makeCategorical(unsigned layer, SpatOptions &opt);
+		SpatRaster makeCategorical(long layer, SpatOptions &opt);
 		bool createCategories(unsigned layer, SpatOptions &opt);
 		std::vector<bool> hasCategories();
 		bool setCategories(unsigned layer, SpatDataFrame d, unsigned index);
@@ -425,7 +424,7 @@ class SpatRaster {
 		std::vector<std::string> getLabels(unsigned layer);
 		bool setLabels(unsigned layer, std::vector<long> value, std::vector<std::string> labels, std::string name);
 		int getCatIndex(unsigned layer);
-		bool setCatIndex(unsigned layer, unsigned index);
+		bool setCatIndex(unsigned layer, int index);
 		
 		bool hasScaleOffset();
 		bool setScaleOffset(std::vector<double> sc, std::vector<double> of);
@@ -565,7 +564,8 @@ class SpatRaster {
 		SpatRaster rst_area(bool mask, std::string unit, bool transform, int rcmax, SpatOptions &opt);
 
 		std::vector<std::vector<double>> sum_area(std::string unit, bool transform, bool by_value, SpatOptions &opt);
-		std::vector<std::vector<double>> area_by_value(SpatOptions &opt);
+
+		std::vector<std::vector<double>> sum_area_group(SpatRaster group, std::string unit, bool transform, bool by_value, SpatOptions &opt);
 
 		SpatRaster roll(size_t n, std::string fun, std::string type, bool circular, bool narm, SpatOptions &opt);
 
@@ -596,9 +596,9 @@ class SpatRaster {
 		std::vector<double> bilinearCells(const std::vector<double> &x, const std::vector<double> &y);
 		std::vector<double> fourCellsFromXY(const std::vector<double> &x, const std::vector<double> &y);
 
-
 		SpatRaster buffer(double d, double background, SpatOptions &opt);
 		SpatRaster clamp(std::vector<double> low, std::vector<double> high, bool usevalue, SpatOptions &opt);
+		SpatRaster clamp_raster(SpatRaster &x, SpatRaster &y, std::vector<double> low, std::vector<double> high, bool usevalue, SpatOptions &opt);
 		SpatRaster clamp_ts(bool min, bool max, SpatOptions &opt);
 
 		SpatRaster combineCats(SpatRaster x, SpatOptions &opt);
@@ -625,7 +625,7 @@ class SpatRaster {
 		SpatRaster edges(bool classes, std::string type, unsigned directions, double falseval, SpatOptions &opt);
 		SpatRaster extend(SpatExtent e, std::string snap, double fill, SpatOptions &opt);
 		std::vector<std::vector<std::vector<double>>> extractVector(SpatVector v, bool touches, std::string method, bool cells, bool xy, bool weights, bool exact, SpatOptions &opt);
-		std::vector<double> extractVectorFlat(SpatVector v, bool touches, std::string method, bool cells, bool xy, bool weights, bool exact, SpatOptions &opt);
+		std::vector<double> extractVectorFlat(SpatVector v, std::string fun, bool narm, bool touches, std::string method, bool cells, bool xy, bool weights, bool exact, SpatOptions &opt);
 		
 		
 		std::vector<double> vectCells(SpatVector v, bool touches, std::string method, bool weights, bool exact, SpatOptions &opt);
@@ -650,6 +650,9 @@ class SpatRaster {
 		std::vector<unsigned> get_aggregate_dims2(std::vector<unsigned> fact);
 		std::vector<std::vector<double> > get_aggregates(std::vector<double> &in, size_t nr, std::vector<unsigned> dim);
 //		std::vector<double> compute_aggregates(std::vector<double> &in, size_t nr, std::vector<unsigned> dim, std::function<double(std::vector<double>&, bool)> fun, bool narm);
+
+		SpatDataFrame mglobal(std::vector<std::string> funs, bool narm, SpatOptions &opt);
+
 		SpatDataFrame global(std::string fun, bool narm, SpatOptions &opt);
 		SpatDataFrame global_weighted_mean(SpatRaster &weights, std::string fun, bool narm, SpatOptions &opt);
 
@@ -669,6 +672,8 @@ class SpatRaster {
 		SpatRaster isnot(bool falseNA, SpatOptions &opt);
 		SpatRaster isnan(bool falseNA, SpatOptions &opt);
 		SpatRaster isnotnan(bool falseNA, SpatOptions &opt);
+		SpatRaster countnan(long n, SpatOptions &opt);
+
 		SpatRaster isfinite(bool falseNA, SpatOptions &opt);
 		SpatRaster isinfinite(bool falseNA, SpatOptions &opt);
 		SpatRaster is_true(bool falseNA, SpatOptions &opt);
@@ -679,6 +684,8 @@ class SpatRaster {
 		SpatRaster anynan(bool falseNA, SpatOptions &opt);
 		SpatRaster nonan(bool falseNA, SpatOptions &opt);
 		SpatRaster which(SpatOptions &opt);
+
+		std::vector<std::vector<double>> layerCor(std::string fun, bool narm, bool asSample, SpatOptions &opt);
 
 		std::vector<double> line_cells(SpatGeom& g);
 		SpatRaster logic(SpatRaster x, std::string oper, SpatOptions &opt);
@@ -767,7 +774,7 @@ class SpatRaster {
 		SpatRaster trig(std::string fun, SpatOptions &opt);
 		SpatRaster trim1(double value, unsigned padding, SpatOptions &opt);
 		SpatRaster trim2(double value, unsigned padding, SpatOptions &opt);
-		std::vector<std::vector<double>> unique(bool bylayer, bool narm, SpatOptions &opt);
+		std::vector<std::vector<double>> unique(bool bylayer, double digits, bool narm, SpatOptions &opt);
 		SpatRaster project1(std::string newcrs, std::string method, SpatOptions &opt);
 		SpatRaster project2(SpatRaster &x, std::string method, SpatOptions &opt);
 		void project3(SpatRaster &out, std::string method, SpatOptions &opt);
@@ -795,13 +802,13 @@ class SpatRaster {
 		
 		SpatRaster applyGCP(std::vector<double> fx, std::vector<double> fy, std::vector<double> tx, std::vector<double> ty, SpatOptions &opt);
 
-		SpatDataFrame zonal(SpatRaster z, std::string fun, bool narm, SpatOptions &opt);
+		SpatDataFrame zonal(SpatRaster z, SpatRaster g, std::string fun, bool narm, SpatOptions &opt);
 		SpatDataFrame zonal_weighted(SpatRaster x, SpatRaster w,  bool narm, SpatOptions &opt);
 
 		SpatDataFrame zonal_poly(SpatVector x, std::string fun, bool weights, bool exact, bool touches, bool narm, SpatOptions &opt);
 		SpatDataFrame zonal_poly_weighted(SpatVector x, SpatRaster w, bool weights, bool exact, bool touches, bool narm, SpatOptions &opt);
 
-		SpatDataFrame zonal_old(SpatRaster x, std::string fun, bool narm, SpatOptions &opt);
+//		SpatDataFrame zonal_old(SpatRaster x, std::string fun, bool narm, SpatOptions &opt);
 		SpatRaster rgb2col(size_t r,  size_t g, size_t b, SpatOptions &opt);
 		SpatRaster rgb2hsx(std::string type, SpatOptions &opt);	
 		SpatRaster hsx2rgb(SpatOptions &opt);	

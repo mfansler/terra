@@ -276,6 +276,7 @@ setMethod("rasterize", signature(x="SpatVector", y="SpatRaster"),
 				xopt = spatOptions()
 				y@ptr <- y@ptr$rasterize(x@ptr, field, values, background, touches[1], fun, FALSE, update[1], TRUE, xopt)
 				messages(y, "rasterize")
+				xopt = spatOptions()
 				yy <- rast(y)
 				yy@ptr <- y@ptr$rasterize(x@ptr, "", values, NA, touches[1], ""	, FALSE, update[1], TRUE, xopt)
 				messages(yy, "rasterize")
@@ -301,11 +302,10 @@ setMethod("rasterize", signature(x="SpatVector", y="SpatRaster"),
 )
 
 
-
 setMethod("rasterize", signature(x="sf", y="SpatRaster"),
-	function(x, y, field="", fun, ..., background=NA, touches=FALSE, update=FALSE, sum=FALSE, cover=FALSE, filename="", overwrite=FALSE, wopt=list()) {
+	function(x, y, ...) {
 		x <- vect(x)
-		rasterize(x, y, field=field, fun=fun, ..., background=background, touches=touches, update=update, sum=sum, cover=cover, filename=filename, overwrite=overwrite, wopt=wopt)
+		rasterize(x, y, ...)
 	}
 )
 

@@ -27,15 +27,17 @@ setMethod("is.factor", signature(x="SpatRaster"),
 
 setMethod("as.factor", signature(x="SpatRaster"),
 	function(x) {
-		if (!hasValues(x)) {
-			error("as.factor", "x has no values")
-		}
-		x <- round(x)
-		u <- unique(x, TRUE)
-		for (i in 1:nlyr(x)) {
-			set.cats(x, i, data.frame(ID=u[[i]], label=u[[i]], stringsAsFactors=FALSE))
-		}
-		x
+		x@ptr = x@ptr$makeCategorical(-1, spatOptions())
+		messages(x)
+		#if (!hasValues(x)) {
+		#	error("as.factor", "x has no values")
+		#}
+		#x <- round(x)
+		#u <- unique(x, TRUE)
+		#for (i in 1:nlyr(x)) {
+		#	set.cats(x, i, data.frame(ID=u[[i]], label=u[[i]], stringsAsFactors=FALSE))
+		#}
+		#x
 	}
 )
 
@@ -169,9 +171,12 @@ setMethod ("set.cats" , "SpatRaster",
 		index <- max(1, min(ncol(value), active))
 		if (setname) {
 			nms <- names(x)
-			nms[layer] <-  colnames(value)[index+1]
-			if (! x@ptr$setNames(nms, FALSE)) {
-				error("names<-", "cannot set name")
+			cn <- colnames(value)[index+1]
+			if (!(tolower(cn) %in% c("histogram", "count", "red", "green", "blue", "alpha", "opacity", "r", "g", "b", "a"))) {
+				nms[layer] <- cn
+				if (! x@ptr$setNames(nms, FALSE)) {
+					error("names<-", "cannot set name")
+				}
 			}
 		}
 		if (any(is.na(value[,1]))) {
@@ -201,7 +206,7 @@ setMethod ("categories" , "SpatRaster",
 
 setMethod ("activeCat" , "SpatRaster",
 	function(x, layer=1) {
-		layer = layer[1]
+		layer <- layer[1]
 		if (is.character(layer)) {
 			layer = which(layer == names(x))[1]
 			if (is.na(layer)) {
@@ -275,6 +280,7 @@ setMethod("cats" , "SpatRaster",
 		if (cats[[i]]$df$nrow == 0) return(NULL)
 		r <- .getSpatDF(cats[[i]]$df)
 		a <- activeCat(x, i)
+		if (a < 0) return(NULL)
 		r[, c(1, a+1)]
 	})
 
@@ -309,6 +315,11 @@ setMethod ("as.numeric", "SpatRaster",
 			}
 		} else {
 			index <- activeCat(x, 1)
+			if (index < 0)
+			x <- deepcopy(x)
+			levels(x) <- NULL
+			x@ptr$setValueType(0)
+			return(x)
 		}
 		from <- g[,1]
 		to <- g[,index+1]

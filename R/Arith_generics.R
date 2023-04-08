@@ -401,6 +401,20 @@ setMethod("is.na", signature(x="SpatRaster"),
 	}
 )
 
+setMethod("countNA", signature(x="SpatRaster"),
+	function(x, n=0) {
+		opt <- spatOptions()
+		n <- round(n)
+		if (n == 1) {
+			x@ptr <- x@ptr$anynan(FALSE, opt)
+		} else {
+			x@ptr <- x@ptr$countnan(n, opt)
+		}
+		messages(x, "countNA")
+	}
+)
+
+
 setMethod("anyNA", signature(x="SpatRaster"),
 	function(x) {
 		opt <- spatOptions()

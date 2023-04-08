@@ -104,19 +104,6 @@ as.list.svc <- function(x) {
 
 
 
-setMethod("split", signature(x="SpatVector"),
-	function(x, f) {
-		if (length(f) > 1) {
-			x <- deepcopy(x)
-			x$f <- f
-			f <- "f"
-		}
-		x <- messages(x@ptr$split(f), "split")
-		as.list.svc(x)
-	}
-)
-
-
 setMethod("cover", signature(x="SpatVector", y="SpatVector"),
 	function(x, y, identity=FALSE, expand=TRUE) {
 		x@ptr <- x@ptr$cover(y@ptr, identity[1], expand[1])
@@ -264,7 +251,12 @@ setMethod("buffer", signature(x="SpatVector"),
 
 
 setMethod("crop", signature(x="SpatVector", y="ANY"),
-	function(x, y) {
+	function(x, y, ext=FALSE) {
+		if (ext) {
+			y <- ext(y)
+			x@ptr <- x@ptr$crop_ext(y@ptr, TRUE)
+			return(x)
+		}
 		if (inherits(y, "SpatVector")) {
 			x@ptr <- x@ptr$crop_vct(y@ptr)
 		} else {
@@ -400,8 +392,8 @@ setMethod("voronoi", signature(x="SpatVector"),
 )
 
 setMethod("elongate", signature(x="SpatVector"),
-	function(x, length=1) {
-		x@ptr <- x@ptr$elongate(length)
+	function(x, length=1, flat=FALSE) {
+		x@ptr <- x@ptr$elongate(length, flat)
 		messages(x, "elongate")
 	}
 )
@@ -615,3 +607,34 @@ setMethod("combineGeoms", signature(x="SpatVector", y="SpatVector"),
 	}
 )
 
+
+
+setMethod("split", signature(x="SpatVector", f="ANY"),
+	function(x, f) {
+		if (length(f) > 1) {
+			x <- deepcopy(x)
+			x$f <- f
+			f <- "f"
+		}
+		x <- messages(x@ptr$split(f), "split")
+		as.list.svc(x)
+	}
+)
+
+
+setMethod("split", signature(x="SpatVector", f="SpatVector"),
+	function(x, f) {
+		if (geomtype(x) != "polygons") error("split", "first argument must be polygons")
+		if (geomtype(f) != "lines") error("split", "second argument must be lines")
+		values(f) <- NULL
+		u <- union(ext(f), ext(x)) + 10
+		e <- ext(u)
+		md <- max(e$xmax-e$xmin, e$ymax-e$ymin)
+		lin <- elongate(f, md)
+		xf <- rbind(as.lines(x), f)
+		xf <- aggregate(xf)
+		m <- makeNodes(xf)
+		p <- as.polygons(m)
+		intersect(x, p)
+	}
+)

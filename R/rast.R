@@ -163,7 +163,7 @@ setMethod("rast", signature(x="SpatVector"),
 }
 
 setMethod("rast", signature(x="character"),
-	function(x, subds=0, lyrs=NULL, drivers=NULL, opts=NULL, win=NULL, vsi=TRUE) {
+	function(x, subds=0, lyrs=NULL, drivers=NULL, opts=NULL, win=NULL, snap="near", vsi=TRUE) {
 
 		f <- .fullFilename(x, TRUE, vsi=vsi)
 		if (length(f) == 0) {
@@ -210,7 +210,9 @@ setMethod("rast", signature(x="character"),
 			r <- r[[lyrs]]
 		} 
 		if (!is.null(win)) {
-			window(r) <- win
+			e <- ext(win)
+			e <- align(e, r, snap=snap)
+			window(r) <- e
 		}
 		r
 	}
@@ -407,7 +409,8 @@ setMethod("rast", signature(x="ANY"),
 	}
 
 	if (!is.null(extent)) {
-		ext(r) <- extent
+		r <- extend(r, extent)
+		r <- crop(r, extent)
 	}
 
 	return(r)

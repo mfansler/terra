@@ -289,7 +289,7 @@ std::vector<std::vector<unsigned>> SpatVector::index_sparse(SpatVector v) {
 
 
 
-SpatVector SpatVector::crop(SpatExtent e) {
+SpatVector SpatVector::crop(SpatExtent e, bool wrap) {
 
 	SpatVector out;
 
@@ -297,10 +297,35 @@ SpatVector SpatVector::crop(SpatExtent e) {
 	out.setError("GEOS 3.5 required for crop");
 	return out;
 #else
+	if (is_lonlat() & wrap) {
+		SpatVector first = crop(e, false);
+		if ((extent.xmin > -180.001) && (extent.xmax < 180.001)) {
+			if ((e.xmin < -180) && (e.xmax < 180)) {
+				double xmn = e.xmin + 360;
+				if (xmn > -180) {
+					if (xmn < e.xmax) xmn = e.xmax;
+					SpatExtent e2 = e;
+					e2.xmax = 180;
+					e2.xmin = xmn;
+					SpatVector second = crop(e2, false);
+					first = first.append(second, true);
+				}
+			} else if ((e.xmax > 180) && (e.xmin > -180)) {
+				double xmx = -360 + e.xmax;
+				if (xmx < 180) {
+					if (xmx > e.xmin) xmx = e.xmin;
+					SpatExtent e2 = e;
+					e2.xmin = -180;
+					e2.xmax = xmx;
+					SpatVector second = crop(e2, false);
+					first = first.append(second, true);
+				}
+			} 
+		}
+		return(first);						
+	}
 
-	out.srs = srs;
 	GEOSContextHandle_t hGEOSCtxt = geos_init();
-
 	std::vector<GeomPtr> g = geos_geoms(this, hGEOSCtxt);
 	std::vector<GeomPtr> p;
 	p.reserve(g.size());
@@ -324,9 +349,10 @@ SpatVector SpatVector::crop(SpatExtent e) {
 		SpatVectorCollection coll = coll_from_geos(p, hGEOSCtxt, id);
 		out = coll.get(0);
 		out.df = df.subset_rows(out.df.iv[0]);
-		out.srs = srs;
 	}
 	geos_finish(hGEOSCtxt);
+	
+	out.srs = srs;
 	return out;
 #endif
 }
@@ -887,9 +913,9 @@ SpatVector SpatVector::hull(std::string htype, std::string by) {
 		#endif
 		if (is_lonlat()) {
 			if ((extent.ymin > -85) && (extent.ymax < 85)) {
-				SpatVector tmp = project("+proj=merc");
+				SpatVector tmp = project("+proj=merc", false);
 				tmp = tmp.hull(htype, "");
-				tmp = tmp.project(srs.wkt);
+				tmp = tmp.project(srs.wkt, false);
 				return tmp;
 			}
 		}
@@ -2825,8 +2851,8 @@ SpatVector SpatVector::nearest_point() {
 		return out;
 	}
 	if ((size() == 1)) {
-		out.addWarning("single geometry");
-		//return *this;
+		out.setError("single geometry");
+		return out;
 	}
 	size_t n = size();
 	out.srs = srs;

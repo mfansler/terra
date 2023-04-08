@@ -593,7 +593,7 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 	out.writeStop();
 	if (mask) {
 		SpatVector v = dense_extent(true, true);
-		v = v.project(out.getSRS("wkt"));
+		v = v.project(out.getSRS("wkt"), true);
 		if (v.nrow() > 0) {
 			out = out.mask(v, false, NAN, true, mopt);
 		} else {
@@ -698,7 +698,7 @@ SpatRaster SpatRaster::resample(SpatRaster x, std::string method, bool mask, boo
 
 	if (mask) {
 		SpatVector v = dense_extent(true, true);
-		v = v.project(out.getSRS("wkt"));
+		v = v.project(out.getSRS("wkt"), true);
 		if (v.nrow() > 0) {
 			out = out.mask(v, false, NAN, true, mopt);
 		} else {
@@ -1128,28 +1128,27 @@ SpatRaster SpatRaster::viewshed(const std::vector<double> obs, const std::vector
 		x = replaceValues({NAN}, {minval}, 0, false, NAN, false, topt);
 	}
 
-	std::string filename = opt.get_filename();
+	std::string fname = opt.get_filename();
 	std::string driver;
-	if (filename.empty()) {
-		filename = tempFile(opt.get_tempdir(), opt.pid, ".tif");
-		driver = "GTiff";
-	} else {
+	if (!fname.empty()) {
 		driver = opt.get_filetype();
-		getGDALdriver(filename, driver);
+		getGDALdriver(fname, driver);
 		if (driver.empty()) {
 			setError("cannot guess file type from filename");
 			return out;
 		}
 		std::string errmsg;
-		if (!can_write({filename}, filenames(), opt.get_overwrite(), errmsg)) {
+		if (!can_write({fname}, filenames(), opt.get_overwrite(), errmsg)) {
 			out.setError(errmsg);
 			return out;
 		}
 	}
 
+	std::string filename = tempFile(topt.get_tempdir(), topt.pid, ".tif");
+	driver = "GTiff";
+
 	GDALDatasetH hSrcDS;
-	SpatOptions ops(opt);
-	if (!x.open_gdal(hSrcDS, 0, false, ops)) {
+	if (!x.open_gdal(hSrcDS, 0, false, topt)) {
 		out.setError("cannot open input dataset");
 		return out;
 	}
@@ -1161,7 +1160,7 @@ SpatRaster SpatRaster::viewshed(const std::vector<double> obs, const std::vector
 	}
 
 	GIntBig diskNeeded = ncell() * 4;
-	char **papszOptions = set_GDAL_options(driver, diskNeeded, false, opt.gdal_options);
+	char **papszOptions = set_GDAL_options(driver, diskNeeded, false, topt.gdal_options);
 
 	GDALRasterBandH hSrcBand = GDALGetRasterBand(hSrcDS, 1);
 
@@ -1329,10 +1328,12 @@ SpatRaster SpatRaster::proximity(double target, double exclude, std::string unit
 			GDALClose(hDstDS);
 			return out;
 		}
+		GDALClose(hDstDS);
 	} else {
+		GDALClose(hDstDS);
 		out = SpatRaster(filename, {-1}, {""}, {}, {});
 	}
-	GDALClose(hDstDS);
+	
 	if (mask) {
 		out = out.mask(*this, false, mvals, NAN, opt);
 	}
@@ -1394,7 +1395,6 @@ SpatRaster SpatRaster::sieveFilter(int threshold, int connections, SpatOptions &
 	}
 
 	//opt.datatype = "INT4S";
-
 	if (!out.create_gdalDS(hDstDS, filename, driver, true, 0, source[0].has_scale_offset, source[0].scale, source[0].offset, opt)) {
 		out.setError("cannot create new dataset");
 		GDALClose(hSrcDS);
@@ -1415,14 +1415,16 @@ SpatRaster SpatRaster::sieveFilter(int threshold, int connections, SpatOptions &
 	if (driver == "MEM") {
 		if (!out.from_gdalMEM(hDstDS, false, true)) {
 			out.setError("conversion failed (mem)");
-			GDALClose(hDstDS);
-			return out;
 		}
-	} else {
-		out = SpatRaster(filename, {-1}, {""}, {}, {});
+		GDALClose(hDstDS);
+		return out;
 	}
+	
+	double adfMinMax[2];
+	GDALComputeRasterMinMax(hTargetBand, true, adfMinMax);
+	GDALSetRasterStatistics(hTargetBand, adfMinMax[0], adfMinMax[1], -9999, -9999);
 	GDALClose(hDstDS);
-	return out;
+	return SpatRaster(filename, {-1}, {""}, {}, {});
 }
 
 

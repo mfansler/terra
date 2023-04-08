@@ -266,9 +266,11 @@ setMethod ("show" , "SpatRaster",
 					cat("source      :", sources[1], "\n")
 				}
 			}
-			rgb <- RGB(object)
-			if (!is.null(rgb)) {
-				cat(paste("colors", toupper(object@ptr$rgbtype), " :"), paste(rgb, collapse=", "), "\n")
+			rgbtype <- object@ptr$rgbtype
+			if (rgbtype != "") {
+				rdgb <- RGB(object)
+				if (is.null(rdgb)) rdgb <- 1:3
+				cat(paste("colors", toupper(object@ptr$rgbtype), " :"), paste(rdgb, collapse=", "), "\n")
 			}
 			hasct <- object@ptr$hasColors()
 			if (any(hasct)) {
@@ -365,8 +367,10 @@ setMethod ("show" , "SpatRaster",
 				}
 				if (ncol(m) == 1) {
 					if (is.factor(object)) {
-						g <- cats(object)[[1]]
-						cat("categories  :", paste(colnames(g)[-1], collapse=", "), "\n")
+						if (activeCat(object) > -1) {
+							g <- cats(object)[[1]]
+							cat("categories  :", paste(colnames(g)[-1], collapse=", "), "\n")
+						}
 					}
 					cat("name        :", paste(m[1,], collapse=", "), "\n")
 					cat("min value   :", paste(m[2,], collapse=", "), "\n")

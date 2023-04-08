@@ -1061,45 +1061,41 @@ SpatRaster SpatRaster::replace(SpatRaster x, unsigned layer, SpatOptions &opt) {
 }
 
 
-SpatRaster SpatRaster::makeCategorical(unsigned layer, SpatOptions &opt) {
+SpatRaster SpatRaster::makeCategorical(long layer, SpatOptions &opt) {
 
+	SpatRaster out;
 	if (!hasValues()) {
-		SpatRaster out;
 		out.setError("cannot make categories if the raster has no values");
 		return out;
 	}
 
-	std::vector<unsigned> lyrs = {layer};
+	SpatRaster r;
 	SpatOptions fopt(opt);
-	SpatRaster r = subset(lyrs, fopt);
-
+	if (layer >= 0) {
+		if (layer > (long) nlyr()) {
+			out.setError("layer number is too high");
+			return out;
+		}
+		std::vector<unsigned> lyrs = {(unsigned) layer};
+		r = subset(lyrs, fopt);
+	} else {
+		r = *this;
+	}	
 	r.math2("round", 0, fopt);
-
-	std::vector<std::vector<double>> u = r.unique(false, true, fopt);
-/*
-	std::vector<double> id(u[0].size());
-	std::iota(id.begin(), id.end(), 0);
-	std::vector<std::vector<double>> rcl(2);
-	rcl[0] = u[0];
-	rcl[1] = id;
-	r = r.reclassify(rcl, true, true, true, false, false, fopt);
-
-	std::vector<std::string> s(id.size());
-	for (size_t i=0; i<s.size(); i++) {
-		s[i] = std::to_string((int)u[0][i]);
-	}
-*/
-
-	std::vector<long> uu;
-	std::vector<std::string> s(u[0].size());
-	for (size_t i=0; i<s.size(); i++) {
-		uu[i] = (long)u[0][i];
-		s[i] = std::to_string(uu[i]);
-	}
+	std::vector<std::vector<double>> u = r.unique(true, NAN, true, fopt);
 	std::vector<std::string> names = r.getNames();
-	r.setLabels(0, uu, s, names[0]);
-
-	if (nlyr() == 1) {
+	
+	for (size_t i=0; i<r.nlyr(); i++) { 
+		std::vector<long> uu(u[i].size());
+		std::vector<std::string> s(u[i].size());
+		for (size_t j=0; j<s.size(); j++) {
+			uu[j] = (long)u[i][j];
+			s[j] = std::to_string(uu[j]);
+		}
+		r.setLabels(i, uu, s, names[i]);
+	}
+	
+	if (nlyr() == r.nlyr()) {
 		return r;
 	} else {
 		return replace(r, layer, opt);
@@ -1115,7 +1111,7 @@ bool SpatRaster::createCategories(unsigned layer, SpatOptions &opt) {
 	}
 	std::vector<unsigned> lyrs(1, layer);
 	SpatRaster r = subset(lyrs, opt);
-	std::vector<std::vector<double>> u = r.unique(false, true, opt);
+	std::vector<std::vector<double>> u = r.unique(false, NAN, true, opt);
     std::vector<unsigned> sl = findLyr(layer);
 
 	std::vector<std::string> s(u[0].size());
@@ -1214,7 +1210,7 @@ bool SpatRaster::setLabels(unsigned layer, std::vector<long> values, std::vector
     std::vector<unsigned> sl = findLyr(layer);
 
 	SpatCategories cats;
-	cats.d.add_column(values, "value");
+	cats.d.add_column(values, "ID");
 	cats.d.add_column(labels, name);
 	cats.index = 1;
 
@@ -1374,23 +1370,25 @@ std::vector<std::string> SpatRaster::getLabels(unsigned layer) {
 	std::vector<SpatCategories> cats = getCategories();
 	SpatCategories cat = cats[layer];
 
-	unsigned nc = cat.d.ncol();
-	if (nc == 0) return out;
+	int nc = cat.d.ncol();
+	if (nc <= 0) return out;
 
 	cat.index = cat.index > (nc-1) ? (nc-1) : cat.index;
 	out = cat.d.as_string(cat.index);
 	return out;
 }
 
-bool SpatRaster::setCatIndex(unsigned layer, unsigned index) {
+bool SpatRaster::setCatIndex(unsigned layer, int index) {
 	if (layer > (nlyr()-1)) {
 		return(false);
 	}
     std::vector<unsigned> sl = findLyr(layer);
-	unsigned nc = source[sl[0]].cats[sl[1]].d.ncol();
+	int nc = source[sl[0]].cats[sl[1]].d.ncol();
 	if (index < nc) {
-		source[sl[0]].cats[sl[1]].index  = index;
-		source[sl[0]].names[sl[1]] = source[sl[0]].cats[sl[1]].d.names[index];
+		source[sl[0]].cats[sl[1]].index = index;
+		if (index >= 0) {
+			source[sl[0]].names[sl[1]] = source[sl[0]].cats[sl[1]].d.names[index];
+		}
 		return true;
 	} else {
 		return false;
@@ -1399,7 +1397,7 @@ bool SpatRaster::setCatIndex(unsigned layer, unsigned index) {
 
 int SpatRaster::getCatIndex(unsigned layer) {
 	if (layer > (nlyr()-1)) {
-		return(-1);
+		return( -1 );
 	}
     std::vector<unsigned> sl = findLyr(layer);
 	return source[sl[0]].cats[sl[1]].index;
@@ -1419,7 +1417,7 @@ SpatRaster SpatRaster::dropLevels() {
 	std::vector<SpatCategories> cats = getCategories();
 	SpatOptions opt;
 	SpatRaster out = *this;
-	std::vector<std::vector<double>> uvv = unique(true, true, opt);
+	std::vector<std::vector<double>> uvv = unique(true, NAN, true, opt);
 	for (size_t i=0; i<hascats.size(); i++) {
 		if (hascats[i]) {
 			SpatCategories lyrcats = cats[i];
@@ -2461,6 +2459,7 @@ std::vector<int> SpatRaster::getRGB(){
 
 void SpatRaster::removeRGB(){
 	rgblyrs = std::vector<int>(0);
+	rgbtype = "";
 	rgb = false;
 }
 

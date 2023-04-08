@@ -560,7 +560,7 @@ RCPP_MODULE(spat){
 		.method("equals_within", ( std::vector<unsigned> (SpatVector::*)(bool, double))( &SpatVector::equals_exact ))
 
 
-		.method("crop_ext", ( SpatVector (SpatVector::*)(SpatExtent))( &SpatVector::crop ))
+		.method("crop_ext", ( SpatVector (SpatVector::*)(SpatExtent, bool))( &SpatVector::crop ))
 		.method("crop_vct", ( SpatVector (SpatVector::*)(SpatVector))( &SpatVector::crop ))
 
 		.method("near_between", (SpatVector (SpatVector::*)(SpatVector, bool))( &SpatVector::nearest_point))
@@ -806,7 +806,7 @@ RCPP_MODULE(spat){
 		
 		.method("rst_area", &SpatRaster::rst_area)
 		.method("sum_area", &SpatRaster::sum_area)
-		.method("area_by_value", &SpatRaster::area_by_value)
+		.method("sum_area_group", &SpatRaster::sum_area_group)
 
 		.method("as_points", &SpatRaster::as_points)
 		.method("as_points_value", &SpatRaster::as_points_value)
@@ -839,6 +839,7 @@ RCPP_MODULE(spat){
 		.method("vectDistanceRasterize", &SpatRaster::distance_rasterize)
 		.method("vectDirectionRasterize", &SpatRaster::direction_rasterize)
 		.method("clamp", &SpatRaster::clamp)
+		.method("clamp_raster", &SpatRaster::clamp_raster)
 		.method("clamp_ts", &SpatRaster::clamp_ts)
 		.method("replaceValues", &SpatRaster::replaceValues)
 		.method("classify", ( SpatRaster (SpatRaster::*)(std::vector<double>, unsigned, unsigned, bool, bool, double, bool, bool, bool, SpatOptions&) )( &SpatRaster::reclassify))
@@ -869,6 +870,8 @@ RCPP_MODULE(spat){
 		.method("get_aggregates", &SpatRaster::get_aggregates)
 		.method("get_aggregate_dims", &SpatRaster::get_aggregate_dims2)
 		.method("global", &SpatRaster::global)
+		.method("mglobal", &SpatRaster::mglobal)
+		.method("layerCor", &SpatRaster::layerCor)
 		.method("global_weighted_mean", &SpatRaster::global_weighted_mean)
 
 		.method("initf", ( SpatRaster (SpatRaster::*)(std::string, bool, SpatOptions&) )( &SpatRaster::init ), "init fun")
@@ -879,6 +882,7 @@ RCPP_MODULE(spat){
 		.method("nonan", &SpatRaster::nonan)
 		.method("allnan", &SpatRaster::allnan)
 		.method("isnan", &SpatRaster::isnan)
+		.method("countnan", &SpatRaster::countnan)
 		.method("not_na", &SpatRaster::isnotnan)
 		.method("isfinite", &SpatRaster::isfinite)
 		.method("isinfinite", &SpatRaster::isinfinite)
