@@ -124,7 +124,7 @@ make_replace_index <- function(v, vmx, name="i") {
 		}
 	}
 
-	vv <- na.omit(v)
+	vv <- stats::na.omit(v)
 	if (any(vv < 1 | vv > vmx)) {
 		error(caller, paste(name, "is out of its valid range"))
 	}
@@ -233,7 +233,7 @@ make_replace_index <- function(v, vmx, name="i") {
 			mask(x, i, maskvalues=TRUE, updatevalue=value[1])
 		} else {
 			i <- as.logical(values(i))
-			i[is.na(i)] <- TRUE
+			i[is.na(i)] <- FALSE #TRUE, for #1115
 			i <- which(i)
 			x[i] <- value
 			x
@@ -326,8 +326,6 @@ setReplaceMethod("[", c("SpatRaster", "ANY", "ANY", "ANY"),
 			}
 		} else if (!m[2]) {
 			#col
-			print(j)
-			print("?")
 			j <- make_replace_index(j, ncol(x), "j")
 			i <- cellFromRowColCombine(x, 1:nrow(x), j)
 		} else {

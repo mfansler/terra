@@ -201,7 +201,7 @@ function(x, i, j, drop=TRUE) {
 		out <- sds()
 		nms <- x@ptr$names
 		for (k in nd) {
-			r <- y[k][[j]]
+			r <- x[k][[j]]
 			out@ptr$add(r@ptr, nms[k], "", "", FALSE)
 		}
 	}

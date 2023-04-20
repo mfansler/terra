@@ -540,7 +540,7 @@ setMethod("combineGeoms", signature(x="SpatVector", y="SpatVector"),
 				if (nrow(a) > 0) {
 					if (erase) {
 						ye <- erase(y, x)
-						i <- na.omit(match(a$idy, ye$idy))
+						i <- stats::na.omit(match(a$idy, ye$idy))
 						if (length(i) > 0) {
 							yi <- ye[i,]
 							values(yi) <- data.frame(idx=a$idx[i])
@@ -627,14 +627,19 @@ setMethod("split", signature(x="SpatVector", f="SpatVector"),
 		if (geomtype(x) != "polygons") error("split", "first argument must be polygons")
 		if (geomtype(f) != "lines") error("split", "second argument must be lines")
 		values(f) <- NULL
-		u <- union(ext(f), ext(x)) + 10
-		e <- ext(u)
-		md <- max(e$xmax-e$xmin, e$ymax-e$ymin)
-		lin <- elongate(f, md)
-		xf <- rbind(as.lines(x), f)
-		xf <- aggregate(xf)
-		m <- makeNodes(xf)
-		p <- as.polygons(m)
+		ex <- ext(x)
+		i <- intersect(ex, ext(f))
+		if (is.null(i)) {
+			error("split", "the extents of x and f do not intersect")
+		}
+		ex <- ex + 10
+		e <- ext(ex)
+		mxd <- sqrt((e$xmax-e$xmin)^2 + (e$ymax-e$ymin)^2)
+		lin <- elongate(f, mxd, flat=TRUE)
+		uf <- rbind(as.lines(ex), lin)
+		uf <- aggregate(uf)
+		nds <- makeNodes(uf)
+		p <- as.polygons(nds)
 		intersect(x, p)
 	}
 )

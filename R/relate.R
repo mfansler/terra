@@ -225,7 +225,7 @@ setMethod("relate", signature(x="SpatVector", y="missing"),
 
 
 setMethod("adjacent", signature(x="SpatRaster"),
-	function(x, cells, directions="rook", pairs=FALSE, include=FALSE) {
+	function(x, cells, directions="rook", pairs=FALSE, include=FALSE, symmetrical=FALSE) {
 		cells <- cells - 1
 		if (inherits(directions, "matrix")) {
 			v <- x@ptr$adjacentMat(cells, as.logical(directions), dim(directions), include)
@@ -237,6 +237,10 @@ setMethod("adjacent", signature(x="SpatRaster"),
 		if (pairs) {
 			v <- cbind(from=rep(cells, each=length(v)/length(cells)), to=v)
 			v <- v[!is.na(v[,2]), ]
+			if (symmetrical) {
+				#v <- unique(cbind(pmin(v[,1], v[,2]), pmax(v[,1], v[,2])))
+				v <- .unique_symmetric_rows(v[,1], v[,2])
+			}
 		} else {
 			v <- matrix(v, nrow=length(cells), byrow=TRUE)
 			if (!include) rownames(v) <- cells

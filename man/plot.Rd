@@ -24,7 +24,7 @@ There is a separate help file for plotting a \code{\link[=plot,SpatGraticule,mis
 }
 
 \usage{
-\S4method{plot}{SpatRaster,numeric}(x, y=1, col, type, mar=NULL, legend=TRUE, axes=TRUE, plg=list(), pax=list(), 
+\S4method{plot}{SpatRaster,numeric}(x, y=1, col, type=NULL, mar=NULL, legend=TRUE, axes=TRUE, plg=list(), pax=list(), 
     maxcell=500000, smooth=FALSE, range=NULL, levels=NULL, all_levels=FALSE,
 	breaks=NULL, breakby="eqint", fun=NULL, colNA=NULL, alpha=NULL, sort=FALSE, 
 	decreasing=FALSE, grid=FALSE, ext=NULL, reset=FALSE, add=FALSE, buffer=FALSE, 
@@ -34,7 +34,7 @@ There is a separate help file for plotting a \code{\link[=plot,SpatGraticule,mis
 
 \S4method{plot}{SpatRaster,character}(x, y, ...)
 
-\S4method{plot}{SpatVector,character}(x, y, col=NULL, type, mar=NULL, add=FALSE, legend=!add, axes=!add, 
+\S4method{plot}{SpatVector,character}(x, y, col=NULL, type=NULL, mar=NULL, add=FALSE, legend=!add, axes=!add, 
     main="", buffer=TRUE, background=NULL, grid=FALSE, ext=NULL, sort=TRUE, 
 	decreasing=FALSE, plg=list(), pax=list(), nr, nc, colNA=NA, alpha=NULL, 
 	box=axes, clip=TRUE, ...)
@@ -49,7 +49,7 @@ There is a separate help file for plotting a \code{\link[=plot,SpatGraticule,mis
   \item{y}{missing or positive integer or name indicating the layer(s) to be plotted}
   \item{col}{character. Colors. The default is \code{rev(grDevices::terrain.colors(50))}. If \code{x} is a \code{SpatRaster}, it can also be a \code{data.frame} with two columns (value, color) to get a "classes" type legend or with three columns (from, to, color) to get an "interval" type legend}
   \item{type}{character. Type of map/legend. One of "continuous", "classes", or "interval". If not specified, the type is chosen based on the data}
-  \item{mar}{numeric vector of length 4 to set the margins of the plot (to make space for the legend). The default is (3.1, 3.1, 2.1, 7.1) for a single plot with a legend and (3.1, 3.1, 2.1, 2.1) otherwise. Use \code{mar=NA} to not set the margins}
+  \item{mar}{numeric vector of length 4 to set the margins of the plot (to make space for the legend). The default is (3.1, 3.1, 2.1, 7.1) for a single plot with a legend and (3.1, 3.1, 2.1, 2.1) otherwise. The default for a RGB raster is 0. Use \code{mar=NA} to not set the margins}
   \item{legend}{logical or character. If not \code{FALSE} a legend is drawn. The character value can be used to indicate where the legend is to be drawn. For example "topright" or "bottomleft". Use \code{plg} for more refined placement. Not supported for continuous legends (the default for raster data)}
   \item{axes}{logical. Draw axes?}
   \item{buffer}{logical. If \code{TRUE} the plotting area is made slightly larger than the extent of \code{x}}

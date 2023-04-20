@@ -446,7 +446,6 @@ SpatRaster SpatRaster::aggregate(std::vector<unsigned> fact, std::string fun, bo
 #endif
 #endif
 */
-
 	std::function<double(std::vector<double>&, bool)> agFun = getFun(fun);
 
 	//BlockSize bs = getBlockSize(4, opt.get_memfrac());
@@ -1154,6 +1153,7 @@ SpatRaster SpatRaster::mask(SpatVector &x, bool inverse, double updatevalue, boo
 		out.setError("SpatRaster has no values");
 		return out;
 	}
+		
 	if (inverse) {
 		out = rasterize(x, "", {updatevalue}, NAN, touches, "", false, true, true, opt);
 	} else {
@@ -1169,6 +1169,11 @@ SpatRaster SpatRaster::mask(SpatVector &x, bool inverse, double updatevalue, boo
 			out = out.mask(*this, false, NAN, NAN, opt);
 		}
 	}
+
+	if (!source[0].srs.is_equal(x.srs)) {
+		out.addWarning("CRS do not match");
+	}
+
 	return(out);
 }
 
@@ -3038,8 +3043,9 @@ SpatRaster SpatRaster::crop(SpatExtent e, std::string snap, bool expand, SpatOpt
 		out.setError("cannot crop a SpatRaster with an empty extent");
 		return out;
 	}
-	SpatExtent fext = e;
-	e = e.intersect(out.getExtent());
+	SpatExtent ein = getExtent();
+	SpatExtent fext = e;	
+	e = e.intersect(ein);
 	if ( !e.valid() ) {
 		out.setError("extents do not overlap");
 		return out;
@@ -3047,10 +3053,10 @@ SpatRaster SpatRaster::crop(SpatExtent e, std::string snap, bool expand, SpatOpt
 
 	SpatOptions ops;
 	if (expand) {
-		if ((fext.xmax <= e.xmax)  && (fext.xmin >= e.xmin) && (fext.ymax <= e.ymax)  && (fext.ymin >= e.ymin)) {
+		if ((fext.xmax <= ein.xmax)  && (fext.xmin >= ein.xmin) && (fext.ymax <= ein.ymax)  && (fext.ymin >= ein.ymin)) {
 			expand = false;
-		} else if ((fext.xmax >= e.xmax)  && (fext.xmin <= e.xmin) && (fext.ymax >= e.ymax)  && (fext.ymin <= e.ymin)) {
-			return extend(e, snap, NAN, opt);
+		} else if ((fext.xmax >= ein.xmax)  && (fext.xmin <= ein.xmin) && (fext.ymax >= ein.ymax)  && (fext.ymin <= ein.ymin)) {
+			return extend(fext, snap, NAN, opt);
 		} else {
 			ops = opt;
 			opt = SpatOptions(opt);
@@ -3060,8 +3066,15 @@ SpatRaster SpatRaster::crop(SpatExtent e, std::string snap, bool expand, SpatOpt
 	out.setExtent(e, true, false, snap);
 
 	if (!hasValues() ) {
-		if (!opt.get_filename().empty()) {
-			out.addWarning("ignoring filename argument because there are no cell values");
+		if (expand) {
+			if (!ops.get_filename().empty()) {
+				out.addWarning("ignoring filename argument because there are no cell values");
+			}
+			out = out.extend(fext, snap, NAN, opt);
+		} else {
+			if (!opt.get_filename().empty()) {
+				out.addWarning("ignoring filename argument because there are no cell values");
+			}
 		}
 		return(out);
 	}
@@ -3670,9 +3683,7 @@ void do_stat(std::vector<double> &v, std::string fun, bool narm, double &stat, d
 			stat = s1;
 			stat2 = s2;
 		}
-	} else if (fun == "notNA") {
-		notisnan(v, n);
-	} else if (fun == "isNA") {
+	} else if (fun == "notNA" || fun == "isNA") {
 		notisnan(v, n);
 	}
 }
@@ -3702,11 +3713,13 @@ void do_mstats(std::vector<double> &v, size_t start, size_t end, std::vector<std
 		} else {
 			sum = sum_se(v, start, end);
 		}
-				}
+	}
+	size_t notna = 0;
 	if (is_in_vector("mean", funs) || is_in_vector("rms", funs) || is_in_vector("sd", funs) || 
 			is_in_vector("std", funs) || is_in_vector("notNA", funs) || is_in_vector("isNA", funs)) {
 		if (narm) {
-			n += isnotna_se(v, start, end);
+			notna = isnotna_se(v, start, end);
+			n += notna;
 		} else {
 			n += (end - start);
 		}
@@ -3829,9 +3842,18 @@ void do_mstats(std::vector<double> &v, size_t start, size_t end, std::vector<std
 				}
 			}
 		} else if (fun == "notNA") {
-			stat[i] += n;
+			if (narm) {
+				// if (last) {
+				stat[i] = n;
+			} else {
+				stat[i] += isnotna_se(v, start, end);
+			}
 		} else if (fun == "isNA") {
-			stat[i] += v.size() - n;
+			if (narm) {
+				stat[i] += v.size() - notna;
+			} else {
+				stat[i] += v.size() - isnotna_se(v, start, end);
+			}
 		}
 	}
 }
@@ -3868,6 +3890,7 @@ SpatDataFrame SpatRaster::mglobal(std::vector<std::string> funs, bool narm, Spat
 	}
 	
 	BlockSize bs = getBlockSize(opt);
+
 	for (size_t i=0; i<bs.n; i++) {
 		std::vector<double> v;
 		readBlock(v, bs, i);

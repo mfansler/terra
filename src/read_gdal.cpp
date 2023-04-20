@@ -978,6 +978,7 @@ bool SpatRaster::constructFromFile(std::string fname, std::vector<int> subds, st
 		char **cat = poBand->GetCategoryNames();
 		if( cat != NULL )	{
 			SpatCategories scat = GetCategories(cat, bandname);
+
 			s.cats[i] = scat;
 			s.hasCategories[i] = true;
 		}
@@ -989,8 +990,12 @@ bool SpatRaster::constructFromFile(std::string fname, std::vector<int> subds, st
 			GDALRasterAttributeTable *rat = poBand->GetDefaultRAT();
 			if (rat != NULL) {
 				found_rat = GetRAT(rat, crat, gdrv);
-				s.cats[i] = crat;
-				s.hasCategories[i] = true;
+				if (crat.d.nrow() > 0) {
+					s.cats[i] = crat;
+					s.hasCategories[i] = true;
+				} else {
+					found_rat = false;
+				}
 			}
 		}
 		//	} else {
@@ -1316,7 +1321,15 @@ std::vector<double> SpatRaster::readGDALsample(unsigned src, size_t srows, size_
 		scols = std::min(scols, ncols);
 	}
 
-    GDALDataset *poDataset = openGDAL(source[src].filename, GDAL_OF_RASTER | GDAL_OF_READONLY, source[src].open_drivers, source[src].open_ops);
+	std::vector<std::string> openops = source[src].open_ops;
+	
+	#if GDAL_VERSION_MAJOR <= 3 && GDAL_VERSION_MINOR < 3
+	// do nothing
+	#else 
+	openops.push_back("OVERVIEW_LEVEL=NONE");
+	#endif
+	
+    GDALDataset *poDataset = openGDAL(source[src].filename, GDAL_OF_RASTER | GDAL_OF_READONLY, source[src].open_drivers, openops);
     if( poDataset == NULL )  {
 		setError("no data");
 		return errout;

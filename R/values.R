@@ -171,7 +171,7 @@ setMethod("setValues", signature("SpatRaster"),
 		make_factor <- FALSE
 		set_coltab <- FALSE
 		if (is.character(values)) {
-			if (all(substr(na.omit(values), 1, 1) == "#")) {
+			if (all(substr(stats::na.omit(values), 1, 1) == "#")) {
 				fv <- as.factor(values)
 				if (length(levels(fv)) <= 256) {
 					values <- as.integer(fv) #-1
@@ -397,6 +397,7 @@ setMethod("compareGeom", signature(x="SpatRaster", y="SpatRaster"),
 )
 
 
+
 setMethod("compareGeom", signature(x="SpatVector", y="SpatVector"),
 	function(x, y, tolerance=0) {
 		out <- x@ptr$equals_between(y@ptr, tolerance)
@@ -416,6 +417,27 @@ setMethod("compareGeom", signature(x="SpatVector", y="SpatVector"),
 	}
 )
 
+
+setMethod("all.equal", signature(target="SpatRaster", current="SpatRaster"),
+	function(target, current, maxcell=10000, ...) {
+		a <- base::all.equal(rast(target), rast(current))
+		if (isTRUE(a) && maxcell > 0) {
+			hvT <- hasValues(target)
+			hvC <- hasValues(current)
+			if (hvT && hvC) {
+				s <- spatSample(c(target, current), maxcell, "regular")
+				a <- all.equal(s[,1], s[,2], ...)
+			} else if (hvT || hvC) {
+				if (hvT) {
+					a <- "target has cell values, current does not"
+				} else {
+					a <- "current has cell values, target does not"				
+				}
+			}
+		}
+		a
+	}
+)
 
 
 

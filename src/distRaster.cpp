@@ -411,7 +411,7 @@ SpatRaster SpatRaster::distance_rasterize(SpatVector p, double target, double ex
 	x = out.rasterize(p, "", {1}, NAN, false, "", false, false, false, ops);
 
 	if (!lonlat) {
-		return x.distance(NAN, 0, unit, false, haversine, opt);
+		return x.distance(NAN, 0, false, unit, false, haversine, opt);
 	}
 
 	if (poly) {
@@ -632,7 +632,7 @@ SpatRaster SpatRaster::distance_vector(SpatVector p, std::string unit, SpatOptio
 
 */
 
-SpatRaster SpatRaster::distance(double target, double exclude, std::string unit, bool remove_zero, bool haversine, SpatOptions &opt) {
+SpatRaster SpatRaster::distance(double target, double exclude, bool keepNA, std::string unit, bool remove_zero, bool haversine, SpatOptions &opt) {
 
 	SpatRaster out = geometry(1);
 	if (!hasValues()) {
@@ -652,7 +652,7 @@ SpatRaster SpatRaster::distance(double target, double exclude, std::string unit,
 			std::vector<unsigned> lyr = {i};
 			SpatRaster r = subset(lyr, ops);
 			ops.names = {nms[i]};
-			r = r.distance(target, exclude, unit, remove_zero, haversine, ops);
+			r = r.distance(target, exclude, keepNA, unit, remove_zero, haversine, ops);
 			out.source[i] = r.source[0];
 		}
 		if (!opt.get_filename().empty()) {
@@ -661,7 +661,7 @@ SpatRaster SpatRaster::distance(double target, double exclude, std::string unit,
 		return out;
 	}
 	if (!is_lonlat()) { // && std::isnan(target) && std::isnan(exclude)) {
-		return proximity(target, exclude, unit, false, 0, remove_zero, opt); 
+		return proximity(target, exclude, keepNA, unit, false, 0, remove_zero, opt); 
 	}
 
 	bool setNA = false;
@@ -2216,14 +2216,14 @@ SpatRaster SpatRaster::buffer(double d, double background, SpatOptions &opt) {
 
 	if (!is_lonlat()) {
 		if (!std::isnan(background)) {
-			out = proximity(NAN, NAN, "", true, d, true, ops);
+			out = proximity(NAN, NAN, false, "", true, d, true, ops);
 			if (background == 0) {
 				out = out.isnotnan(false, opt);
 			} else {
 				out = out.replaceValues({NAN}, {background}, 1, false, NAN, false, opt);
 			}
 		} else {
-			out = proximity(NAN, NAN, "", true, d, true, opt);
+			out = proximity(NAN, NAN, false, "", true, d, true, opt);
 		}
 	} else {
 		SpatRaster e = edges(false, "inner", 8, NAN, ops);
@@ -2302,12 +2302,13 @@ void SpatVector::fix_lonlat_overflow() {
 	return;
 }
 
-
+/*
 void sort_unique_2d(std::vector<double> &x, std::vector<double> &y) {
 	std::vector<std::vector<double>> v(x.size());
 	for (size_t i=0; i<v.size(); i++) {
 		v[i] = {x[i], y[i]};
 	}
+
 	std::sort(v.begin(), v.end(), []
 		(const std::vector<double> &a, const std::vector<double> &b)
 			{ return a[0] < b[0];});
@@ -2320,7 +2321,7 @@ void sort_unique_2d(std::vector<double> &x, std::vector<double> &y) {
 		y[i] = v[i][1];
 	}
 }
-
+*/
 
 void split_dateline(SpatVector &v) {
 	SpatExtent e1 = {-1,  180, -91, 91};

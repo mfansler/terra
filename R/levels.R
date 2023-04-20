@@ -197,6 +197,7 @@ setMethod ("set.cats" , "SpatRaster",
 
 setMethod ("categories" , "SpatRaster",
 	function(x, layer=1, value, active=1, ...) {
+		#... to accept but ignore old argument "index"
 		x@ptr <- x@ptr$deepcopy()
 		set.cats(x, layer, value, active)
 		x
@@ -309,20 +310,39 @@ setMethod ("as.numeric", "SpatRaster",
 		}
 		g <- cats(x)[[1]]
 		if (!is.null(index)) {
-			index <- round(index[1])
-			if (!((index >= 1) & (index < ncol(g)))) {
-				error("as.numeric", "invalid index")
+			if (is.character(index)) {
+				index <- match(index, colnames(g))
+				if (is.na(index)) {
+					error("as.numeric", "index is not category name")				
+				}
+				if (index == 1) {
+					levels(x) <- NULL
+					x@ptr$setValueType(0)
+					if (filename != "") {
+						x <- writeRaster(x, filename, ...)
+					}
+					return(x)
+				}		
+			} else {
+				index <- round(index[1])
+				if (!((index >= 1) & (index < ncol(g)))) {
+					error("as.numeric", "index out of range")
+				}
+				index <- index + 1
 			}
 		} else {
 			index <- activeCat(x, 1)
-			if (index < 0)
-			x <- deepcopy(x)
-			levels(x) <- NULL
-			x@ptr$setValueType(0)
-			return(x)
+			if (index <= 1) {
+				levels(x) <- NULL
+				x@ptr$setValueType(0)
+				if (filename != "") {
+					x <- writeRaster(x, filename, ...)
+				}
+				return(x)
+			}
 		}
 		from <- g[,1]
-		to <- g[,index+1]
+		to <- g[,index]
 		if (!is.numeric(to)) {
 			suppressWarnings(toto <- as.numeric(to))
 			if (sum(is.na(toto) > sum(is.na(to)))) {
@@ -333,7 +353,7 @@ setMethod ("as.numeric", "SpatRaster",
 		}
 		m <- cbind(from, to)
 		m <- m[!is.na(m[,1]), ,drop=FALSE]
-		classify(x, m, names=names(g)[index+1], filename, ...)
+		classify(x, m, names=names(g)[index], filename, ...)
 	}
 )
 
@@ -408,5 +428,26 @@ setMethod("concats", "SpatRaster",
 	}
 )
 
-
+setMethod("addCats", "SpatRaster",
+	function(x, value, merge=FALSE, layer=1) {
+		if (!(is.factor(x)[layer])) {
+			error("addCat", "the layer has no categories to add to")
+		}
+		cts <- cats(x)[[layer]]
+		nact <- ncol(cts)
+		if (merge) {
+			if (ncol(value) < 2) {
+				error("addCat", "'value' must have at least two columns when using 'merge=TRUE'")
+			}
+			cts <- merge(cts, value, by=1, all.x=TRUE)
+			cts <- cts[order(cts[,1]), ]
+		} else {
+			if (nrow(cts) != nrow(value)) {
+				error("addCat", "the number of categories does not match")
+			}
+			cts <- cbind(cts, value)
+		}
+		categories(x, layer=layer, cts, active=nact)
+	}
+)
 

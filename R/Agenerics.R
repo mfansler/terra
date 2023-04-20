@@ -1,5 +1,8 @@
 #if (!isGeneric("#")) { setGeneric("#", function(x, ...) standardGeneric("#")) }
 
+if (!isGeneric("addCats")) {setGeneric("addCats", function(x, ...) standardGeneric("addCats"))}
+if (!isGeneric("regress")) {setGeneric("regress", function(y, x, ...) standardGeneric("regress"))}
+
 if (!isGeneric("panel")) {setGeneric("panel", function(x, ...) standardGeneric("panel"))}
 #if (!isGeneric("colSums")) {setGeneric("colSums", function(x, ...) standardGeneric("colSums"))}	
 #if (!isGeneric("rowSums")) {setGeneric("rowSums", function(x, ...) standardGeneric("rowSums"))}	
@@ -246,7 +249,7 @@ if (!isGeneric("crs<-")) { setGeneric("crs<-", function(x, ..., value) standardG
 if (!isGeneric("density")) { setGeneric("density", function(x, ...) standardGeneric("density"))}
 if (!isGeneric("aggregate")) {setGeneric("aggregate", function(x, ...) standardGeneric("aggregate"))}
 if (!isGeneric("disagg")) {setGeneric("disagg", function(x, ...) standardGeneric("disagg"))}
-if (!isGeneric("costDistance")) {setGeneric("costDistance", function(x, ...)standardGeneric("costDistance"))}
+#if (!isGeneric("costDistance")) {setGeneric("costDistance", function(x, ...)standardGeneric("costDistance"))}
 if (!isGeneric("gridDistance")) {setGeneric("gridDistance", function(x, ...)standardGeneric("gridDistance"))}
 if (!isGeneric("costDist")) {setGeneric("costDist", function(x, ...)standardGeneric("costDist"))}
 if (!isGeneric("gridDist")) {setGeneric("gridDist", function(x, ...)standardGeneric("gridDist"))}

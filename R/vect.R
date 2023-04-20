@@ -210,7 +210,8 @@ setMethod("vect", signature(x="matrix"),
 
 setMethod("$", "SpatVector",  function(x, name) {
 	if (!(name %in% names(x))) {
-		error("$", paste(name, "is not a variable name in x"))
+		return(NULL)
+		#error("$", paste(name, "is not a variable name in x"))
 	}
 	s <- .subset_cols(x, name, drop=TRUE)
 	s[,1,drop=TRUE]
@@ -226,6 +227,9 @@ function(x, i, j,drop=FALSE) {
 
 setMethod("[[", c("SpatVector", "character", "missing"),
 function(x, i, j, drop=FALSE) {
+	if (!(any(i %in% names(x)))) {
+		return(NULL)
+	}
 	s <- .subset_cols(x, i, drop=TRUE)
 	s[,,drop=drop]
 })
@@ -306,8 +310,12 @@ setReplaceMethod("[[", c("SpatVector", "character"),
 
 		if (name %in% names(x)) {
 			d <- values(x)
-			#[] to keep type if NA is used
-			d[[name]][] <- value
+			if (all(is.na(value))) {
+				#[] to keep type if NA is used
+				d[[name]][] <- value
+			} else {
+				d[[name]] <- value			
+			}
 			values(x) <- d
 		} else {
 			if (inherits(value, "factor")) {
@@ -445,7 +453,7 @@ setMethod("query", signature(x="SpatVectorProxy"),
 		if (is.null(vars)) {
 			vars <- "*"
 		} else {
-			vars <- na.omit(unique(vars))
+			vars <- stats::na.omit(unique(vars))
 			nms <- names(x)
 			if (!all(vars %in% nms)) {
 				error("query", "not all vars are variable names")
