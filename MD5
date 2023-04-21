@@ -1,4 +1,4 @@
-f3b98164f3b9f5e460095f962a1eee82 *DESCRIPTION
+cf0b973ae0913cce60edd3a9bdffe7d0 *DESCRIPTION
 9fdaa9467de2f9cd78f1fcd804b68916 *NAMESPACE
 495c577dccc3716b676f76dab5098ee0 *NEWS.md
 48a274ea6fb078418d82febcda44d64b *R/Aclasses.R
@@ -65,12 +65,12 @@ cdf4938820f532ff6fb0640592ad8399 *R/plotExtent.R
 d88eed6f147e19ab8b385b75ab1324c5 *R/plotRGB.R
 90f59b441124c5892b3bc5e15555b439 *R/plot_2rasters.R
 cfb9e008327d1f166001a85bca67429b *R/plot_axes.R
-bd768f480bdd4665d50709dfa52b6cf4 *R/plot_cartogram.R
-ee9d954d329b2aa0c9ed59dbeb4091f2 *R/plot_legend.R
+b8f6342d62bb2b89ac7d3b55c2cfcd2e *R/plot_cartogram.R
+1aeeab21109ea4f5456262a6fed7ff58 *R/plot_legend.R
 091d0ca19d894cb115114dea028f7b31 *R/plot_let.R
-32e67a2d4ea0aa8d13473c0ffdc8b0ac *R/plot_raster.R
+3b173b99af29712cb368bff0aaaac991 *R/plot_raster.R
 9c1e4154a95e2814d7214c9925a0f125 *R/plot_scale.R
-9018a842e1c4b984c16e69aaddf19ce6 *R/plot_vector.R
+30d7e34a2c0baffd9d8c14ab67d6de29 *R/plot_vector.R
 d41d8cd98f00b204e9800998ecf8427e *R/polygons.R
 b51a455cb431ea9c42504e5dab259b2c *R/predict.R
 6935962155404f2d0b6d8b06df9ef022 *R/rapp.R
@@ -349,7 +349,7 @@ e8cc644880d97736263af23197b4f43f *man/terrain.Rd
 f593837e926ef4aba54ceafccf093316 *man/time.Rd
 f631416068cdb1f682c77127c1a97258 *man/tmpFile.Rd
 ab68ce9ec48831ea89b8b274a256efdc *man/topology.Rd
-c1294594b9ca56ffd88909f32ffe6f47 *man/transpose.Rd
+279b6708f4cad3045745f9fa50da1567 *man/transpose.Rd
 80be00178c45e9acc17d639d4db9f17b *man/trim.Rd
 53e803348f13b980b836dac9d30ad0b3 *man/union.Rd
 385518b5c1a592ea31b90b59235f085e *man/unique.Rd
