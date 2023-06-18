@@ -84,7 +84,7 @@ setMethod("Math", signature(x="SpatExtent"),
 		} else {
 			error(oper, "not implemented for SpatExtent")
 		}
-		if (!x@ptr$valid) {
+		if (!is.valid(x)) {
 			error(oper, "invalid extent")
 		}
 		return(x)
@@ -96,7 +96,7 @@ setMethod("Math2", signature(x="SpatExtent"),
 		oper <- as.vector(.Generic)[1]
 		if (oper == "round") {
 			x@ptr <- x@ptr$round(digits)
-			if (!x@ptr$valid) {
+			if (!is.valid(x)) {
 				error(oper, "invalid extent")
 			}
 			return(x)

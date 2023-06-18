@@ -8,10 +8,21 @@ setMethod("panel", signature(x="SpatRaster"),
 			error("panel", "you cannot set the plot type")
 		}
 		if (!is.null(dots$breaks)) {
-			error("panel", "you cannot use breaks")
+			error("panel", "you cannot use argument 'breaks'")
 		}
+		categorical <- FALSE
 		if (any(is.factor(x))) {
-			error("panel", "cannot use categorical rasters")
+		    lv <- levels(x)
+			lv <- lv[sapply(lv, is.data.frame)]
+			lv <- try(do.call(rbind, lv), silent=TRUE)
+			if (inherits(lv, "try-error")) {
+				error("panel", "cannot use non-matching categorical rasters")
+			}
+			lv <- unique(lv)
+			if (length(unique(lv[,1])) < nrow(lv)) {
+				error("panel", "cannot use rasters with conflicting categories")			
+			}
+			categorical <- TRUE
 		}
 
 		nl <- max(1, min(nlyr(x), maxnl))
@@ -55,18 +66,33 @@ setMethod("panel", signature(x="SpatRaster"),
 		}
 		bottom <- c(0,1)[b]
 
-		rng <- range(minmax(x, FALSE))
-		if (any(is.na(rng))) {
-			xs <- spatSample(x, maxcell, ext=ext, method="regular", as.raster=TRUE, warn=FALSE)
-			rng <- range(minmax(xs, TRUE))
+		if (!categorical) {
+			if (all(hasMinMax(x))) {
+				rng <- range(minmax(x, FALSE))
+			} else {
+				x <- spatSample(x, maxcell, method="regular", as.raster=TRUE, warn=FALSE)
+				rng <- range(minmax(x, TRUE))
+			}
+			if (diff(rng) > 0) {
+				ptype <- "continuous"
+			} else {
+				ptype <- "classes"
+			}
 		}
 		if (is.null(plg$size)) plg$size <- max(1, nrnc[1] * 0.66)
 		if (is.null(plg$cex))  plg$cex  <- 1.25 
 		plg$yshift <- (nrnc[1] %% 2 == 0) 
 		for (i in 1:nl) {
 			pax$side <- c(bottom[i], left[i])
-			plot(x, i, main=main[i], mar=mar, legend=legend[i], range=rng, pax=pax, box=box, 
-				loc.main=loc.main, plg=plg, type="continuous", ...)
+			if (categorical) {
+				y <- x[[i]]
+				levels(y) <- lv
+				plot(y, 1, main=main[i], mar=mar, legend=legend[i], pax=pax, box=box, 
+					loc.main=loc.main, plg=plg, type="classes", ...)
+			} else {
+				plot(x, i, main=main[i], mar=mar, legend=legend[i], range=rng, pax=pax, box=box, 
+					loc.main=loc.main, plg=plg, type=ptype, ...)
+			}
 		}
 	}
 )

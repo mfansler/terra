@@ -60,11 +60,14 @@ Sobel filters (for edge detection):
 \code{fy=matrix(c(1,0,-1,2,0,-2,1,0,-1), nrow=3)}
 }
 
+\note{
+When using global lon/lat rasters, the focal window "wraps around" the date-line.
+}
 
 \value{SpatRaster}
 
 
-\seealso{ \code{\link{focalMat}}, \code{\link{focalValues}}, \code{\link{focal3D}}, \code{\link{focalCor}}, \code{\link{focalReg}}, \code{\link{focalCpp}} }
+\seealso{ \code{\link{focalMat}}, \code{\link{focalValues}}, \code{\link{focal3D}}, \code{\link{focalPairs}}, \code{\link{focalReg}}, \code{\link{focalCpp}} }
 
 
 \examples{

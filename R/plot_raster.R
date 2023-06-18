@@ -288,7 +288,7 @@ prettyNumbs <- function(x, digits) {
 	} else {
 		if (is.null(out$leg$legend)) out$leg$legend <- unique(stats::na.omit(out$cats[ilevels, 2]))
 		levlab <- data.frame(id=out$levels, lab=out$cats[ilevels, 2], stringsAsFactors=FALSE)
-		leglevs <- na.omit(unique(levlab[,2]))
+		leglevs <- stats::na.omit(unique(levlab[,2]))
 		if (length(leglevs) == 0) {
 			error("plot", "something is wrong with the categories")
 		}
@@ -546,7 +546,8 @@ prettyNumbs <- function(x, digits) {
 	if ((!is.null(ext)) || (!is.null(xlim)) || (!is.null(ylim))) {
 		if (!is.null(ext)) {
 			ext <- ext(ext)
-			e <- as.vector(align( intersect(ext, ext(x)), x))
+			#e <- as.vector(align( intersect(ext, ext(x)), x))
+			e <- as.vector(align(ext, x))
 			out$lim <- out$ext <- e
 		} 
 		if (!is.null(xlim)) {
@@ -740,7 +741,7 @@ prettyNumbs <- function(x, digits) {
 
 
 setMethod("plot", signature(x="SpatRaster", y="numeric"),
-	function(x, y=1, col, type=NULL, mar=NULL, legend=TRUE, axes=TRUE, plg=list(), pax=list(), maxcell=500000, smooth=FALSE, range=NULL, levels=NULL, all_levels=FALSE, breaks=NULL, breakby="eqint", fun=NULL, colNA=NULL, alpha=NULL, sort=FALSE, decreasing=FALSE, grid=FALSE, ext=NULL, reset=FALSE, add=FALSE, buffer=FALSE, background=NULL, box=axes, clip=TRUE, ...) {
+	function(x, y=1, col, type=NULL, mar=NULL, legend=TRUE, axes=!add, plg=list(), pax=list(), maxcell=500000, smooth=FALSE, range=NULL, levels=NULL, all_levels=FALSE, breaks=NULL, breakby="eqint", fun=NULL, colNA=NULL, alpha=NULL, sort=FALSE, decreasing=FALSE, grid=FALSE, ext=NULL, reset=FALSE, add=FALSE, buffer=FALSE, background=NULL, box=axes, clip=TRUE, ...) {
 
 		y <- round(y)
 		hasRGB <- FALSE		

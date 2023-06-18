@@ -344,16 +344,20 @@ std::string SpatVector::getPRJ(){
 std::string SpatVector::type(){
 	if (size() == 0) {
 		return "none";
-	} else if (geoms[0].gtype == points) {
-		return "points";
-	} else if (geoms[0].gtype == lines) {
-		return "lines";
-	} else if (geoms[0].gtype == polygons) {
-		return "polygons";
-	} else if (geoms[0].gtype == null) {
-		return("null");
 	} else {
-		return("unknown");
+		size_t n = size();
+		for (size_t i = 0; i<n; i++) {
+			if (geoms[i].gtype != null) {	
+				if (geoms[i].gtype == points) {
+					return "points";
+				} else if (geoms[i].gtype == lines) {
+					return "lines";
+				} else if (geoms[i].gtype == polygons) {
+					return "polygons";
+				}
+			}
+		}
+		return("none");
 	}
 }
 
@@ -397,7 +401,7 @@ void SpatVector::computeExtent() {
 std::vector<unsigned> SpatVector::nullGeoms(){
 	std::vector<unsigned> ids;
 	for (size_t i=0; i<geoms.size(); i++) {
-		if ((geoms[i].gtype == null) || (geoms[i].gtype == unknown)) {
+		if (geoms[i].gtype == null) {
 			ids.push_back(i);
 		}
 	}
@@ -708,7 +712,7 @@ SpatGeomType SpatVector::getGType(std::string &type) {
 	if (type == "points") { return points; }
 	else if (type == "lines") { return lines; }
 	else if (type == "polygons") { return polygons; }
-	else { return unknown; }
+	else { return null; }
 }
 
 
@@ -719,13 +723,14 @@ void SpatVector::setGeometry(std::string type, std::vector<unsigned> gid, std::v
 	unsigned lastpart = part[0];
 	unsigned lasthole = hole[0];
 	bool isHole = lasthole > 0;
+	bool isPoly = type == "polygons";
 
 	std::vector<double> X, Y;
 	SpatGeom g;
 	g.gtype = getGType(type);
-
+	
 	for (size_t i=0; i<gid.size(); i++) {
-		if ((lastgeom != gid[i]) || (lastpart != part[i]) || (lasthole != hole[i])) {
+		if ((lastgeom != gid[i]) || (lastpart != part[i]) || (isPoly && (lasthole != hole[i]))) {
 			if (X.empty()) {
 				SpatPart p(NAN, NAN);
 				g.addPart(p);
@@ -1189,6 +1194,8 @@ SpatVector SpatVector::remove_duplicate_nodes(int digits) {
 }
 
 
+SpatVectorCollection::SpatVectorCollection() {}
+
 SpatVector SpatVectorCollection::append() {
 	SpatVector out;
 	size_t n = size();
@@ -1205,7 +1212,7 @@ SpatVector SpatVectorCollection::append() {
 			gtype = out.type();
 			continue;
 		}
-		if (v[i].type() != gtype) {
+		if ((v[i].type() != gtype) && (v[i].type() != "null")) {
 			out.setError("all SpatVectors must have the same geometry type");
 			return out;
 		}

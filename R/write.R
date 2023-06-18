@@ -12,6 +12,7 @@ setMethod("blocks", signature(x="SpatRaster"),
 
 setMethod("writeStart", signature(x="SpatRaster", filename="character"),
 	function(x, filename="", overwrite=FALSE, n=4, sources="", ...) {
+		filename <- path.expand(trimws(filename[1]))
 		filename <- enc2utf8(filename)
 		opt <- spatOptions(filename, overwrite, ncopies=n, ...)
 		ok <- x@ptr$writeStart(opt, unique(sources))
@@ -75,6 +76,8 @@ get_filetype <- function(filename) {
 		"ESRI Shapefile"
 	} else if (ext == "gpkg") {
 		"GPKG"
+	} else if (ext == "gdb") {
+		"OpenFileGDB"
 	} else if (ext == "gml") {
 		"GML"
 	} else if (ext == "json") {
@@ -89,6 +92,8 @@ get_filetype <- function(filename) {
 		"Idrisi"
 	} else if (ext == "rds") {
 		"rds"
+	} else if (ext == "tab") {
+		"MapInfo File"
 	} else {
 		error("writeVector", "cannot guess filetype from filename")
 	}

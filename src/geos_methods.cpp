@@ -15,6 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with spat. If not, see <http://www.gnu.org/licenses/>.
 
+
 #include <numeric>
 #include "geos_spat.h"
 #include "distance.h"
@@ -965,7 +966,7 @@ SpatVector SpatVector::voronoi(SpatVector bnd, double tolerance, int onlyEdges) 
 		v = GEOSVoronoiDiagram_r(hGEOSCtxt, g[0].get(), NULL, tolerance, onlyEdges);
 	} else {
 		if (bnd.type() != "polygons") {
-			out.setError("boundary must be polygon");
+			out.setError("boundary must have a polygon geometry");
 			geos_finish(hGEOSCtxt);
 			return out;
 		}
@@ -1125,7 +1126,7 @@ SpatVector SpatVector::buffer(std::vector<double> d, unsigned quadsegs, std::str
 
 	quadsegs = std::min(quadsegs, (unsigned) 180);
 	SpatVector out;
-	out.srs = srs;
+//	out.srs = srs;
 	if (srs.is_empty()) {
 		out.addWarning("unknown CRS. Results may be wrong");
 	} 
@@ -1170,6 +1171,7 @@ SpatVector SpatVector::buffer(std::vector<double> d, unsigned quadsegs, std::str
 				out = out.append(p, true);
 			}
 			out.df = df;
+			out.srs = srs;
 			return out;
 		}
 	}
@@ -2340,7 +2342,8 @@ std::vector<double> SpatVector::geos_distance(bool sequential, std::string fun) 
 SpatVector SpatVector::unite(SpatVector v) {
 
 	SpatVector out;
-	if (type() != v.type()) {
+	std::string gtp = type();
+	if (gtp != v.type()) {
 		out.setError("cannot unite different geom types");
 		return out;
 	}
@@ -2352,14 +2355,16 @@ SpatVector SpatVector::unite(SpatVector v) {
 	if (out.nrow() == 0) {
 		return append(v, true);
 	}
-
+	if (gtp != out.type()) {
+		SpatVector empty;
+		out = empty;
+	}
 	SpatVector sdif = symdif(v);
 	if (sdif.hasError()) {
 		return sdif;
 	}
-
-	if (sdif.type() == type()) {
-		return out.append(sdif, true);
+	if ((sdif.nrow() > 0) && (gtp == sdif.type())) {	
+		return sdif.append(out, true);
 	}
 	return out;
 }

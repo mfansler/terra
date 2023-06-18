@@ -72,8 +72,7 @@ setMethod("set.values", signature(x="SpatRaster"),
 )
 
 
-make_replace_index <- function(v, vmx, name="i") {
-
+make_replace_index <- function(v, vmx, nreps, name="i") {
 	caller <- paste0("`[<-`(", name, ")")
 
 	if (inherits(v, "SpatRaster")) {
@@ -124,8 +123,21 @@ make_replace_index <- function(v, vmx, name="i") {
 		}
 	}
 
-	vv <- stats::na.omit(v)
-	if (any(vv < 1 | vv > vmx)) {
+	if (any(is.na(v))) {
+		if (nreps > 1) {
+			error(caller, "NAs are not allowed in subscripted assignments")
+		} else {
+			v <- v[!is.na(v)]
+		}
+	}
+	#vv <- stats::na.omit(v)
+	if (all(v < 0)) {
+		if (any(v < -vmx)) {
+			error(caller, paste(name, "is out of its valid range"))
+		}
+		v <- (1:vmx)[v]
+	} 
+	if (any(v < 1 | v > vmx)) {
 		error(caller, paste(name, "is out of its valid range"))
 	}
 	v
@@ -289,7 +301,7 @@ setReplaceMethod("[", c("SpatRaster", "ANY", "ANY", "ANY"),
 					stop()
 				}
 			} else {
-				k <- make_replace_index(k, nlyr(x), "k")
+				k <- make_replace_index(k, nlyr(x), length(value), "k")
 			}
 		} else {
 			k <- NA
@@ -313,20 +325,20 @@ setReplaceMethod("[", c("SpatRaster", "ANY", "ANY", "ANY"),
 			narg <- length(theCall)-length(match.call(call=theCall))
 			if ((narg==0) && m[2]) {
 				# cell
-				i <- make_replace_index(i, ncell(x), "i")
+				i <- make_replace_index(i, ncell(x), length(value), "i")
 			} else if (m[2]) {
 				# row
-				i <- make_replace_index(i, nrow(x), "i")
+				i <- make_replace_index(i, nrow(x), length(value), "i")
 				i <- cellFromRowColCombine(x, i, 1:ncol(x))
 			} else {
 				#row,col
-				i <- make_replace_index(i, nrow(x), "i")
-				j <- make_replace_index(j, ncol(x), "j")
+				i <- make_replace_index(i, nrow(x), length(value), "i")
+				j <- make_replace_index(j, ncol(x), length(value), "j")
 				i <- cellFromRowColCombine(x, i, j)
 			}
 		} else if (!m[2]) {
 			#col
-			j <- make_replace_index(j, ncol(x), "j")
+			j <- make_replace_index(j, ncol(x), length(value), "j")
 			i <- cellFromRowColCombine(x, 1:nrow(x), j)
 		} else {
 			if (inherits(value, "SpatRaster")) {

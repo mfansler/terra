@@ -253,6 +253,10 @@ setMethod("inMemory", signature(x="SpatRaster"),
 #..inMemory <- function(x) { x@ptr$inMemory }
 #..filenames <- function(x) {	x@ptr$filenames }
 
+subsetSource <- function(x, i) {
+	x@ptr <- x@ptr$subsetSource(i-1)
+	messages(x)
+}
 
 setMethod("sources", signature(x="SpatRaster"),
 	function(x, nlyr=FALSE, bands=FALSE) {
@@ -342,7 +346,9 @@ setMethod("minmax", signature(x="SpatRaster"),
 			}
 		}
 		r <- rbind(x@ptr$range_min, x@ptr$range_max)
-		r[,!have] <- c(Inf, -Inf)
+		if (!compute) {
+			r[,!have] <- c(Inf, -Inf)
+		}
 		colnames(r) <- names(x)
 		rownames(r) <- c("min", "max")
 		r

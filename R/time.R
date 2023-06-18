@@ -43,6 +43,13 @@ setMethod("timeInfo", signature(x="SpatRaster"),
 )
 
 
+setMethod("timeInfo", signature(x="SpatRasterDataset"),
+	function(x) {
+		t(sapply(x, timeInfo))
+	}
+)
+
+
 time_as_seconds <- function(x) {
 	d <- x@ptr$time
 	d <- strptime("1970-01-01", "%Y-%m-%d", tz="UTC") + d
@@ -66,17 +73,15 @@ setMethod("time", signature(x="SpatRaster"),
 				error("time", "cannot extract months from years-time")
 			} else if ((format == "years") && (tstep %in% c("months"))) {
 				error("time", "cannot extract years from months-time")
-			} else if ((format == "yearmonthis") && (tstep %in% c("months", "years"))) {
-				error("time", "cannot extract yearmon from this type of time data")
+			} else if ((format == "yearmonths") && (tstep %in% c("months", "years"))) {
+				error("time", "cannot extract yearmonths from this type of time data")
 			} else if ((format == "seconds") && (tstep != "seconds")) {
 				error("time", "cannot extract seconds from this type of time data")
 			} else if ((format == "days") && (!(tstep %in% c("seconds", "days")))) {
 				error("time", "cannot extract days from this type of time data")
 			}
 			tstep <- format
-		} else {
-			tstep <- x@ptr$timestep
-		}
+		} 
 		if (tstep == "seconds") {
 			d <- strptime("1970-01-01", "%Y-%m-%d", tz="UTC") + d
 			tz <- x@ptr$timezone
@@ -100,6 +105,12 @@ setMethod("time", signature(x="SpatRaster"),
 		} else { # raw
 			d
 		}
+	}
+)
+
+setMethod("time", signature(x="SpatRasterDataset"),
+	function(x, format="") {
+		lapply(x,time, format=format)
 	}
 )
 
@@ -138,8 +149,10 @@ setMethod("time<-", signature(x="SpatRaster"),
 			error("time<-", "length(value) != nlyr(x)")
 		}
 		if (tstep != "") {
-			tstep = match.arg(as.character(tstep), c("days", "months", "years", "yearmonths", "raw"))
+			tstep = match.arg(as.character(tstep), c("seconds", "days", "months", "years", "yearmonths", "raw"))
 		}
+		## may not be necessary
+		if (tstep == "seconds") tstep = ""
 		
 		tzone <- "UTC"
 		stept <- ""
@@ -179,7 +192,7 @@ setMethod("time<-", signature(x="SpatRaster"),
 				value <- posix_from_ym(1970, value)
 			} else if (tstep == "yearmonths") {
 				if (is.numeric(value)) {
-					y <- round(value, -2)
+					y <- as.integer(substr(value, 1, 4))
 					m <- value - (y * 100)
 				} else {
 					y <- as.integer(strftime(value, format = "%Y"))
@@ -204,6 +217,35 @@ setMethod("time<-", signature(x="SpatRaster"),
 	}
 )
 
+
+setMethod("time<-", signature(x="SpatRasterDataset"),
+	function(x, tstep="", value)  {
+
+		if (missing(value)) {
+			value <- tstep
+			tstep <- ""
+		}
+		tstep <- rep_len(tstep, length(x))
+
+		if (is.list(value)) {
+			if (length(x) != length(value)) {
+				error("time<-", "the list should have the same length as 'x'")
+			}
+			z <- lapply(1:length(x), function(i) { 
+				time(x[i], tstep=tstep[i]) <- value[[i]]
+			})
+			
+		} else {
+			if (length(unique(nlyr(x))) > 1) {
+				error("time<-", "not all SpatRasters have the same number of layers")
+			}
+			z <- lapply(1:length(x), function(i) { 
+				time(x[i], tstep=tstep[i]) <- value
+			})
+		}
+		x
+	}
+)
 
 
 setMethod("depth", signature(x="SpatRaster"),

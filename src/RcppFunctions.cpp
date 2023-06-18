@@ -14,6 +14,9 @@
 #if GDAL_VERSION_MAJOR >= 3
 #include "proj.h"
 #define projh
+#if PROJ_VERSION_MAJOR >=6
+# define PROJ_6
+#endif
 #if PROJ_VERSION_MAJOR > 7
 # define PROJ_71
 #else
@@ -385,16 +388,18 @@ void gdal_init(std::string projpath, std::string datapath) {
 	CPLSetConfigOption("GDAL_MAX_BAND_COUNT", "9999999");
 	CPLSetConfigOption("OGR_CT_FORCE_TRADITIONAL_GIS_ORDER", "YES");
 	CPLSetConfigOption("GDAL_DATA", datapath.c_str());
-
+	CPLSetConfigOption("CPL_VSIL_USE_TEMP_FILE_FOR_RANDOM_WRITE", "YES");
 
 	//GDALregistred = true;
 #if GDAL_VERSION_MAJOR >= 3
+ #ifdef PROJ_6
 	if (!projpath.empty()) {
 		const char *cp = projpath.c_str();
 		proj_context_set_search_paths(PJ_DEFAULT_CTX, 1, &cp);
 	}
+ #endif
 #endif
-#ifdef PROJ71
+#ifdef PROJ_71
 	proj_context_set_enable_network(PJ_DEFAULT_CTX, 1);
 #endif
 }

@@ -237,6 +237,7 @@ RCPP_MODULE(spat){
 		.method("deepcopy", &SpatExtent::deepCopy, "deepCopy")
 		.property("vector", &SpatExtent::asVector)
 		.property("valid", &SpatExtent::valid)
+		.property("valid_notempty", &SpatExtent::valid_notempty)
 		.method("align", &SpatExtent::align, "align")
 		.method("intersect", &SpatExtent::intersect, "intersect")
 		.method("as.points", &SpatExtent::asPoints, "as.points")
@@ -360,6 +361,7 @@ RCPP_MODULE(spat){
 
     class_<SpatVectorCollection>("SpatVectorCollection")
 		.constructor()
+		.constructor<std::string, std::string, std::string, std::vector<double>, SpatVector>()
 
 		//.property("names", &SpatVectorCollection::get_names, &SpatVectorCollection::set_names)
 		.method("deepcopy", &SpatVectorCollection::deepCopy, "deepCopy")
@@ -750,6 +752,7 @@ RCPP_MODULE(spat){
 		.method("setUnit", &SpatRaster::setUnit)
 		.method("set_resolution", &SpatRaster::setResolution)
 		.method("subset", &SpatRaster::subset)
+		.method("subsetSource", &SpatRaster::subsetSource)
 
 		.method("cellFromXY", ( std::vector<double> (SpatRaster::*)(std::vector<double>,std::vector<double>, double) )( &SpatRaster::cellFromXY ))
 		.method("vectCells", &SpatRaster::vectCells)
@@ -765,6 +768,7 @@ RCPP_MODULE(spat){
 		.method("colFromX", ( std::vector<int_64> (SpatRaster::*)(const std::vector<double>&) )( &SpatRaster::colFromX ))
 		.method("rowFromY", ( std::vector<int_64> (SpatRaster::*)(const std::vector<double>&) )( &SpatRaster::rowFromY ))
 		.method("xyFromCell", ( std::vector< std::vector<double> > (SpatRaster::*)(std::vector<double>&) )( &SpatRaster::xyFromCell ))
+		.method("crds", &SpatRaster::coordinates)
 		.method("rowColFromCell", ( std::vector< std::vector<int_64> > (SpatRaster::*)(std::vector<double>) )( &SpatRaster::rowColFromCell ))
 		.method("readStart", &SpatRaster::readStart)
 		.method("readStop", &SpatRaster::readStop)
@@ -972,6 +976,7 @@ RCPP_MODULE(spat){
 		.method("merge", &SpatRasterCollection::merge)
 		.method("mosaic", &SpatRasterCollection::mosaic)
 		.method("morph", &SpatRasterCollection::morph)
+		.method("crop", &SpatRasterCollection::crop)
 	;
 
     class_<SpatRasterStack>("SpatRasterStack")

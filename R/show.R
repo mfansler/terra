@@ -4,6 +4,28 @@
 # License GPL v3
 
 
+win_basename <- function(x) {
+	if (grepl("Windows", utils::osVersion)) {
+		large <- nchar(x) > 256
+		if (any(large)) {
+			for (i in 1:length(large)) {
+				if (large[i]) {
+					r <- strsplit(x[i], "[\\/]+")[[1]]
+					x[i] <- r[[length(r)]]
+				} else {
+					x[i] <- basename(x)	
+				}
+			}
+		} else {
+			x <- basename(x)
+		}
+		x
+	} else {
+		basename(x)	
+	}
+}
+
+
 printDF <- function(x, n=6, first=FALSE) {
 	n <- min(nrow(x), max(n, 0))
 	old <- dim(x)
@@ -22,7 +44,7 @@ printDF <- function(x, n=6, first=FALSE) {
 	cls <- gsub("character", "chr", cls)
 	cls <- gsub("factor", "fact", cls)
 	cls <- paste0("<", cls, ">")
-	cls <- data.frame(rbind(class=cls))
+	cls <- data.frame(rbind(class=cls), stringsAsFactors=FALSE)
 	names(cls) <- NULL
 
 	nms <- colnames(x)
@@ -42,7 +64,7 @@ printDF <- function(x, n=6, first=FALSE) {
 			}
 		}
 	}
-	x <- data.frame(lapply(x, as.character), check.names=FALSE)
+	x <- data.frame(lapply(x, as.character), check.names=FALSE, stringsAsFactors=FALSE)
 	x <- rbind(x[1,,drop=FALSE], x)
 	x[1,] <- cls
 	if (nrow(x) < d[1]) {
@@ -104,23 +126,27 @@ setMethod ("show" , "SpatVectorCollection",
 		if (n > 15) {
 			nn <- 15
 		}
-		for (i in 1:nn) {
-			v <- object[i]
-			if (i==1) {
-				cat(" geometry    : ", geomtype(v), " (", nrow(v) , ")\n", sep="")
-			} else {
-				cat("               ", geomtype(v), " (", nrow(v) , ")\n", sep="")
+		if (n > 0) {
+			for (i in 1:nn) {
+				v <- object[i]
+				if (i==1) {
+					cat(" geometry    : ", geomtype(v), " (", nrow(v) , ")\n", sep="")
+				} else {
+					cat("               ", geomtype(v), " (", nrow(v) , ")\n", sep="")
+				}
 			}
+			if (n > nn) {
+				cat("               ", "   and ", n-nn, "more\n", sep="")
+			}
+			crs <- .name_or_proj4(object[1])
+			if (crs != "") cat(" crs (first) :", crs,	 "\n")
+			nms <- names(object)
+			if (length(nms) > 10) {
+				nms <- c(nms[1:9], "...")
+			}
+			nms <- paste(nms, collapse=", ")
+			cat(" names       :", nms, "\n")
 		}
-		if (n > nn) {
-			cat("               ", "   and ", n-nn, "more\n", sep="")
-		}
-		nms <- names(object)
-		if (length(nms) > 10) {
-			nms <- c(nms[1:9], "...")
-		}
-		nms <- paste(nms, collapse=", ")
-		cat(" names       :", nms, "\n")
 	}
 )
 
@@ -133,10 +159,10 @@ setMethod ("show" , "SpatVector",
 		cat(" dimensions  : ", d[1], ", ", d[2], "  (geometries, attributes)\n", sep="" )
 		cat(" extent      : ", e[1], ", ", e[2], ", ", e[3], ", ", e[4], "  (xmin, xmax, ymin, ymax)\n", sep="")
 		if (object@ptr$source != "") {
-			if (object@ptr$layer != tools::file_path_sans_ext(basename(object@ptr$source))) {
-				cat(" source      : ", basename(object@ptr$source), " (", object@ptr$layer, ")\n", sep="")
+			if (object@ptr$layer != tools::file_path_sans_ext(win_basename(object@ptr$source))) {
+				cat(" source      : ", win_basename(object@ptr$source), " (", object@ptr$layer, ")\n", sep="")
 			} else {
-				cat(" source      : ", basename(object@ptr$source), "\n", sep="")
+				cat(" source      : ", win_basename(object@ptr$source), "\n", sep="")
 			}
 		}
 		cat(" coord. ref. :", .name_or_proj4(object), "\n")
@@ -157,11 +183,12 @@ setMethod ("show" , "SpatVectorProxy",
 		cat(" geometry    :", geomtype(object), "\n")
 		cat(" dimensions  : ", d[1], ", ", d[2], "  (geometries, attributes)\n", sep="" )
 		cat(" extent      : ", e[1], ", ", e[2], ", ", e[3], ", ", e[4], "  (xmin, xmax, ymin, ymax)\n", sep="")
-		if (object@ptr$v$layer != tools::file_path_sans_ext(basename(object@ptr$v$source))) {
-			cat(" source      : ", basename(object@ptr$v$source), " (", object@ptr$v$layer, ")\n", sep="")
+		if (object@ptr$v$layer != tools::file_path_sans_ext(win_basename(object@ptr$v$source))) {
+			cat(" source      : ", win_basename(object@ptr$v$source), " (", object@ptr$v$layer, ")\n", sep="")
 		} else {
-			cat(" source      : ", basename(object@ptr$v$source), "\n", sep="")
+			cat(" source      : ", win_basename(object@ptr$v$source), "\n", sep="")
 		}
+		cat(" layer       :", object@ptr$v$layer, "\n")
 		cat(" coord. ref. :", .name_or_proj4(object), "\n")
 		dd <- get.data.frame(object)
 		printDF(dd, 0, TRUE)
@@ -231,10 +258,10 @@ setMethod ("show" , "SpatRaster",
 				}
 			}
 			hdf5 <- substr(f, 1, 5) == "HDF5:"
-			f[!hdf5] <- basename(f[!hdf5])
+			f[!hdf5] <- win_basename(f[!hdf5])
 			if (any(hdf5)) {
 				ff <- strsplit(f[hdf5], "://")
-				ff <- sapply(ff, function(i) paste(basename(i), collapse="://"))
+				ff <- sapply(ff, function(i) paste(win_basename(i), collapse="://"))
 				ff <- gsub('\"', "", ff)
 				f[hdf5] <- ff
 			}
@@ -440,11 +467,11 @@ setMethod ("show" , "SpatRaster",
 .sources <- function(x) {
 	#m <- inMemory(x)
 	f <- sources(x)
-	f <- gsub("\"", "", basename(f))
+	f <- gsub("\"", "", win_basename(f))
 	i <- grep(":", f)
 	if (length(i) > 0) {
 		for (j in i) {
-			ff <- try(basename( strsplit(f[j], ':')[[1]][1]), silent=TRUE)
+			ff <- try(win_basename( strsplit(f[j], ':')[[1]][1]), silent=TRUE)
 			if (!inherits(ff, "try-error")) {
 				f[j] <- ff
 			}

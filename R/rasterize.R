@@ -87,8 +87,39 @@ rasterize_points <- function(x, y, field, values, fun="last", background=NA, upd
 			}
 		}
 	}
-
-
+	if (inherits(fun, "character")) {
+		if (fun == "first") {
+			fun <- function(i, na.rm=FALSE) {
+				if (na.rm) {
+					i <- na.omit(i)
+				}
+				if (length(i) > 0) {
+					i[i]
+				} else {
+					NA
+				}
+			}
+		} else if (fun == "last") {
+			fun <- function(i, na.rm=FALSE) {
+				if (na.rm) {
+					i <- na.omit(i)
+				}
+				if (length(i) > 0) {
+					i[length(i)]
+				} else {
+					NA
+				}
+			}
+		} else if (fun == "count") {
+			fun <- function(i, na.rm=FALSE) {
+				if (na.rm) {
+					i <- na.omit(i)
+				}
+				length(i)
+			}
+		}
+	}
+	
 	g <- cellFromXY(y, x)
 	i <- which(!is.na(g))
 	g <- g[i]
@@ -126,7 +157,7 @@ rasterize_points <- function(x, y, field, values, fun="last", background=NA, upd
 	}
 	nc <- ncol(r)
 	for (i in 1:b$n) {
-		w <- matrix(background, nrow=b$nrows * nc, ncol=nl)
+		w <- matrix(background, nrow=b$nrows[i] * nc, ncol=nl)
 		mincell <- cellFromRowCol(r, b$row[i], 1)
 		maxcell <- cellFromRowCol(r, b$row[i] + b$nrows[i]-1, nc)
 		vv <- values[values[,1] >= mincell & values[,1] <= maxcell, ,drop=FALSE]

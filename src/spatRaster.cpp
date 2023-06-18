@@ -126,6 +126,17 @@ SpatRaster SpatRaster::dropSource() {
 }
 */
 
+
+SpatRaster SpatRaster::subsetSource(size_t snr) {
+	if (snr >= source.size()) {
+		SpatRaster out;
+		out.setError("invalid source number");
+		return out;
+	}
+	SpatRaster out(source[snr]);
+	return out;
+}
+
 bool SpatRaster::hasValues() {
 //	if (source.size() == 0) {
 //		return false;
@@ -1699,6 +1710,27 @@ int_64 SpatRaster::rowFromY(double y) {
 }
 
 
+void SpatRaster::xyFromCell( std::vector<std::vector<double>> &xy ) {
+	
+	SpatExtent extent = getExtent();
+	double xmin = extent.xmin;
+	double ymax = extent.ymax;
+	double yr = yres();
+	double xr = xres();
+	size_t nr = nrow();
+	size_t nc = ncol();
+
+	xy[0].reserve(ncell()+2); 
+	xy[1].reserve(ncell()+2); 
+	for (size_t i = 0; i<nr; i++) {
+		for (size_t j = 0; j<nc; j++) {
+			xy[0].push_back( xmin + (j + 0.5) * xr );
+			xy[1].push_back( ymax - (i + 0.5) * yr );
+		}
+	}
+}
+
+
 std::vector<std::vector<double>> SpatRaster::xyFromCell( std::vector<double> &cell) {
 	size_t n = cell.size();
 	SpatExtent extent = getExtent();
@@ -2132,6 +2164,63 @@ std::vector<std::vector<double>> SpatRaster::as_points_value(const double& targe
 	return xyFromCell(cells);
 }
 
+
+
+std::vector<std::vector<double>> SpatRaster::coordinates(bool narm, bool nall, SpatOptions &opt) {
+
+    std::vector<std::vector<double>> xy(2);
+
+	if ( !(narm) || (!hasValues()) ) {
+        xyFromCell(xy);
+		return xy;
+	}
+
+	BlockSize bs = getBlockSize(opt);
+
+	if (!readStart()) {
+		return(xy);
+	}
+	size_t nc = ncol();
+	unsigned nl = nlyr();
+	std::vector<double> v;
+	for (size_t i = 0; i < bs.n; i++) {
+		readValues(v, bs.row[i], bs.nrows[i], 0, nc);
+        size_t off1 = (bs.row[i] * nc);
+ 		size_t vnc = bs.nrows[i] * nc;
+		for (size_t j=0; j<vnc; j++) {
+			if (nall) {
+				bool allna = true;
+				size_t off2 = 0;
+				for (size_t lyr=0; lyr<nl; lyr++) {
+					if (!std::isnan(v[off2+j])) {
+						allna = false;
+						continue;
+					}
+					off2 += vnc;
+				}
+				if (allna) continue;
+			} else {
+				bool foundna = false;
+				size_t off2 = 0;
+				for (size_t lyr=0; lyr<nl; lyr++) {
+					if (std::isnan(v[off2+j])) {
+						foundna = true;
+						continue;
+					}
+					off2 += vnc;
+				}
+				if (foundna) continue;
+			}
+			std::vector<std::vector<double>> xyc = xyFromCell( off1+j );
+			xy[0].push_back(xyc[0][0]);
+			xy[1].push_back(xyc[1][0]);
+		}
+	}
+	readStop();
+	return(xy);
+}
+
+
 std::vector<std::vector<double>> SpatRaster::cells_notna(SpatOptions &opt) {
 
 	std::vector<std::vector<double>> out(2);
@@ -2218,65 +2307,8 @@ void getCorners(std::vector<double> &x,  std::vector<double> &y, const double &X
 	y[4] = y[0];
 }
 
-/*
-SpatVector SpatRaster::as_polygons(bool values, bool narm) {
-	if (!values) narm=false;
-	SpatVector v;
-	SpatGeom g;
-	g.gtype = polygons;
-	double xr = xres()/2;
-	double yr = yres()/2;
-	std::vector<double> x(5);
-	std::vector<double> y(5);
-	if (!values) {
-		std::vector<double> cells(ncell()) ;
-		std::iota (std::begin(cells), std::end(cells), 0);
-		std::vector< std::vector<double> > xy = xyFromCell(cells);
-		for (size_t i=0; i<ncell(); i++) {
-			getCorners(x, y, xy[0][i], xy[1][i], xr, yr);
-			SpatPart p(x, y);
-			g.addPart(p);
-			v.addGeom(g);
-			g.parts.resize(0);
-		}
-	} else {
-		SpatRaster out = geometry();
-		unsigned nl = nlyr();
-		std::vector<std::vector<double> > att(ncell(), std::vector<double> (nl));
 
-		BlockSize bs = getBlockSize(4);
-		std::vector< std::vector<double> > xy;
-		std::vector<double> atts(nl);
-		for (size_t i=0; i<out.bs.n; i++) {
-			std::vector<double> vals = readBlock(out.bs, i);
-			unsigned nc=out.bs.nrows[i] * ncol();
-			for (size_t j=0; j<nc; j++) {
-				for (size_t k=0; k<nl; k++) {
-					size_t kk = j + k * nl;
-					att[nc+j][k] = vals[kk];
-				}
-				xy = xyFromCell(nc+j);
-				getCorners(x, y, xy[0][0], xy[1][0], xr, yr);
-				SpatPart p(x, y);
-				g.addPart(p);
-				v.addGeom(g);
-				g.parts.resize(0);
-
-			}
-		}
-		SpatDataFrame df;
-		std::vector<std::string> nms = getNames();
-		for (size_t i=0; i<att.size(); i++) {
-			df.add_column(att[i], nms[i]);
-		}
-	}
-	v.setCRS(getCRS());
-	return(v);
-}
-
-*/
-
-SpatVector SpatRaster::as_polygons(bool trunc, bool dissolve, bool values, bool narm, bool nall, SpatOptions &opt) {
+SpatVector SpatRaster::as_polygons(bool round, bool dissolve, bool values, bool narm, bool nall, int digits, SpatOptions &opt) {
 
 	if (!hasValues()) {
 		values = false;
@@ -2285,7 +2317,7 @@ SpatVector SpatRaster::as_polygons(bool trunc, bool dissolve, bool values, bool 
 	}
 
 	if (dissolve) {
-		return polygonize(trunc, values, narm, dissolve, opt);
+		return polygonize(round, values, narm, dissolve, digits, opt);
 	}
 
 	SpatVector vect;
@@ -2363,9 +2395,9 @@ SpatVector SpatRaster::as_polygons(bool trunc, bool dissolve, bool values, bool 
 
 	std::reverse(std::begin(vect.geoms), std::end(vect.geoms));
 
-	if (dissolve) {
-		vect = vect.aggregate(vect.get_names()[0], true);
-	}
+//	if (dissolve) {
+//		vect = vect.aggregate(vect.get_names()[0], true);
+//	}
 
 	if (remove_values) {
 		vect.df = SpatDataFrame();

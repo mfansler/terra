@@ -361,6 +361,7 @@ class SpatRaster {
 		bool constructFromFile(std::string fname, std::vector<int> subds, std::vector<std::string> subdsname, std::vector<std::string> drivers, std::vector<std::string> options);
 		bool constructFromFileMulti(std::string fname, std::vector<int> sub, std::vector<std::string> subname, std::vector<std::string> drivers, std::vector<std::string> options, std::vector<size_t> xyz);
 		bool constructFromSDS(std::string filename, std::vector<std::string> meta, std::vector<int> subds, std::vector<std::string> subdsname, std::vector<std::string> options, std::string driver);
+
 		
 		//SpatRaster fromFiles(std::vector<std::string> fname, std::vector<int> subds, std::vector<std::string> subdsname, std::string drivers, std::vector<std::string> options);
 		
@@ -371,6 +372,7 @@ class SpatRaster {
 		SpatRaster combineSources(SpatRaster &x, bool warn);
 		void combine(SpatRaster &x);
 		
+		SpatRaster subsetSource(size_t snr);
 		SpatRaster subset(std::vector<unsigned> lyrs, SpatOptions &opt);
 		SpatRaster replace(SpatRaster x, unsigned layer, SpatOptions &opt);
 ////////////////////////////////////////////////////
@@ -398,12 +400,13 @@ class SpatRaster {
 		int_64 colFromX(double x);
 		std::vector<int_64> rowFromY(const std::vector<double> &y);
 		int_64 rowFromY(double y);
+		void xyFromCell( std::vector<std::vector<double>> &xy );
 		std::vector<std::vector<double>> xyFromCell( std::vector<double> &cell);
 		std::vector<std::vector<double>> xyFromCell( double cell);
 		std::vector<std::vector<int_64>> rowColFromCell(std::vector<double> &cell);
 		std::vector<int_64> rowColFromY(std::vector<double> &y);
 		std::vector<std::vector<int_64>> rowColFromExtent(SpatExtent e);
-	
+		std::vector<std::vector<double>> coordinates(bool narm, bool nall, SpatOptions &opt);
 		
         std::vector<unsigned> sourcesFromLyrs(std::vector<unsigned> lyrs);
 		int sourceFromLyr(unsigned lyr);
@@ -482,6 +485,8 @@ class SpatRaster {
 
 		bool writeValues(std::vector<double> &vals, size_t startrow, size_t nrows);
 		bool writeValuesRect(std::vector<double> &vals, size_t startrow, size_t nrows, size_t startcol, size_t ncols);
+		bool writeValuesRectRast(SpatRaster &r, SpatOptions& opt);
+		
 		//bool writeValues2(std::vector<std::vector<double>> &vals, size_t startrow, size_t nrows);
 		bool writeStop();
 		bool writeHDR(std::string filename);
@@ -580,8 +585,9 @@ class SpatRaster {
 		std::vector<std::vector<double>> rappvals(SpatRaster x, double first, double last, bool clamp, bool all, double fill, size_t startrow, size_t nrows, bool circular);
 		SpatRaster fill_range(long limit, bool circular, SpatOptions &opt);
 
-		SpatVector as_polygons(bool trunc, bool dissolve, bool values, bool narm, bool nall, SpatOptions &opt);
-		SpatVector polygonize(bool trunc, bool values, bool narm, bool aggregate, SpatOptions &opt);
+		SpatVector as_polygons(bool round, bool dissolve, bool values, bool narm, bool nall, int digits, SpatOptions &opt);
+		SpatVector polygonize(bool round, bool values, bool narm, bool aggregate, int digits, SpatOptions &opt);
+		
 		SpatVector as_lines(SpatOptions &opt);
 		SpatVector as_points(bool values, bool narm, bool nall, SpatOptions &opt);
 		std::vector<std::vector<double>> as_points_value(const double& target, SpatOptions &opt);

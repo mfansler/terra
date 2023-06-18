@@ -19,6 +19,7 @@
 #include "file_utils.h"
 #include "string_utils.h"
 #include "math_utils.h"
+#include "recycle.h"
 
 
 bool SpatRaster::writeValuesMem(std::vector<double> &vals, size_t startrow, size_t nrows) {
@@ -267,10 +268,10 @@ bool SpatRaster::writeValues(std::vector<double> &vals, size_t startrow, size_t 
 
 	size_t nv = nrows * ncol() * nlyr();
 	if (vals.size() != nv) {
-		if (nv > vals.size()) {
-			setError("incorrect number of values (too many) for writing");
+		if (vals.size() > nv) {
+			setError("too many values for writing: " + std::to_string(vals.size()) + " > " + std::to_string(nv));
 		} else {
-			setError("incorrect number of values (too few) for writing");
+			setError("too few values for writing: " + std::to_string(vals.size()) + " < " + std::to_string(nv));
 		}
 		return false;
 	}
@@ -339,6 +340,74 @@ bool SpatRaster::writeValuesRect(std::vector<double> &vals, size_t startrow, siz
 	return success;
 }
 
+
+bool SpatRaster::writeValuesRectRast(SpatRaster &r, SpatOptions& opt) {
+	bool success = true;
+
+	if (!compare_geom(r, false, false, opt.get_tolerance(), false, false, false, true)) {
+		return(false);
+	}
+	double hxr = xres() / 2;
+	double hyr = yres() / 2;
+
+	SpatExtent e = r.getExtent();
+	int_64 row1  = rowFromY(e.ymax - hyr);
+	int_64 row2  = rowFromY(e.ymin + hyr);
+	int_64 col1  = colFromX(e.xmin + hxr);
+	int_64 col2  = colFromX(e.xmax - hxr);
+	if ((row1 < 0) || (row2 < 0) || (col1 < 0) || (col2 < 0)) {
+		setError("block outside raster");
+		return(false);		
+	}
+	size_t ncols = col2-col1+1;
+	size_t nrows = row2-row1+1;
+	size_t startrow = row1;
+	size_t startcol = col1;
+	
+	if ((startrow + nrows) > nrow()) {
+		setError("incorrect start row and/or nrows value");
+		return false;
+	}
+	if ((startcol + ncols) > ncol()) {
+		setError("incorrect start col and/or ncols value");
+		return false;
+	}
+	if (!source[0].open_write) {
+		setError("cannot write (no open file)");
+		return false;
+	}
+	std::vector<double> vals = r.getValues(-1, opt);
+	recycle(vals, ncols * nrows * nlyr());
+
+	if ((nrows * ncols * nlyr()) != vals.size()) {
+		setError("incorrect row/col size");
+		return false;
+	}
+
+
+	if (source[0].driver == "gdal") {
+		#ifdef useGDAL
+		success = writeValuesGDAL(vals, startrow, nrows, startcol, ncols);
+		#else
+		setError("GDAL is not available");
+		return false;
+		#endif
+	} else {
+		success = writeValuesMemRect(vals, startrow, nrows, startcol, ncols);
+	}
+
+#ifdef useRcpp
+	if (checkInterrupt()) {
+		pbar.interrupt();
+		setError("aborted");
+		return(false);
+	}
+	if (progressbar) {
+		pbar.stepit();
+	}
+#endif
+	return success;
+}
 
 
 
