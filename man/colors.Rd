@@ -18,7 +18,7 @@ Get or set color table(s) associated with a SpatRaster. Color tables are used fo
 \usage{
 \S4method{coltab}{SpatRaster}(x)
 
-\S4method{coltab}{SpatRaster}(x, layer=1)<-value
+\S4method{coltab}{SpatRaster}(x, ..., layer=1)<-value
 
 \S4method{has.colors}{SpatRaster}(x)
 }
@@ -29,6 +29,7 @@ Get or set color table(s) associated with a SpatRaster. Color tables are used fo
   \item{layer}{positive integer, the layer number or name}
   \item{value}{a two-column data.frame (first column the cell value, the second column the color); 
   a vector of colors (the first one is the color for value 0 and so on); or a three (red,green,blue) or four (alpha) column data.frame also from 0 to n; or NULL to remove the color table}
+  \item{...}{additional arguments (none implemented)}
 }  
 
 

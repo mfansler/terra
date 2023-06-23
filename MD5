@@ -1,10 +1,10 @@
-186e17109573380fabe637134f17bb9a *DESCRIPTION
+7be487f6009ac09260f11fdd78d5e586 *DESCRIPTION
 bd4cf7a104a6c44238a0bbbc526fb117 *NAMESPACE
-638abfb6ebacd724d31ba2cec01311c9 *NEWS.md
+66a7cfd1a20b82f042063bdc581996c8 *NEWS.md
 48a274ea6fb078418d82febcda44d64b *R/Aclasses.R
 63c1d0f8b01f00ff5629d6f8136aad5a *R/Agenerics.R
 d2c01e5294fbc5f5d60a1d05481fb628 *R/Arith_generics.R
-d28589683f3c4079adca0a1d1fe2878d *R/RGB.R
+0d98127faa9e614aec0e0600522a360a *R/RGB.R
 e591202a7e51ae5366dda192ea787567 *R/RcppExports.R
 cfbf5d471d80d290ec449bdab4dcd4fb *R/SpatRasterDataset.R
 ee79fa76dc4bdf5ced1dbbdd2f84cba0 *R/SpatVectorCollection.R
@@ -20,7 +20,7 @@ dd368588e387bb4f27d530f3fa86c821 *R/arith.R
 6ba71dd4121a268da604d811c571cdc3 *R/click.R
 e56fa975e52cac3ab80b2b14eb0184ed *R/clip.R
 1bae6022b08577c83434f0d419db9359 *R/coerce.R
-a3e8444fb4436aa4d9f4006f94ee7f1f *R/colors.R
+62295293903605ac6cf2041b643d1224 *R/colors.R
 116aa86d101ef11f18b0cd51b9917c0f *R/connect.R
 107da83b7f7a74873a54a3862336cd7a *R/crosstab.R
 3c983b43e9a6ce0809f4dba0c6b3d9cf *R/crs.R
@@ -56,8 +56,8 @@ b00cfec28bf2251618fb94d91c72c16e *R/merge.R
 6b0e208e95562cce5c38ea451d2754f1 *R/mergeTime.R
 55a44ceefeae474d014c16c3784eb359 *R/messages.R
 1c4d956c7d9712001f3c346da28b4316 *R/names.R
-1acef3a37287a756c2635ba8a2cad7be *R/ncdf.R
-796c4618762b45b565d3527427c1da08 *R/options.R
+c100fdf09bf8a5745af1eb97acff9146 *R/ncdf.R
+a14e178b63c546bf455003be6c15aa05 *R/options.R
 c949756c3bb27e98586b1c06922ed0d6 *R/panel.R
 d4d12c73561747341876e06193e87a76 *R/plot.R
 8d04db238d8c5c579bf7423899f00db8 *R/plotExtent.R
@@ -71,7 +71,7 @@ b8f6342d62bb2b89ac7d3b55c2cfcd2e *R/plot_cartogram.R
 9c1e4154a95e2814d7214c9925a0f125 *R/plot_scale.R
 cb11f72a56dd26bc159756eb930c4e96 *R/plot_vector.R
 d41d8cd98f00b204e9800998ecf8427e *R/polygons.R
-060602f64dcd1a6edf8688a8c0b949b7 *R/predict.R
+690001d0374e247ed7690a4bae37eb75 *R/predict.R
 6935962155404f2d0b6d8b06df9ef022 *R/rapp.R
 64f53b9f6f78021114f387af6eb822d5 *R/rast.R
 5a7072796a7758aec4e2aa39ba8c4fae *R/rasterize.R
@@ -107,8 +107,8 @@ b43ca7b29fbb9942a35d5268ec1582dc *R/zonal.R
 b2691ed7bd0ac68305c6c3e2f36fe33d *R/zoom.R
 ffdb25134fb06f67bbef986c4128c8ac *R/zzz.R
 0513ced67884bcb39614d15070870521 *cleanup
-a7b63aac880bfd3cd16a1bd055d32f85 *configure
-08ba0a2d9e15870a1019fbe821068319 *configure.ac
+87e1881ed26c3d186c2fcaed6cc44bbb *configure
+75ba57c80ec22ae23036cf46316206ed *configure.ac
 aaead9a66071620fc36f67a7bfbc46d8 *inst/colors/legends.rds
 a94e0497c4ee7b653400f10409c30386 *inst/colors/palettes.rds
 9f0ba0023d2db45f72e80f55a14f63cb *inst/ex/countries.rds
@@ -145,7 +145,7 @@ c0dd2b3ab2db10ce54bc04b6d328d17b *inst/tinytest/test_wkt_grd.R
 b8129ea31b4a629c8bebd60ca193f214 *inst/tinytest/test_zonal.R
 51186a2c71320948a138528b5945331b *inst/tinytest/tinytest.R
 872ef74366712806047c9eab4f00a7d9 *man/NAflag.Rd
-d55c7a3bf668a2934367494565dca0ac *man/RGB.Rd
+6e20137997db3d315fa240af22aec2c0 *man/RGB.Rd
 3c771e3b37d0bd47d1f660c72fb8a55a *man/SpatExtent-class.Rd
 25991d12e51e9993c1de17f3ca81c9d8 *man/SpatRaster-class.Rd
 001262352057bb2b3b8652726b8e6cc1 *man/SpatVector-class.Rd
@@ -184,7 +184,7 @@ c3f649539a47dcd6676370901c70caa3 *man/classify.Rd
 e10bc42e57b2ff820807dca76a24d9c1 *man/click.Rd
 c43a52553f8eeaa7da55027dc79563ba *man/coerce.Rd
 85bf666c49af64f671391a0531d153c7 *man/collapse.Rd
-58059bdd7d0e95adacf54188fb0b694b *man/colors.Rd
+e35ec11f8aea367bce28be8a75d5267e *man/colors.Rd
 11c8c4f738afde05750f344d2f433bba *man/combineGeoms.Rd
 7f2306e6ad06a16c9066e42fb8ccd97a *man/compare-generics.Rd
 fce05489f9f34567d148de1713eef170 *man/compareGeom.Rd
@@ -287,7 +287,7 @@ ec18d36f1250b5dc46d340bebb8eaf20 *man/plot.Rd
 3ee2094562df10de619a03b208742f02 *man/plotRGB.Rd
 10a978247f07e07f6bb2ee3183b41cdb *man/plot_extent.Rd
 bee14e37fcc453ff27331f0b23516e23 *man/plot_graticule.Rd
-52a158b633ea6ed0d328d64c2c428727 *man/predict.Rd
+6faa7bdbe8878ffd7c556750852fd6e6 *man/predict.Rd
 d809a06897e8ef34d588a8baa9e1c376 *man/project.Rd
 c10ad11e804a818fca84fb43c6d62a7b *man/quantile.Rd
 2c25ea230a81153c073cd7e06f3df426 *man/query.Rd
@@ -359,7 +359,7 @@ ab68ce9ec48831ea89b8b274a256efdc *man/topology.Rd
 0bc2b2ea6154dbe2e897953dcf132c3d *man/units.Rd
 f731c611f53fb5b6bb67cd45cdc086b9 *man/update.Rd
 38799fa39e255a8fe92395b4e81ae356 *man/values.Rd
-5a6fcb097bc3e3ec5a69832831858bb0 *man/vect.Rd
+370ea709830bf29ff451187e592fd409 *man/vect.Rd
 4f9aeb05615cca1032aec2e08ab74a55 *man/vector_layers.Rd
 7cca7ddab5c388251ed9fffdcacaf90e *man/viewshed.Rd
 a7c27896faffd3bc5b35299130a14a58 *man/voronoi.Rd
@@ -371,7 +371,7 @@ ca607f6b39574ccefc817a255c27f38f *man/which.Rd
 ba4b14512f26c0da741a6b1c6847bd4f *man/window.Rd
 6c41b3c37544a29df8e55aff3161d1aa *man/wrap.Rd
 263f21cae0247b2710c82ae87a9af0d0 *man/wrapCache.Rd
-6ab51edc3ab57534f6e87776cd85d781 *man/writeCDF.Rd
+86fa35c2f690295ef111ab58ba3d8b4a *man/writeCDF.Rd
 d074eabe350d3f13c61301cc35b120df *man/writeRaster.Rd
 f8431d66ca5f62c47c95fb152015d2eb *man/writeVector.Rd
 c3a31fd636efec517ba040e4e845d798 *man/xmin.Rd
@@ -393,7 +393,7 @@ d4118c20771a684fc03572accb9e84c8 *src/distRaster.cpp
 6ebe078e33d9be13fd6cb63a33e18a76 *src/distance.cpp
 8b83c637d1d6b5718c94301657f10d2d *src/distance.h
 3a75d1d2ee96954f028cbb7c7731d319 *src/extract.cpp
-ad1cb1e8995e8e0843082c23837d6257 *src/file_utils.cpp
+1b14f74fc77bdfac852a1a3b70c57d78 *src/file_utils.cpp
 f9785e2738a912068005d7b80893ef06 *src/file_utils.h
 b2815ee4aa5d96153d3bbbb10544685e *src/focal.cpp
 d3edfb952cc538d55bc27c3adaf40235 *src/gcp.cpp
@@ -431,7 +431,7 @@ c14790edfd81dc7cfb732cef7e13ab7c *src/spatDataframe.h
 acdd702dd9c2ed19ea1d386ce08866e2 *src/spatFactor.cpp
 cabb2794083ddf8a0e095f5c16536396 *src/spatFactor.h
 3357ec025b3f93f17e3b8f4ca889d412 *src/spatGraph.h
-9052bb86b2d3e70427c9eba627b9f04a *src/spatRaster.cpp
+fc421508efc2905a1210f593aa77f23a *src/spatRaster.cpp
 d506816222795fccaf89876648040600 *src/spatRaster.h
 8682991b9cbbf0fa588324eae9787ead *src/spatRasterMultiple.cpp
 f35149d48079aae423efeccded2cae73 *src/spatRasterMultiple.h
@@ -450,6 +450,6 @@ babc9e29d4029675d56baa05839ab597 *src/vecmath.h
 445b7456d033e07766fc1a17fe0b8a2b *src/vecmathse.h
 39a181531eb4816e0cedbd3bc5ae2afb *src/vector_methods.cpp
 6596d5826f4961b50b1ddc3942680467 *src/write.cpp
-3e11d5c0888a27183debe6e5ec33004d *src/write_gdal.cpp
-d29d7697904f2d8134b90573dc615121 *src/write_ogr.cpp
+92ee0ab4fafa4027e2189ef133289ce9 *src/write_gdal.cpp
+246422561012fe4d63b9d1be197c08f0 *src/write_ogr.cpp
 51186a2c71320948a138528b5945331b *tests/tinytest.R

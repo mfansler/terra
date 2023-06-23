@@ -1,24 +1,37 @@
+# version 1.7-39
+
+## bug fixes
+
+- the tempdir option did not use path.expand. [#1195](https://github.com/rspatial/terra/issues/1195) by Alex Ilich
+- the layer names returned by predict where inconsistent when using argument "index". [#1194](https://github.com/rspatial/terra/issues/1194) by Michael Mahoney
+- compilation failed with older compilers because of use of std::filesystem [#1191](https://github.com/rspatial/terra/issues/1191)
+- Small changes to `RGB<-` and `coltab<-` so that terra can be installed with R-devel (after a bug fix https://bugs.r-project.org/show_bug.cgi?id=18538)
+
+
 # version 1.7-37
+
+Released 2023-06-18
 
 ## bug fixes
 
 - `rasterize` with points and a custom function did not work for large rasters. [#1127](https://github.com/rspatial/terra/issues/1127) by Skip Woolley
-- `crop<SpatRaster, SpatVector>` with "mask=TRUE" did not work well if the raster had a scale/offset[#1128](https://github.com/rspatial/terra/issues/1128) by Monika Anna Tomaszewska
+- `crop<SpatRaster, SpatVector>` with "mask=TRUE" did not work well if the raster had a scale/offset [#1128](https://github.com/rspatial/terra/issues/1128) by Monika Anna Tomaszewska
 - `zonal<SpatRaster>` with a custom function always removed NAs. [#1133](https://github.com/rspatial/terra/issues/1133) by  Matthias Weigand
 - `wrap<SpatRaster>` lost changed layer names if the source was from disk; and information on some time-step in some cases. [#1144](https://github.com/rspatial/terra/issues/1144) by Pascal Führlich
-- `global(fun="isNA")` was not correct when the SpatRaster had multiple layers [#1141] (https://github.com/rspatial/terra/issues/1141) by Robin Freeman
+- `global(fun="isNA")` was not correct when the SpatRaster had multiple layers [#1141](https://github.com/rspatial/terra/issues/1141) by Robin Freeman
 - `interpIDW` with `near=TRUE` did not work properly (near=TRUE is now the default). [#1186](https://github.com/rspatial/terra/issues/1186) by Hugh Graham
 - "YYYY-1-1" was sometimes encoded as "YYYY-13-1". [#1168](https://github.com/rspatial/terra/issues/1168) by Colin Brust
 
 
 ## enhancements
 
-- `panel` for categorical SpatRasters [#1143](https://github.com/rspatial/terra/issues/1143) by Jason Flower
+- `panel` for categorical SpatRasters. [#1143](https://github.com/rspatial/terra/issues/1143) by Jason Flower
 - argument "ext" in `plot<SpatRaster>` can now also expand the plot. [#1136](https://github.com/rspatial/terra/issues/1136) by Jakub Nowosad.
-- argument `overwrite=FALSE` to `makeTiles` [#1167](https://github.com/rspatial/terra/issues/1167) by Gray Martin.
-- legend options for `<plet,SpatVector`> [#1177](https://github.com/rspatial/terra/issues/1177) by Agustin Lobo.
-- better handling of mixed geometry type vector data by `vect` and `svc` [#1160](https://github.com/rspatial/terra/issues/1160)
-
+- argument `overwrite=FALSE` to `makeTiles`. [#1167](https://github.com/rspatial/terra/issues/1167) by Gray Martin.
+- legend options for `<plet,SpatVector`>. [#1177](https://github.com/rspatial/terra/issues/1177) by Agustin Lobo.
+- better handling of mixed geometry type vector data by `vect` and `svc`. [#1160](https://github.com/rspatial/terra/issues/1160) by Mike Sumner.
+- new argument `sql` to `query<SpatVectorProxy>`. [#1157](https://github.com/rspatial/terra/issues/1157) by Carl Boettiger
+ 
 
 ## new
 - `wrap<SpatRasterDataset>` and `wrap<SpatRasterCollection>` methods. [#954](https://github.com/rspatial/terra/issues/954) by James Camac
