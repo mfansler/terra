@@ -149,6 +149,7 @@ bool SpatRaster::hasValues() {
 SpatRaster::SpatRaster(std::vector<unsigned> rcl, std::vector<double> ext, std::string crs) {
 
 	SpatRasterSource s;
+	rcl.resize(3, 1);
 	s.nrow=rcl[0];
 	s.ncol=rcl[1];
 	s.extent.xmin = ext[0];
@@ -906,6 +907,17 @@ double SpatRaster::yres() {
 }
 
 
+std::vector<bool> SpatRaster::is_rotated() {
+	std::vector<bool> b(source.size(), false);
+	for (size_t i=0; i<source.size(); i++) {
+		if (source[i].rotated) {
+			b[i] = true;
+		}
+	}
+	return b;
+}
+
+
 bool SpatRaster::valid_sources(bool files, bool rotated) {
 	std::vector<std::string> ff;
 	for (size_t i=0; i<source.size(); i++) {
@@ -1473,9 +1485,11 @@ std::vector<SpatDataFrame> SpatRaster::getColors() {
 
 bool SpatRaster::setColors(size_t layer, SpatDataFrame cols) {
 	if (cols.ncol() < 4 || cols.ncol() > 5) {
+		setError("n columns should be 4 or 5");
 		return false;
 	}
 	if (layer >= nlyr()) {
+		setError("layer > nlyr");
 		return false;
 	}
 	if (cols.ncol() == 4) {

@@ -606,6 +606,11 @@ SpatRaster SpatRaster::weighted_mean(std::vector<double> w, bool narm, SpatOptio
 SpatRaster SpatRaster::separate(std::vector<double> classes, double keepvalue, double othervalue, bool round, int digits, SpatOptions &opt) {
 
 	SpatRaster out;
+	if (!hasValues()) {
+		out.setError("input has no values");
+		return out;
+	}
+
 	if (nlyr() > 1) {
 		out.setError("input may only have one layer");
 		return out;
@@ -3521,11 +3526,16 @@ SpatRaster SpatRasterCollection::mosaic(std::string fun, SpatOptions &opt) {
 			continue;
 		} 
 		s.ds = x.ds;
-			//r = s.summary(fun, true, sopt);
-// see #1159
-//			if (i == 57 || i == 79 | i == 269) { // && (rcnt[i] == 6)) {
-		SpatRaster r = s.collapse();
-		r = r.summary(fun, true, sopt);	
+		SpatRaster r;
+		if (nl == 1) { 
+		// work-around, need to investigate why this is needed for 1129
+// see #1129
+// if (i == 57 || i == 79 | i == 269) { // && (rcnt[i] == 6)) {
+			r = s.collapse();
+			r = r.summary(fun, true, sopt);
+		} else {
+			r = s.summary(fun, true, sopt);
+		}			
 		if (r.hasError()) {
 			return r;
 		}	

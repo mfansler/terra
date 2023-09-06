@@ -1,8 +1,8 @@
 Package: terra
 Type: Package
 Title: Spatial Data Analysis
-Version: 1.7-39
-Date: 2023-06-22
+Version: 1.7-46
+Date: 2023-09-04
 Depends: R (>= 3.5.0)
 Suggests: parallel, tinytest, ncdf4, sf (>= 0.9-8), deldir, XML,
         leaflet, htmlwidgets
@@ -13,7 +13,7 @@ SystemRequirements: C++17, GDAL (>= 2.2.3), GEOS (>= 3.4.0), PROJ (>=
 Encoding: UTF-8
 Language: en-US
 Maintainer: Robert J. Hijmans <r.hijmans@gmail.com>
-Description: Methods for spatial data analysis with vector (points, lines, polygons) and raster (grid) data. Methods for vector data include geometric operations such as intersect and buffer. Raster methods include local, focal, global, zonal and geometric operations. The predict and interpolate methods facilitate the use of regression type (interpolation, machine learning) models for spatial prediction, including with satellite remote sensing data. Processing of very large files is supported. See the manual and tutorials on <https://rspatial.org/terra/> to get started. 'terra' replaces the 'raster' package ('terra' can do more, and it is faster and easier to use).
+Description: Methods for spatial data analysis with vector (points, lines, polygons) and raster (grid) data. Methods for vector data include geometric operations such as intersect and buffer. Raster methods include local, focal, global, zonal and geometric operations. The predict and interpolate methods facilitate the use of regression type (interpolation, machine learning) models for spatial prediction, including with satellite remote sensing data. Processing of very large files is supported. See the manual and tutorials on <https://rspatial.org/> to get started. 'terra' replaces the 'raster' package ('terra' can do more, and it is faster and easier to use).
 License: GPL (>= 3)
 URL: https://rspatial.org/
 BugReports: https://github.com/rspatial/terra/issues/
@@ -25,10 +25,10 @@ Authors@R: c(
     person("Edzer", "Pebesma", role = "ctb", comment = c(ORCID = "0000-0001-8049-7069")),
     person("Michael D.", "Sumner", role = "ctb"))
 NeedsCompilation: yes
-Packaged: 2023-06-23 07:32:27 UTC; rhijm
+Packaged: 2023-09-04 20:35:10 UTC; rhijm
 Author: Robert J. Hijmans [cre, aut] (<https://orcid.org/0000-0001-5872-2872>),
   Roger Bivand [ctb] (<https://orcid.org/0000-0003-2392-6140>),
   Edzer Pebesma [ctb] (<https://orcid.org/0000-0001-8049-7069>),
   Michael D. Sumner [ctb]
 Repository: CRAN
-Date/Publication: 2023-06-23 10:20:02 UTC
+Date/Publication: 2023-09-06 09:10:07 UTC

@@ -268,6 +268,8 @@ class SpatRaster {
 		double ncell() { return nrow() * ncol(); }
 		double size() { return ncol() * nrow() * nlyr() ; }
 
+		std::vector<bool> is_rotated();
+
 		double xres();
 		double yres();
 		std::vector<double> origin();
@@ -490,7 +492,7 @@ class SpatRaster {
 		//bool writeValues2(std::vector<std::vector<double>> &vals, size_t startrow, size_t nrows);
 		bool writeStop();
 		bool writeHDR(std::string filename);
-		SpatRaster make_vrt(std::vector<std::string> filenames, std::vector<std::string> options, SpatOptions &opt);
+		std::string make_vrt(std::vector<std::string> filenames, std::vector<std::string> options, SpatOptions &opt);
 		bool write_aux_json(std::string filename);
 
 		//bool writeStartGDAL(std::string filename, std::string driver, std::string datatype, bool overwrite, SpatOptions &opt);
@@ -806,6 +808,8 @@ class SpatRaster {
 		SpatRaster weighted_mean(std::vector<double> w, bool narm, SpatOptions &opt);
 
 		SpatRaster warper(SpatRaster x, std::string crs, std::string method, bool mask, bool align, bool resample, SpatOptions &opt);
+		SpatRaster warper_by_util(SpatRaster x, std::string crs, std::string method, bool mask, bool align, bool resample, SpatOptions &opt);
+		
 		SpatRaster resample(SpatRaster x, std::string method, bool mask, bool agg, SpatOptions &opt);
 		
 		SpatRaster applyGCP(std::vector<double> fx, std::vector<double> fy, std::vector<double> tx, std::vector<double> ty, SpatOptions &opt);

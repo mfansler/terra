@@ -506,6 +506,7 @@ RCPP_MODULE(spat){
 		.method("subset_rows", ( SpatVector (SpatVector::*)(std::vector<int>))( &SpatVector::subset_rows ))
 		.method("remove_rows", &SpatVector::remove_rows)
 		.method("type", &SpatVector::type)
+		.method("naGeoms", &SpatVector::naGeoms)
 		.method("nullGeoms", &SpatVector::nullGeoms)
 
 		.method("write", &SpatVector::write)
@@ -582,6 +583,7 @@ RCPP_MODULE(spat){
 
 		.method("densify", &SpatVector::densify)
 		.method("round", &SpatVector::round)
+		.method("make_CCW", &SpatVector::make_CCW)
 	;
 
 
@@ -650,6 +652,8 @@ RCPP_MODULE(spat){
 		.method("set_crs", (bool (SpatRaster::*)(std::string crs))( &SpatRaster::setSRS))
 		//.field_readonly("prj", &SpatRaster::prj)
 		.property("extent", &SpatRaster::getExtent, &SpatRaster::setExtent )
+
+		.method("is_rotated", &SpatRaster::is_rotated)
 
 		.method("setWindow", &SpatRaster::setWindow, "")
 		.method("removeWindow", &SpatRaster::removeWindow, "")
@@ -945,6 +949,7 @@ RCPP_MODULE(spat){
 		.method("rectify", &SpatRaster::rectify)
 		.method("stretch", &SpatRaster::stretch)
 		.method("warp", &SpatRaster::warper)
+    .method("warp_by_util", &SpatRaster::warper_by_util)
 		.method("resample", &SpatRaster::resample)
 		.method("zonal", &SpatRaster::zonal)
 		.method("zonal_weighted", &SpatRaster::zonal_weighted)

@@ -605,6 +605,7 @@ prettyNumbs <- function(x, digits) {
 		}
 	} else {
 		out$asp <- asp
+		out$lonlat <- FALSE
 	}
 	if (!is.null(alpha)) {
 		if (!inherits(alpha, "SpatRaster")) {
@@ -730,9 +731,9 @@ prettyNumbs <- function(x, digits) {
 		out <- .plotit(out)
 	}
 	
-	if (hasWin) {
+	if (any(hasWin)) {
 		window(x) <- NULL
-		if (hadWin) {
+		if (any(hadWin)) {
 			window(x) <- oldWin
 		}
 	}
