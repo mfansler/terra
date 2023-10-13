@@ -99,13 +99,23 @@
 
 	if (is.null(out$range)) {
 		out$range <- range(z)
+#		out$fill_range <- FALSE
 	} else {
 		stopifnot(length(out$range) == 2)
 		stopifnot(out$range[2] > out$range[1])
 	}
 
 	breaks <- .get_breaks(z, length(out$cols), "eqint", out$range)
+#	if (isTRUE(out$fill_range)) {
+#		zrng <- range(z)
+#		breaks[1] <- zrng[1]
+#		breaks[length(breaks)] <- zrng[2]
+#		out$frange <- zrng
+#	} else {
+#		out$frange <- out$range	
+#	}
 	Z[] <- out$cols[as.integer(cut(Z, breaks, include.lowest=TRUE, right=FALSE))]
+
 	out$r <- as.raster(Z)
 
 	out$legend_type <- "continuous"
@@ -675,6 +685,7 @@ prettyNumbs <- function(x, digits) {
 			out <- .as.raster.factor(out, x)
 		} else if (type=="rgb") {
 			out <- .as.raster.rgb(out, x)
+			out$interpolate <- isTRUE(interpolate)
 		} else if (type=="colortable") {
 			out <- .as.raster.colortable(out, x)
 		} else if (type=="classes") {
@@ -685,6 +696,7 @@ prettyNumbs <- function(x, digits) {
 		} else {
 			out$interpolate <- isTRUE(interpolate)
 			out$range <- range
+			#out$fill_range <- fill_range
 			out <- .as.raster.continuous(out, x, type)
 		}
 
@@ -743,6 +755,9 @@ prettyNumbs <- function(x, digits) {
 
 setMethod("plot", signature(x="SpatRaster", y="numeric"),
 	function(x, y=1, col, type=NULL, mar=NULL, legend=TRUE, axes=!add, plg=list(), pax=list(), maxcell=500000, smooth=FALSE, range=NULL, levels=NULL, all_levels=FALSE, breaks=NULL, breakby="eqint", fun=NULL, colNA=NULL, alpha=NULL, sort=FALSE, decreasing=FALSE, grid=FALSE, ext=NULL, reset=FALSE, add=FALSE, buffer=FALSE, background=NULL, box=axes, clip=TRUE, ...) {
+
+		old.mar <- graphics::par()$mar
+		on.exit(graphics::par(mar=old.mar))
 
 		y <- round(y)
 		hasRGB <- FALSE		

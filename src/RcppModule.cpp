@@ -214,9 +214,11 @@ RCPP_MODULE(spat){
 
     class_<SpatFactor>("SpatFactor")
 		.constructor()
-		.constructor<std::vector<unsigned>, std::vector<std::string>>()
+		.constructor<std::vector<unsigned>, std::vector<std::string>, bool>()
+//		.constructor<std::vector<unsigned>, std::vector<std::string>>()
 		.field("values", &SpatFactor::v)
 		.field("labels", &SpatFactor::labels)
+		.field("ordered", &SpatFactor::ordered)
 	;
 
 
@@ -238,6 +240,7 @@ RCPP_MODULE(spat){
 		.property("vector", &SpatExtent::asVector)
 		.property("valid", &SpatExtent::valid)
 		.property("valid_notempty", &SpatExtent::valid_notempty)
+		.property("empty", &SpatExtent::empty)
 		.method("align", &SpatExtent::align, "align")
 		.method("intersect", &SpatExtent::intersect, "intersect")
 		.method("as.points", &SpatExtent::asPoints, "as.points")
@@ -634,6 +637,9 @@ RCPP_MODULE(spat){
 		.method("getError", &SpatRaster::getError)
 		.method("getWarnings", &SpatRaster::getWarnings)
 		.method("getMessage", &SpatRaster::getMessage)
+
+		.method("addTag", &SpatRaster::addTag)
+		.method("getTags", &SpatRaster::getTags)
 
 		//.field("name", &SpatRaster::name)
 		.method("getFileBlocksize", &SpatRaster::getFileBlocksize)

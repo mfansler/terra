@@ -1,5 +1,8 @@
 #if (!isGeneric("#")) { setGeneric("#", function(x, ...) standardGeneric("#")) }
 
+if (!isGeneric("metags")) {setGeneric("metags", function(x, ...) standardGeneric("metags"))}
+if (!isGeneric("metags<-")) {setGeneric("metags<-", function(x, ..., value) standardGeneric("metags<-"))}
+
 if (!isGeneric("forceCCW")) {setGeneric("forceCCW", function(x, ...) standardGeneric("forceCCW"))}
 if (!isGeneric("addCats")) {setGeneric("addCats", function(x, ...) standardGeneric("addCats"))}
 if (!isGeneric("regress")) {setGeneric("regress", function(y, x, ...) standardGeneric("regress"))}
@@ -176,6 +179,7 @@ if (!isGeneric("datatype")) {setGeneric("datatype", function(x, ...) standardGen
 if (!isGeneric("global")) {setGeneric("global", function(x, ...) standardGeneric("global"))}
 if (!isGeneric("makeValid")) {setGeneric("makeValid", function(x,...) standardGeneric("makeValid"))}
 if (!isGeneric("is.valid")) {setGeneric("is.valid", function(x,...) standardGeneric("is.valid"))}
+if (!isGeneric("is.empty")) {setGeneric("is.empty", function(x,...) standardGeneric("is.empty"))}
 if (!isGeneric("is.points")) {setGeneric("is.points", function(x,...) standardGeneric("is.points"))}
 if (!isGeneric("is.lines")) {setGeneric("is.lines", function(x,...) standardGeneric("is.lines"))}
 if (!isGeneric("is.polygons")) {setGeneric("is.polygons", function(x,...) standardGeneric("is.polygons"))}

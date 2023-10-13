@@ -43,14 +43,14 @@ setMethod("dots", signature(x="SpatVector"),
 #	cols <- out$cols
 #	if (is.null(cols)) cols = rep("black", n)
 
-#	g <- lapply(x@pnt$linesList(), function(i) { names(i)=c("x", "y"); i } )
+#	g <- lapply(x@cpp$linesList(), function(i) { names(i)=c("x", "y"); i } )
 
 #	g <- geom(x, df=TRUE)
 #	g <- split(g, g[,1])
 #	g <- lapply(g, function(x) split(x[,3:4], x[,2]))
 #	n <- length(g)
 
-	g <- x@pnt$linesList()
+	g <- x@cpp$linesList()
 	lty <- rep_len(lty, n)
 	lwd <- rep_len(lwd, n)
 	for (i in 1:n) {
@@ -119,7 +119,7 @@ setMethod("dots", signature(x="SpatVector"),
 #				# g[[i]][[1]] <- a
 #			}
 
-	g <- x@pnt$polygonsList()
+	g <- x@cpp$polygonsList()
 	if (is.null(out$leg$density)) {
 		for (i in seq_along(g)) {
 			for (j in seq_along(g[[i]])) {
@@ -352,7 +352,9 @@ setMethod("dots", signature(x="SpatVector"),
 			out <- .vect.legend.interval(out, dig.lab=out$dig.lab)
 		}
 	} else if (out$legend_type == "depends") {
-		if (nuq < 11) {
+		if (!is.null(out$breaks)) {
+			out <- .vect.legend.interval(out, dig.lab=out$dig.lab)			
+		} else if (nuq < 11) {
 			out <- .vect.legend.classes(out)
 		} else if (!is.numeric(out$uv)) {
 			#if (nuq < 21)
@@ -646,6 +648,9 @@ setMethod("plot", signature(x="SpatVector", y="character"),
 	main, buffer=TRUE, background=NULL, grid=FALSE, ext=NULL, 
 	sort=TRUE, decreasing=FALSE, plg=list(), pax=list(), nr, nc, colNA=NA, 
 	alpha=NULL, box=axes, clip=TRUE, ...) {
+
+		old.mar <- graphics::par()$mar
+		on.exit(graphics::par(mar=old.mar))
 
 		if (nrow(x) == 0) {
 			error("plot", "SpatVector has zero geometries")

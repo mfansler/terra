@@ -248,7 +248,7 @@ SpatRaster::SpatRaster(const SpatRaster &r) {
 
 
 
-SpatRaster SpatRaster::geometry(long nlyrs, bool properties, bool time, bool units) {
+SpatRaster SpatRaster::geometry(long nlyrs, bool properties, bool time, bool units, bool keeptags) {
 	SpatRasterSource s;
 	//s.values.resize(0);
 	s.nrow = nrow();
@@ -261,6 +261,7 @@ SpatRaster SpatRaster::geometry(long nlyrs, bool properties, bool time, bool uni
 	long nl = nlyr();
 	bool keepnlyr = ((nlyrs == nl) || (nlyrs < 1));
 	nlyrs = (keepnlyr) ? nlyr(): nlyrs;
+	
 	if (properties) {
 		s.hasColors = hasColors();
 		s.cols = getColors();
@@ -281,6 +282,19 @@ SpatRaster SpatRaster::geometry(long nlyrs, bool properties, bool time, bool uni
 			s.hasUnit = true;
 			s.unit = getUnit();
 		}
+		
+		std::vector<std::string> un = getSourceNames();
+		std::sort(un.begin(), un.end() );
+		un.erase(std::unique(un.begin(), un.end()), un.end());
+		if (un.size() == 1) {
+			s.source_name = un[0];
+		}
+		un = getLongSourceNames();
+		std::sort(un.begin(), un.end() );
+		un.erase(std::unique(un.begin(), un.end()), un.end());
+		if (un.size() == 1) {
+			s.source_name_long = un[0];
+		}
 	} else {
 		for (size_t i=0; i < s.nlyr; i++) {
 			nms.push_back("lyr" + std::to_string(i+1));
@@ -293,11 +307,14 @@ SpatRaster SpatRaster::geometry(long nlyrs, bool properties, bool time, bool uni
 		out.rgbtype = rgbtype;
 		out.rgblyrs = rgblyrs;
 	}	
+	if (keeptags) {
+		out.tags = tags;
+	}
 	return out;
 }
 
 
-SpatRaster SpatRaster::geometry_opt(long nlyrs, bool properties, bool time, bool units, bool datatype, SpatOptions &opt) {
+SpatRaster SpatRaster::geometry_opt(long nlyrs, bool properties, bool time, bool units, bool tags, bool datatype, SpatOptions &opt) {
 
 	if (datatype && hasValues() && (!opt.datatype_set)) {
 		std::vector<std::string> dt = getDataType(true);
@@ -308,7 +325,7 @@ SpatRaster SpatRaster::geometry_opt(long nlyrs, bool properties, bool time, bool
 		}
 	}	
 	
-	return geometry(nlyrs, properties, time, units);
+	return geometry(nlyrs, properties, time, units, tags);
 }
 
 SpatRaster SpatRaster::deepCopy() {
@@ -2552,4 +2569,39 @@ std::vector<int> SpatRaster::getFileBlocksize() {
 
 }
 
+
+bool SpatRaster::addTag(std::string name, std::string value) {
+	lrtrim(name);
+	lrtrim(value);
+	if (value == "") {
+		return removeTag(name);
+	} else if (name != "") {
+		tags[name] = value;
+		return true;
+	} 
+	return false;
+}
+
+bool SpatRaster::removeTag(std::string name) {
+	std::map<std::string, std::string>::iterator it = tags.find(name);
+	if (it == tags.end()) return false;
+	tags.erase(it);
+	return true;
+}
+
+std::string SpatRaster::getTag(std::string name) {
+	std::map<std::string, std::string>::iterator it = tags.find(name);
+	if (it != tags.end()) return it->second;
+	return "";
+}
+
+std::vector<std::string> SpatRaster::getTags() {
+	std::vector<std::string> out;
+	out.reserve(2 * tags.size());
+	for(auto e : tags) {
+		out.push_back(e.first);
+		out.push_back(e.second);
+	}
+	return out;
+}
 

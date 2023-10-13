@@ -3,13 +3,13 @@
 setMethod("rasterizeGeom", signature(x="SpatVector", y="SpatRaster"),
 	function(x, y, fun="count", unit="m", filename="", ...) {
 		opt <- spatOptions(filename, ...)
-		y@pnt <- y@pnt$rasterizeGeom(x@pnt, unit, fun, opt)
+		y@cpp <- y@cpp$rasterizeGeom(x@cpp, unit, fun, opt)
 		messages(y, "rasterizeGeom")
 	}
 )
 
 # now can use
-# r@pnt = r@pnt$rasterizePoints(v@pnt, "mean", 1:nrow(v), NA, opt)
+# r@cpp = r@cpp$rasterizePoints(v@cpp, "mean", 1:nrow(v), NA, opt)
 
 .set_names <- function(wopt, cnms, fun, nc) {
 	if (is.null(wopt$names)) {
@@ -78,7 +78,7 @@ rasterize_points <- function(x, y, field, values, fun="last", background=NA, upd
 				}
 				narm <- isTRUE(list(...)$na.rm)
 				r <- rast()
-				r@pnt <- y@pnt$rasterizePointsXY(x[,1], x[,2], txtfun, values[[1]], narm, background, ops)
+				r@cpp <- y@cpp$rasterizePointsXY(x[,1], x[,2], txtfun, values[[1]], narm, background, ops)
 				messages(r)
 				if (update) {
 					r <- cover(r, y, filename=filename, overwrite=overwrite, wopt)
@@ -267,13 +267,13 @@ setMethod("rasterize", signature(x="SpatVector", y="SpatRaster"),
 		pols <- grepl("polygons", g)
 
 		if (cover[1] && pols) {
-			y@pnt <- y@pnt$rasterize(x@pnt, "", 1, background, touches[1], "", TRUE, FALSE, TRUE, opt)
+			y@cpp <- y@cpp$rasterize(x@cpp, "", 1, background, touches[1], "", TRUE, FALSE, TRUE, opt)
 		} else {
 			dots <- list(...)
 			if (missing(fun)) {
 				if (!is.null(dots$sum)) {
 					# backward compatibility
-					fun <- dots$sum				
+					if (isTRUE(dots$sum)) fun <- "sum"
 				} else {
 					fun <- ""
 				}
@@ -281,15 +281,19 @@ setMethod("rasterize", signature(x="SpatVector", y="SpatRaster"),
 			if (!inherits(fun, "character")) {
 				fun <- .makeTextFun(fun)
 				if (!inherits(fun, "character")) {
-					error("rasterize", "'fun' must be 'min', 'max', 'mean', or 'sum'")
+					error("rasterize", "'fun' must be 'min', 'max', 'mean', 'count', or 'sum'")
 				}
 			}
 			if (fun != "") {
 				fun <- tolower(fun)
-				if (!(fun %in% c("sum", "mean", "min", "max"))) {
-					error("rasterize", "'fun' must be 'min', 'max' 'mean', or 'sum'")
+				if (!(fun %in% c("sum", "mean", "min", "max", "count"))) {
+					error("rasterize", "'fun' must be 'min', 'max' 'mean', 'count', or 'sum'")
 				}
-				if (field != "") {
+				if (fun == "count") {
+					fun <- "sum"
+					field <- ""
+					values <- 1
+				} else if (field != "") {
 					if (fun == "min") {
 						x <- sort(x[,field], field, TRUE)
 						fun <- ""
@@ -305,19 +309,19 @@ setMethod("rasterize", signature(x="SpatVector", y="SpatRaster"),
 			background <- as.numeric(background[1])
 			if (fun == "sum") {
 				xopt = spatOptions()
-				y@pnt <- y@pnt$rasterize(x@pnt, field, values, background, touches[1], fun, FALSE, update[1], TRUE, xopt)
+				y@cpp <- y@cpp$rasterize(x@cpp, field, values, background, touches[1], fun, FALSE, update[1], TRUE, xopt)
 				messages(y, "rasterize")
 				xopt = spatOptions()
 				yy <- rast(y)
-				yy@pnt <- y@pnt$rasterize(x@pnt, "", values, NA, touches[1], ""	, FALSE, update[1], TRUE, xopt)
+				yy@cpp <- y@cpp$rasterize(x@cpp, "", values, NA, touches[1], ""	, FALSE, update[1], TRUE, xopt)
 				messages(yy, "rasterize")
 				return(mask(y, yy, updatevalue=background, filename=filename, overwrite=overwrite, wopt=wopt))
 			} else if (fun == "mean") {
 				xopt = spatOptions()
-				y@pnt <- y@pnt$rasterize(x@pnt, field, values, background, touches[1], "sum", FALSE, update[1], TRUE, xopt)
+				y@cpp <- y@cpp$rasterize(x@cpp, field, values, background, touches[1], "sum", FALSE, update[1], TRUE, xopt)
 				messages(y, "rasterize")
 				yy <- rast(y)
-				yy@pnt <- y@pnt$rasterize(x@pnt, "", values, NA, touches[1], "sum", FALSE, update[1], TRUE, xopt)
+				yy@cpp <- y@cpp$rasterize(x@cpp, "", values, NA, touches[1], "sum", FALSE, update[1], TRUE, xopt)
 				messages(yy, "rasterize")
 				y <- y / yy
 				if (filename != "") {
@@ -325,7 +329,7 @@ setMethod("rasterize", signature(x="SpatVector", y="SpatRaster"),
 				}
 				return(y)
 			} else {
-				y@pnt <- y@pnt$rasterize(x@pnt, field, values, background, touches[1], fun, FALSE, update[1], TRUE, opt)
+				y@cpp <- y@cpp$rasterize(x@cpp, field, values, background, touches[1], fun, FALSE, update[1], TRUE, opt)
 			}
 		}	
 		messages(y, "rasterize")

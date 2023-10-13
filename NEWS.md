@@ -1,4 +1,36 @@
+# version 1.7-55
+
+## bug fixes
+
+- `mosaic` ignored the filename argument if the SpatRasterCollection only had a single SpatRaster [#1267](https://github.com/rspatial/terra/issues/1267) by Michael Mahoney
+- Attempting to use `extract` with a raster file that had been deleted crashed R. [#1268](https://github.com/rspatial/terra/issues/1268) by Derek Friend
+- `split<SpatVector,SpatVector>` did not work well in all cases. [#1256](https://github.com/rspatial/terra/issues/1256) by Derek Corcoran Barrios
+- `intersect` with two SpatVectors crashed R if there was a date/time variable [#1273](
+https://github.com/rspatial/terra/issues/1273) by Dave Dixon
+- "values=FALSE" was ignored by `spatSample<SpatRaster>(method="weights")` [#1275](https://github.com/rspatial/terra/issues/1275) by François Rousseu
+- `coltab<-` again works with a list as value [#1280](https://github.com/rspatial/terra/issues/1280) by Diego
+Hernangómez
+- `stretch` with histogram equalization was not memory-safe [#1305](https://github.com/rspatial/terra/issues/1305) by Evan Hersh
+- `plot` now resets the "mar" parameter [#1297](https://github.com/rspatial/terra/issues/1297) by Márcia Barbosa
+- `plotRGB` ignored the "smooth" argument [#1307](https://github.com/rspatial/terra/issues/1307) by Timothée Giraud
+
+
+## enhancements
+
+- argument "gdal" in `project` was renamed to "use_gdal" [#1269](https://github.com/rspatial/terra/issues/1269) by Stuart Brown.
+- SpatVector attributes can now be stored as an ordered factor [#1277](https://github.com/rspatial/terra/issues/1277) by Ben Notkin
+- `plot<SpatVector>` now uses an "interval" legend when breaks are supplied [#1303](https://github.com/rspatial/terra/issues/1303) by Gonzalo Rizzo
+- `crop<SpatRaster>` now keeps more metadata, including variable names [#1302](https://github.com/rspatial/terra/issues/1302) by rhgof
+- `extract(fun="table")` now returns an easier to use data.frame [#1294] (https://github.com/rspatial/terra/issues/1294) by Fernando Aramburu.
+
+
+## new
+- `metags<-` and `metags` to set arbitrary metadata [#1304](https://github.com/rspatial/terra/issues/1304) by Francesco Chianucci 
+
+
 # version 1.7-46
+
+Released 2023-09-06
 
 ## bug fixes
 
@@ -25,7 +57,7 @@
 ## new
 - `compareGeom` for list and SpatRasterCollection [#1207](https://github.com/rspatial/terra/issues/1207) by Sarah Endicott
 - `is.rotated<SpatRaster>` method [#1229](https://github.com/rspatial/terra/issues/1229) by Andy Lyons
-- `forceCCW<SpatVector>` method to force counter-clockwise orientation [#1249](https://github.com/rspatial/terra/issues/1249) by srfall.
+- `forceCCW<SpatVector>` method to force counter-clockwise orientation of polygons [#1249](https://github.com/rspatial/terra/issues/1249) by srfall.
 - `vrt_tiles` returns the filenames of the tiles in a vrt file [#1261](https://github.com/rspatial/terra/issues/1261) by Derek Friend
 - `extractAlong` to extract raster cell values for a line that are ordered along the line. [#1257](https://github.com/rspatial/terra/issues/1257) by adamkc.
 
@@ -171,7 +203,7 @@ https://github.com/rspatial/terra/issues/991) by srfall
 - `merge<SpatRaster>` did not ignore NAs [#1002](https://github.com/rspatial/terra/issues/1002) by jmmonnet.
 - `writeCDF` failed when using argument force_v4 [#1009](https://github.com/rspatial/terra/issues/1009) by R. Kyle Bocinsky
 - `predict` better handling of rasters with many NAs [#988](https://github.com/rspatial/terra/issues/998) by Lucas Johnson
-- `layerCor` did not handle NAs well if they were in different cells across layers [#1034](https://github.com/rspatial/terra/issues/1034} by François Rousseu.
+- `layerCor` did not handle NAs well if they were in different cells across layers [#1034](https://github.com/rspatial/terra/issues/1034) by François Rousseu.
 
 
 # version 1.7-3

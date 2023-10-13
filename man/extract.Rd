@@ -35,7 +35,7 @@ Alternatively, you can use \code{\link{zonal}} after using \code{\link{rasterize
 
 \S4method{extract}{SpatRaster,matrix}(x, y, cells=FALSE, method="simple")
 
-\S4method{extract}{SpatRaster,numeric}(x, y, xy=FALSE)
+\S4method{extract}{SpatRaster,numeric}(x, y, xy=FALSE, raw=FALSE)
 
 \S4method{extract}{SpatVector,SpatVector}(x, y)
 }
@@ -103,13 +103,13 @@ y[i]
 f <- system.file("ex/lux.shp", package="terra")
 v <- vect(f)
 v <- v[1:2,]
-z <- rast(v, resolution=.1, names="test")
-values(z) <- 1:ncell(z)
 
 rf <- system.file("ex/elev.tif", package="terra")
 x <- rast(rf)
 extract(x, v, mean, na.rm=TRUE)
 
+z <- rast(v, resolution=.1, names="test")
+values(z) <- 1:ncell(z)
 e <- extract(z, v, ID=TRUE)
 e
 tapply(e[,2], e[,1], mean, na.rm=TRUE)

@@ -1,4 +1,3 @@
-
 # these methods require the dev version of leaflet
 
 checkLeafLetVersion <- function() {
@@ -108,7 +107,7 @@ setMethod("plet", signature(x="SpatVector"),
 		y <- unique(y)
 		if (length(y) > 1) {
 			y = y[1]
-#			xvc <- svc(lapply(y, \(i) x[,i]))
+#			xvc <- svc(lapply(y, function(i) x[,i]))
 #			if (is.numeric(y)) {
 #				names(xvc) <- names(x)[y]
 #			} else {
@@ -133,7 +132,7 @@ setMethod("plet", signature(x="SpatVector"),
 		g <- geomtype(x)
 		leg <- NULL
 		if (y == "") { # no legend
-			group <- x@pnt$layer
+			group <- x@cpp$layer
 			if (group == "") group = g
 			cols <- .getCols(nrow(x), col)
 			pop  <- lab <- NULL

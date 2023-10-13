@@ -59,12 +59,12 @@ extractCells <- function(x, y, method="simple", cells=FALSE, xy=FALSE, layer=NUL
 	cn <- names(x)
 	opt <- spatOptions()
 	if ((method == "bilinear") && (NCOL(y) > 1)) {
-		e <- x@pnt$bilinearValues(y[,1], y[,2])
+		e <- x@cpp$bilinearValues(y[,1], y[,2])
 	} else {
 		if (NCOL(y) == 2) {
 			y <- cellFromXY(x, y)
 		}
-		e <- x@pnt$extractCell(y-1)
+		e <- x@cpp$extractCell(y-1)
 	}
 
 	e <- do.call(cbind, e)
@@ -169,7 +169,7 @@ extract_table <- function(x, y, ID=FALSE, weights=FALSE, exact=FALSE, touches=FA
 			)
 		}
 		
-		e <- x@pnt$extractVector(y@pnt, touches[1], "simple", FALSE, FALSE, 
+		e <- x@cpp$extractVector(y@cpp, touches[1], "simple", FALSE, FALSE, 
 			isTRUE(weights[1]), isTRUE(exact[1]), opt)
 		x <- messages(x, "extract")
 		e <- lapply(e, wtable, na.rm=na.rm)
@@ -193,7 +193,7 @@ extract_table <- function(x, y, ID=FALSE, weights=FALSE, exact=FALSE, touches=FA
 		}
 		if (nlyr(x) == 1) return(out[[1]]) else return(out)
 	} else {
-		e <- x@pnt$extractVectorFlat(y@pnt, "", FALSE, touches[1], "", FALSE, FALSE, FALSE, FALSE, opt)
+		e <- x@cpp$extractVectorFlat(y@cpp, "", FALSE, touches[1], "", FALSE, FALSE, FALSE, FALSE, opt)
 		x <- messages(x, "extract")
 		e <- data.frame(matrix(e, ncol=nlyr(x)+1, byrow=TRUE))
 		colnames(e) <- c("ID", names(x))
@@ -207,8 +207,8 @@ extract_table <- function(x, y, ID=FALSE, weights=FALSE, exact=FALSE, touches=FA
 				fixname <- FALSE
 				e[,i]  <- as.factor(e[,i])
 			}
-			tb <- aggregate(e[,i,drop=FALSE], e[,1,drop=FALSE], table)
-			tb <- cbind(tb[,1,drop=FALSE], tb[,2,drop=FALSE])
+			tb <- table(e[,1], e[,i])
+			tb <- cbind(ID = rownames(tb), as.data.frame.matrix(tb))
 			if (fixname) colnames(tb) <- gsub(cn[i], "", colnames(tb))
 			if (!ID) {
 				tb$ID <- NULL
@@ -226,7 +226,7 @@ extract_fun <- function(x, y, fun, ID=TRUE, weights=FALSE, exact=FALSE, touches=
 
 	opt <- spatOptions()
 
-	e <- x@pnt$extractVectorFlat(y@pnt, fun, na.rm, touches[1], "", FALSE, FALSE, weights, exact, opt)
+	e <- x@cpp$extractVectorFlat(y@cpp, fun, na.rm, touches[1], "", FALSE, FALSE, weights, exact, opt)
 	x <- messages(x, "extract")
 
 	nl <- nlyr(x)
@@ -306,7 +306,7 @@ function(x, y, fun=NULL, method="simple", cells=FALSE, xy=FALSE, ID=TRUE, weight
 	} 
 	
 	opt <- spatOptions()
-	e <- x@pnt$extractVectorFlat(y@pnt, "", FALSE, touches[1], method, isTRUE(cells[1]), isTRUE(xy[1]), isTRUE(weights[1]), isTRUE(exact[1]), opt)
+	e <- x@cpp$extractVectorFlat(y@cpp, "", FALSE, touches[1], method, isTRUE(cells[1]), isTRUE(xy[1]), isTRUE(weights[1]), isTRUE(exact[1]), opt)
 	x <- messages(x, "extract")
 
 	cn <- c("ID", names(x))
@@ -397,10 +397,10 @@ function(x, y, ...) {
 
 
 setMethod("extract", signature(x="SpatRaster", y="numeric"),
-function(x, y, xy=FALSE) {
+function(x, y, xy=FALSE, raw=FALSE) {
 	y <- round(y)
 	y[(y < 1) | (y > ncell(x))] <- NA
-	v <- .extract_cell(x, y, drop=TRUE)
+	v <- .extract_cell(x, y, drop=TRUE, raw=raw)
 	if (xy) {
 		v <- cbind(xyFromCell(x, y), v)
 	}
@@ -478,7 +478,7 @@ function(x, y, ...) {
 
 
 
-extractAlong <- function(x, y, ID=TRUE, cells=FALSE, xy=FALSE) { 
+extractAlong <- function(x, y, ID=TRUE, cells=FALSE, xy=FALSE, online=FALSE, bilinear=TRUE) { 
 
 	stopifnot(inherits(x, "SpatRaster"))
 	if (inherits(y, "sf")) {
@@ -535,7 +535,7 @@ extractAlong <- function(x, y, ID=TRUE, cells=FALSE, xy=FALSE) {
 		}
 		if (!is.null(vv)) {
 			cell <- cellFromRowCol(rr, vv[,1], vv[,2])
-			res[[i]] <- data.frame(i, cell, extract(x, cell))
+			res[[i]] <- data.frame(i, cell)
 		}
 	}
 	
@@ -549,14 +549,30 @@ extractAlong <- function(x, y, ID=TRUE, cells=FALSE, xy=FALSE) {
 			colnames(res) <- c("ID", "cell", names(x))
 		}
 	} else {
-		colnames(res) <- c("ID", "cell", names(x))
+		colnames(res) <- c("ID", "cell")
 		if (xy) {
-			res <- data.frame(res[,1:2], xyFromCell(x, res$cell), res[, -c(1:2), drop=FALSE])
+			xycrd <- xyFromCell(x, res$cell)
+			method <- "simple"
+			if (online) {
+				pts <- vect(xycrd, crs="local")
+				crs(y) <- "local"
+				n <- nearest(pts, y)
+				xycrd <- crds(n)
+				if (bilinear) method <- "bilinear"
+				res <- data.frame(res, xycrd, extract(x, xycrd, method=method))
+			} else {
+				res <- data.frame(res, xycrd, extract(x, res$cell))
+			}
+		} else {
+			res <- data.frame(res, extract(x, res$cell))		
 		}
 	}
+
 	if (!cells) res$cell <- NULL
 	if (!ID) res$ID <- NULL
+	
 	res
+
 }
 
 

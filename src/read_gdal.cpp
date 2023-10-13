@@ -587,7 +587,7 @@ SpatRasterStack::SpatRasterStack(std::string fname, std::vector<int> ids, bool u
     GDALDataset *poDataset = openGDAL(fname, GDAL_OF_RASTER | GDAL_OF_READONLY | GDAL_OF_VERBOSE_ERROR, ops, ops);
     if( poDataset == NULL )  {
 		if (!file_exists(fname)) {
-			setError("file does not exist");
+			setError("file does not exist: " + fname);
 		} else {
 			setError("cannot read from " + fname );
 		}
@@ -648,7 +648,7 @@ SpatRasterCollection::SpatRasterCollection(std::string fname, std::vector<int> i
     GDALDataset *poDataset = openGDAL(fname, GDAL_OF_RASTER | GDAL_OF_READONLY | GDAL_OF_VERBOSE_ERROR, ops, ops);
     if( poDataset == NULL )  {
 		if (!file_exists(fname)) {
-			setError("file does not exist");
+			setError("file does not exist: " + fname);
 		} else {
 			setError("cannot read from " + fname );
 		}
@@ -793,6 +793,20 @@ bool SpatRaster::constructFromFile(std::string fname, std::vector<int> subds, st
 	} else if (nl==0) {
 		setError("no raster data in " + fname);
 		return false;
+	}
+
+	char **meterra = poDataset->GetMetadata("USER_TAGS");
+	if (meterra != NULL) {
+		std::vector<std::string> meta;
+		for (size_t i=0; meterra[i] != NULL; i++) {
+			std::string s = meterra[i];
+			size_t pos = s.find("=");
+			if (pos != std::string::npos) {
+				std::string name = s.substr(0, pos);
+				std::string value = s.substr(pos+1); 
+				addTag(name, value);
+			}
+		}
 	}
 
 	SpatRasterSource s;
@@ -1088,10 +1102,16 @@ bool SpatRaster::constructFromFile(std::string fname, std::vector<int> subds, st
 bool SpatRaster::readStartGDAL(unsigned src) {
 
     GDALDataset *poDataset = openGDAL(source[src].filename, GDAL_OF_RASTER | GDAL_OF_READONLY, source[src].open_drivers, source[src].open_ops);
-	if( poDataset == NULL )  {
-		setError("cannot read from " + source[src].filename );
+
+    if( poDataset == NULL )  {
+		if (!file_exists(source[src].filename )) {
+			setError("file does not exist: " + source[src].filename);
+		} else {
+			setError("cannot read from " + source[src].filename  );
+		}
 		return false;
 	}
+
     source[src].gdalconnection = poDataset;
 	source[src].open_read = true;
 	return(true);
@@ -1258,12 +1278,18 @@ std::vector<double> SpatRaster::readValuesGDAL(unsigned src, size_t row, size_t 
 	}
 
     GDALDataset *poDataset = openGDAL(source[src].filename, GDAL_OF_RASTER | GDAL_OF_READONLY, source[src].open_drivers, source[src].open_ops);
-	GDALRasterBand *poBand;
-
+	
     if( poDataset == NULL )  {
-		setError("cannot read values. Does the file still exist?");
+		if (!file_exists(source[src].filename )) {
+			setError("file does not exist: " + source[src].filename);
+		} else {
+			setError("cannot read from " + source[src].filename  );
+		}
 		return errout;
 	}
+
+	GDALRasterBand *poBand;
+
 	unsigned ncell = ncols * nrows;
 	unsigned nl;
 	std::vector<int> panBandMap;
@@ -1338,10 +1364,16 @@ std::vector<double> SpatRaster::readGDALsample(unsigned src, size_t srows, size_
 	#endif
 	
     GDALDataset *poDataset = openGDAL(source[src].filename, GDAL_OF_RASTER | GDAL_OF_READONLY, source[src].open_drivers, openops);
+
     if( poDataset == NULL )  {
-		setError("no data");
+		if (!file_exists(source[src].filename )) {
+			setError("file does not exist: " + source[src].filename);
+		} else {
+			setError("cannot read from " + source[src].filename  );
+		}
 		return errout;
 	}
+
 	unsigned ncell = scols * srows;
 	unsigned nl = source[src].nlyr;
 	std::vector<double> out(ncell*nl);
@@ -1419,11 +1451,16 @@ std::vector<std::vector<double>> SpatRaster::readRowColGDAL(unsigned src, std::v
 
     GDALDataset *poDataset = openGDAL(source[src].filename, GDAL_OF_RASTER | GDAL_OF_READONLY, source[src].open_drivers, source[src].open_ops);
 
-	GDALRasterBand *poBand;
-
     if( poDataset == NULL )  {
+		if (!file_exists(source[src].filename )) {
+			setError("file does not exist: " + source[src].filename);
+		} else {
+			setError("cannot read from " + source[src].filename  );
+		}
 		return errout;
 	}
+
+	GDALRasterBand *poBand;
 
 	std::vector<unsigned> lyrs = source[src].layers;
 	unsigned nl = lyrs.size();
@@ -1500,11 +1537,16 @@ std::vector<double> SpatRaster::readRowColGDALFlat(unsigned src, std::vector<int
 
     GDALDataset *poDataset = openGDAL(source[src].filename, GDAL_OF_RASTER | GDAL_OF_READONLY, source[src].open_drivers, source[src].open_ops);
 
-	GDALRasterBand *poBand;
-
     if( poDataset == NULL )  {
+		if (!file_exists(source[src].filename )) {
+			setError("file does not exist: " + source[src].filename);
+		} else {
+			setError("cannot read from " + source[src].filename  );
+		}
 		return errout;
 	}
+
+	GDALRasterBand *poBand;
 
 	std::vector<unsigned> lyrs = source[src].layers;
 	unsigned nl = lyrs.size();
@@ -1831,25 +1873,28 @@ std::vector<int_64> ncdf_time(const std::vector<std::string> &metadata, std::vec
 	bool months = false;
 	bool days = false;
 	bool hours = false;
+	bool minutes = false;
 	bool seconds = false;
 	bool foundorigin = false;
 
 	if (fu) {
 		lowercase(origin);
-		if ((origin.find("hours")) != std::string::npos) {
+		if ((origin.find("seconds")) != std::string::npos) {
+			seconds = true;
+		} else if ((origin.find("minutes")) != std::string::npos) {
+			minutes = true;
+		} else if ((origin.find("hours")) != std::string::npos) {
 			hours = true;
 		} else if ((origin.find("days")) != std::string::npos) {
 			days = true;
-		} else if ((origin.find("seconds")) != std::string::npos) {
-			seconds = true;
-		} else if ((origin.find("years before present")) != std::string::npos) {
-			yearsbp = true;
-			foundorigin = true;
 		} else if ((origin.find("months since")) != std::string::npos) {
 			yearmonths = true;
 			foundorigin = true;
 		} else if ((origin.find("months")) != std::string::npos) {
 			months = true;
+			foundorigin = true;
+		} else if ((origin.find("years before present")) != std::string::npos) {
+			yearsbp = true;
 			foundorigin = true;
 		} else if ((origin.find("years")) != std::string::npos) {
 			years = true;
@@ -1869,27 +1914,86 @@ std::vector<int_64> ncdf_time(const std::vector<std::string> &metadata, std::vec
 	if (foundorigin) {
 		step = "seconds";
 		out.reserve(raw.size());
+		std::string cal = "366";
+		if (calendar == "360_day" || calendar == "360 day") {
+			cal = "360";
+		} else if (calendar == "noleap" || calendar == "365_day" || calendar == "365 day") {
+			cal = "365";		
+		} else if (calendar =="gregorian" || calendar =="proleptic_gregorian" || calendar=="standard" || calendar == "julian") {
+			cal = "366";
+		} else {
+			//cal = "366";
+			msg = "unknown calendar (assuming standard): " + calendar;			
+		}
+		
+		// this shortcut means that 360/noleap calendars loose only have dates, no time
+		// to be refined
+		if ((hours || minutes || seconds) && (cal == "360")) {
+			int div = 24;
+			double add = 0;
+			std::vector<int> ymd = getymd(origin);
+			if (hours) {
+				hours = false;
+				add = ymd[3] + ymd[4] / 60 + ymd[5] / 3600; 
+			} else if (minutes) {
+				div = 1440; // 24 * 60
+				add = ymd[3] * 60 + ymd[4] + ymd[5] / 60; 
+				minutes = false;
+			} else if (seconds) {
+				div = 86400; // 24 * 3600
+				add = ymd[3] * 3600 + ymd[4] * 60 + ymd[5]; 
+				seconds = false;
+			}
+			for (size_t i=0; i<raw.size(); i++) {
+				raw[i] = (raw[i]+add) / div; 
+			}
+			days = true;
+		} 
+		
 		if (days) {
 			step = "days";
 			std::vector<int> ymd = getymd(origin);
-			if (calendar == "noleap" || calendar == "365_day" || calendar == "365 day") {
-				for (size_t i=0; i<raw.size(); i++) out.push_back(time_from_day_noleap(ymd[0], ymd[1], ymd[2], raw[i]));
-			} else if (calendar == "360_day" || calendar == "360 day") {
-				for (size_t i=0; i<raw.size(); i++) out.push_back(time_from_day_360(ymd[0], ymd[1], ymd[2], raw[i]));
+			if (cal == "365") {
+				for (size_t i=0; i<raw.size(); i++) out.push_back(
+					get_time_noleap(ymd[0], ymd[1], ymd[2], 0, 0, 0, raw[i], "days"));
+			} else if (cal == "360") {
+				for (size_t i=0; i<raw.size(); i++) out.push_back(
+					time_from_day_360(ymd[0], ymd[1], ymd[2], raw[i]));
 			} else {
-				if (!(calendar =="gregorian" || calendar =="proleptic_gregorian" || calendar=="standard" || calendar == "julian")) {
-					// julian is perhaps questionable it can mean different things.
-					msg = "unknown calendar (assuming standard): " + calendar;
-				}
-				for (size_t i=0; i<raw.size(); i++) out.push_back(time_from_day(ymd[0], ymd[1], ymd[2], raw[i]));
+				for (size_t i=0; i<raw.size(); i++) out.push_back(
+					time_from_day(ymd[0], ymd[1], ymd[2], raw[i]));
 			}
 		} else if (hours) {
-			//hours_to_time(out, origin);
-			std::vector<int> ymd = getymd(origin);
-			for (size_t i=0; i<raw.size(); i++) out.push_back(time_from_hour(ymd[0], ymd[1], ymd[2], raw[i]));
+			if (cal == "365") {
+				std::vector<int> ymd = getymd(origin);
+				for (size_t i=0; i<raw.size(); i++) out.push_back(
+						get_time_noleap(ymd[0], ymd[1], ymd[2], ymd[3], 0, 0, raw[i], "hours")
+					);
+			} else {
+				offset = get_time_string(origin);
+				for (size_t i=0; i<raw.size(); i++) out.push_back(raw[i]*3600+offset);
+			}
+		} else if (minutes) {
+			if (cal == "365") {
+				std::vector<int> ymd = getymd(origin);
+//				Rcpp::Rcout << origin << std::endl;
+				for (size_t i=0; i<raw.size(); i++) out.push_back(
+						get_time_noleap(ymd[0], ymd[1], ymd[2], ymd[3], ymd[4], 0, raw[i], "minutes")
+					);
+			} else {
+				offset = get_time_string(origin);
+				for (size_t i=0; i<raw.size(); i++) out.push_back(60*raw[i]+offset);
+			}
 		} else if (seconds) {
-			offset = get_time_string(origin);
-			for (size_t i=0; i<raw.size(); i++) out.push_back(raw[i]+offset);
+			if (cal == "365") {
+				std::vector<int> ymd = getymd(origin);
+				for (size_t i=0; i<raw.size(); i++) out.push_back(
+						get_time_noleap(ymd[0], ymd[1], ymd[2], ymd[3], ymd[4], 0, raw[i], "minutes")
+					);
+			} else {
+				offset = get_time_string(origin);
+				for (size_t i=0; i<raw.size(); i++) out.push_back(raw[i]+offset);
+			}
 		} else if (years) {
 			step = "years";
 			int syear = getyear(origin);
@@ -1991,8 +2095,10 @@ void SpatRasterSource::set_names_time_ncdf(std::vector<std::string> metadata, st
 
 	if (nms[2][2].empty()) {
 		unit = {""};
+		hasUnit = false;
 	} else {
 		unit = {nms[2][2]};
+		hasUnit = true;
 	}
 
 	recycle(unit, nlyr);
