@@ -2602,7 +2602,7 @@ SpatRaster SpatRaster::disaggregate(std::vector<unsigned> fact, SpatOptions &opt
         return out;
     }
 
-	opt.ncopies = 2*fact[0]*fact[1]*fact[2];
+	opt.ncopies = 4 + fact[0]*fact[1]*fact[2];
 	BlockSize bs = getBlockSize(opt);
 	opt.steps = bs.n;
 	//opt.set_blocksizemp();
@@ -3206,14 +3206,14 @@ SpatRaster SpatRaster::flip(bool vertical, SpatOptions &opt) {
 			size_t ii = out.bs.n - 1 - i;
 			readBlock(a, out.bs, ii);
 			b.reserve(a.size());
-			for (size_t j=0; j < out.nlyr(); j++) {
+			for (size_t j=0; j < nl; j++) {
 				size_t offset = j * out.bs.nrows[ii] * nc;
 				for (size_t k=0; k < out.bs.nrows[ii]; k++) {
 					unsigned start = offset + (out.bs.nrows[ii] - 1 - k) * nc;
 					b.insert(b.end(), a.begin()+start, a.begin()+start+nc);
 				}
 			}
-			if (!out.writeBlock(b, i)) return out;
+			if (!out.writeValues(b, out.bs.row[i], out.bs.nrows[ii])) return out;
 		}
 	} else {
 		for (size_t i=0; i < out.bs.n; i++) {
@@ -3439,11 +3439,12 @@ bool overlaps(const std::vector<unsigned>& r1, const std::vector<unsigned>& r2,
 SpatRaster SpatRasterCollection::mosaic(std::string fun, SpatOptions &opt) {
 
 	SpatRaster out;
-	std::vector<std::string> f {"first", "last", "sum", "mean", "median", "min", "max"};
+	std::vector<std::string> f {"first", "last", "sum", "mean", "median", "min", "max", "modal"};
 	if (std::find(f.begin(), f.end(), fun) == f.end()) {
 		out.setError("argument 'fun' is not a valid function name");
 		return out;
 	}
+	
 	if (fun == "first") {
 		return merge(true, true, opt);
 	}
@@ -4087,20 +4088,36 @@ SpatDataFrame SpatRaster::mglobal(std::vector<std::string> funs, bool narm, Spat
 
 
 
-std::vector<std::vector<double>> SpatRaster::layerCor(std::string fun, bool narm, bool asSample, SpatOptions &opt) {
+std::vector<std::vector<double>> SpatRaster::layerCor(std::string fun, std::string use, bool asSample, SpatOptions &opt) {
 
-	std::vector<std::vector<double>> out(2);
-	
+	std::vector<std::vector<double>> out(3);	
 	if (!hasValues()) {
 		setError("SpatRaster has no values");
 		return(out);
 	}
-
+	
 	size_t nl = nlyr();
+	if (nl < 2) {
+		setError("SpatRaster must have at least two layers");
+		return(out);
+	}
 
-	if (fun == "pearson") {
+	if (use == "complete.observations") {
+		SpatOptions sopt(opt);
+		SpatRaster x = anynan(true, sopt);
+		x = mask(x, false, NAN, NAN, sopt);
+		return x.layerCor(fun, "", asSample, opt);
+	}
+
+	bool narm = true;
+	if (use == "all.observations") {
+		narm = false;		
+	}
+
+	if (fun == "cor") { // pearson
 		std::vector<double> means(nl*nl, NAN);
 		std::vector<double> cor(nl*nl, 1);
+		std::vector<double> nn(nl*nl, NAN);
 		SpatOptions topt(opt);
 
 		BlockSize bs = getBlockSize(topt);
@@ -4118,14 +4135,14 @@ std::vector<std::vector<double>> SpatRaster::layerCor(std::string fun, bool narm
 					setError(getError());
 					return(out);
 				}
-				std::vector<std::vector<double>> stats(nl);
-				std::vector<std::vector<double>> stats2(nl);
-				std::vector<double> n(nl);
+				std::vector<std::vector<double>> stats(2);
+				std::vector<std::vector<double>> stats2(2);
+				std::vector<double> n(2);
 				std::vector<double> vi, vj;				
 				for (size_t k=0; k<bs.n; k++) {
 					xi.readBlock(vi, bs, k);
 					xj.readBlock(vj, bs, k);
-					if (narm) {
+					if (use == "pairwise.complete.observations") {
 						for (size_t m=0; m<vi.size(); m++) {
 							if (std::isnan(vi[m]) || std::isnan(vj[m])) {
 								vi[m] = NAN;
@@ -4145,7 +4162,7 @@ std::vector<std::vector<double>> SpatRaster::layerCor(std::string fun, bool narm
 					}
 					if (narm) {
 						for (size_t m=0; m<vi.size(); m++) {
-							if (!std::isnan(vi[m])) {
+							if ((!std::isnan(vi[m])) && (!std::isnan(vj[m]))) {
 								value += (vi[m] - stats[0][0]) * (vj[m]  - stats[1][0]);
 							}
 						}
@@ -4160,12 +4177,15 @@ std::vector<std::vector<double>> SpatRaster::layerCor(std::string fun, bool narm
 				means[j*nl+i] = stats[1][0];
 				cor[i*nl+j] = value;
 				cor[j*nl+i] = value;
+				nn[i*nl+j] = n[0];
+				nn[j*nl+i] = n[1];
 				xi.readStop();
 				xj.readStop();
 			}
 		}
 		out[0] = cor;	
 		out[1] = means;	
+		out[2] = nn;
 	}
 	return(out);	
 }
@@ -5975,6 +5995,66 @@ SpatRaster SpatRaster::fill_range(long limit, bool circular, SpatOptions &opt) {
 						d[k*nc+j] = 1;
 					}
 				}
+			}
+		}
+		if (!out.writeBlock(d, i)) return out;
+	}
+	readStop();
+	out.writeStop();
+	return(out);
+	
+}
+
+
+
+SpatRaster SpatRaster::similarity(std::vector<double> x, SpatOptions &opt) {
+	
+	SpatRaster out = geometry(1);
+	if (!hasValues()) {
+		out.setError("the input raster must have values");
+		return out;		
+	}
+	
+	size_t nl = nlyr();
+	size_t ncls = x.size() / nl;
+	
+	if ((nl*ncls) != x.size()) {
+		out.setError("the number of layers does not match the values provided");
+		return out;		
+	}
+		
+	if (!readStart()) {
+		out.setError(getError());
+		return(out);
+	}
+	
+  	if (!out.writeStart(opt, filenames())) {
+		readStop();
+		return out;
+	}
+	
+	for (size_t i=0; i<out.bs.n; i++) {
+		size_t nc = out.bs.nrows[i] * ncol();
+		std::vector<double> v;
+		readValues(v, out.bs.row[i], out.bs.nrows[i], 0, ncol());
+		std::vector<double> d;
+		d.reserve(nc);
+		std::vector<double> dist(nl);
+		std::vector<size_t> offsets(nl);
+		for (size_t k=0; k<nl; k++) {
+			offsets[k] = k * nc;
+		}
+		
+		for (size_t j=0; j<nc; j++) {
+			if (std::isnan(v[j])) {
+				d[j] = NAN;
+			} else {
+				for (size_t k=0; k<nl; k++) {
+					// not correct
+					// also need to loop over clusters
+					dist[k] = pow((x[k] - v[j + offsets[k]]), 2);
+				}
+				d[j] = vwhichmin(dist, false);
 			}
 		}
 		if (!out.writeBlock(d, i)) return out;

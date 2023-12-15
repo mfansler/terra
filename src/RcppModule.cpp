@@ -5,7 +5,7 @@
 #include <memory> //std::addressof
 #include "NA.h"
 #include "spatTime.h"
-#include "spatVector2.h"
+//#include "spatVector2.h"
 
 //static void SpatRaster_finalizer( SpatRaster* ptr ){
 //}
@@ -186,12 +186,13 @@ RCPP_EXPOSED_CLASS(SpatVector)
 RCPP_EXPOSED_CLASS(SpatVectorProxy)
 RCPP_EXPOSED_CLASS(SpatVectorCollection)
 RCPP_EXPOSED_CLASS(SpatGraph)
-RCPP_EXPOSED_CLASS(SpatVector2)
+//RCPP_EXPOSED_CLASS(SpatVector2)
 
 RCPP_MODULE(spat){
 
     using namespace Rcpp;
 
+/*
     class_<SpatVector2>("SpatVector2")
 	
 		.constructor()
@@ -204,6 +205,7 @@ RCPP_MODULE(spat){
 		.method("from_old", &SpatVector2::from_old)
 		.method("to_old", &SpatVector2::to_old)
 	;
+*/
 
     class_<SpatTime_v>("SpatTime_v")
 		.constructor()
@@ -526,6 +528,8 @@ RCPP_MODULE(spat){
 
 		.method("disaggregate", &SpatVector::disaggregate)
 		.method("buffer", &SpatVector::buffer)
+		.method("buffer2", &SpatVector::buffer2)
+		.method("buffer3", &SpatVector::buffer3)
 		.method("centroid", &SpatVector::centroid)
 		.method("point_on_surface", &SpatVector::point_on_surface)
 		.method("make_valid2", &SpatVector::make_valid2)
@@ -628,6 +632,7 @@ RCPP_MODULE(spat){
 		.constructor()
 	 // .constructor<std::string, int>()
 	    .constructor<std::vector<std::string>, std::vector<int>, std::vector<std::string>, bool, std::vector<std::string>, std::vector<std::string>, std::vector<size_t>>()
+		
 		.constructor<std::vector<unsigned>, std::vector<double>, std::string>()
 		//.finalizer(&SpatRaster_finalizer)
 
@@ -640,6 +645,9 @@ RCPP_MODULE(spat){
 
 		.method("addTag", &SpatRaster::addTag)
 		.method("getTags", &SpatRaster::getTags)
+		.method("addLyrTags", &SpatRaster::addLyrTags)
+		.method("getLyrTags", &SpatRaster::getLyrTags)
+
 
 		//.field("name", &SpatRaster::name)
 		.method("getFileBlocksize", &SpatRaster::getFileBlocksize)
@@ -883,7 +891,7 @@ RCPP_MODULE(spat){
 
 		.method("get_aggregates", &SpatRaster::get_aggregates)
 		.method("get_aggregate_dims", &SpatRaster::get_aggregate_dims2)
-		.method("global", &SpatRaster::global)
+	//	.method("global", &SpatRaster::global)
 		.method("mglobal", &SpatRaster::mglobal)
 		.method("layerCor", &SpatRaster::layerCor)
 		.method("global_weighted_mean", &SpatRaster::global_weighted_mean)
@@ -904,7 +912,7 @@ RCPP_MODULE(spat){
 		.method("is_false", &SpatRaster::is_false)
 
 		.method("logic_rast", ( SpatRaster (SpatRaster::*)(SpatRaster, std::string, SpatOptions&) )( &SpatRaster::logic ))
-		.method("logic_numb", ( SpatRaster (SpatRaster::*)(bool, std::string, SpatOptions&) )( &SpatRaster::logic ))
+		.method("logic_numb", ( SpatRaster (SpatRaster::*)(std::vector<double>, std::string, SpatOptions&) )( &SpatRaster::logic ))
 		.method("mask_self", ( SpatRaster (SpatRaster::*)(SpatOptions&) )( &SpatRaster::mask))
 		.method("mask_raster", ( SpatRaster (SpatRaster::*)(SpatRaster&, bool, std::vector<double>, double, SpatOptions&) )( &SpatRaster::mask))
 		.method("mask_vector", ( SpatRaster (SpatRaster::*)(SpatVector&, bool, double, bool, SpatOptions&) )( &SpatRaster::mask))
@@ -938,6 +946,7 @@ RCPP_MODULE(spat){
 		.method("sampleRandomValues", &SpatRaster::sampleRandomValues)
 		.method("scale", &SpatRaster::scale)
 		.method("shift", &SpatRaster::shift)
+		.method("similarity", &SpatRaster::similarity)
 		.method("terrain", &SpatRaster::terrain)
 		.method("hillshade", &SpatRaster::hillshade)
 		.method("summary", &SpatRaster::summary)
@@ -960,13 +969,14 @@ RCPP_MODULE(spat){
 		.method("zonal", &SpatRaster::zonal)
 		.method("zonal_weighted", &SpatRaster::zonal_weighted)
 		.method("zonal_poly", &SpatRaster::zonal_poly)		
+		.method("zonal_poly_table", &SpatRaster::zonal_poly_table)		
 		.method("zonal_poly_weighted", &SpatRaster::zonal_poly_weighted)		
 //		.method("zonal_old", &SpatRaster::zonal_old)
 	;
 
     class_<SpatRasterCollection>("SpatRasterCollection")
 		.constructor()
-	    .constructor<std::string, std::vector<int>, bool>()
+	    .constructor<std::string, std::vector<int>, bool, std::vector<std::string>>()
 
 		.property("names", &SpatRasterCollection::get_names, &SpatRasterCollection::set_names)
 
@@ -992,7 +1002,7 @@ RCPP_MODULE(spat){
 
     class_<SpatRasterStack>("SpatRasterStack")
 		.constructor()
-	    .constructor<std::string, std::vector<int>, bool>()
+	    .constructor<std::string, std::vector<int>, bool, std::vector<std::string>>()
 	    .constructor<SpatRaster, std::string, std::string, std::string>()
 		.method("deepcopy", &SpatRasterStack::deepCopy)
 

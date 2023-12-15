@@ -24,7 +24,7 @@ Change the coordinate reference system ("project") of a SpatVector, SpatRaster o
 }
 
 \arguments{
-  \item{x}{SpatRaster or SpatVector}
+  \item{x}{SpatRaster, SpatVector, SpatExtent or matrix (with x and y columns) whose coordinates to project}
   \item{y}{if (\code{x} is a SpatRaster, the preferred approach is for \code{y} to be a SpatRaster as well, serving as a template for the geometry (extent and resolution) of the output SpatRaster. Alternatively, you can provide a coordinate reference system (CRS) description. 
     
   You can use the following formats to define coordinate reference systems: WKT,  PROJ.4 (e.g., \code{+proj=longlat +datum=WGS84}), or an EPSG code (e.g., \code{"epsg:4326"}). But note that the PROJ.4 notation has been deprecated, and you can only use it with the WGS84/NAD83 and NAD27 datums. Other datums are silently ignored. 
@@ -50,7 +50,8 @@ Change the coordinate reference system ("project") of a SpatVector, SpatRaster o
 	\code{min, q1, med, q3, max, average, mode, rms}: the minimum, first quartile, median, third quartile, maximum, mean, mode, or root-mean-square value of all non-NA contributing grid cells.	
   }
 
-  \item{mask}{logical. If \code{TRUE}, mask out areas outside the input extent (see example with Robinson projection)}
+  \item{mask}{logical. If \code{TRUE}, mask out areas outside the input extent. For example to avoid data wrapping around the date-line (see example with Robinson projection). To remove cells that are \code{NA} in \code{y} (if \code{y} is a SpatRaster) you can use the \code{\link{mask} method} after calling \code{project} (this function)}
+  
   \item{align}{logical. If \code{TRUE}, and \code{y} is a SpatRaster, the template is used for the spatial resolution and origin, but the extent is set such that all of the extent of \code{x} is included}
 
   \item{res}{numeric. Can be used to set the resolution of the output raster if \code{y} is a CRS}

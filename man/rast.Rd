@@ -29,7 +29,8 @@ When a SpatRaster is created from a file, it does not load the cell (pixel) valu
 }
 
 \usage{
-\S4method{rast}{character}(x, subds=0, lyrs=NULL, drivers=NULL, opts=NULL, win=NULL, snap="near", vsi=FALSE)
+\S4method{rast}{character}(x, subds=0, lyrs=NULL, drivers=NULL, opts=NULL, 
+		  win=NULL, snap="near", vsi=FALSE, raw=FALSE)
 
 \S4method{rast}{missing}(x, nrows=180, ncols=360, nlyrs=1, xmin=-180, xmax=180, 
           ymin=-90, ymax=90, crs, extent, resolution, vals, names, time, units)
@@ -61,6 +62,7 @@ When a SpatRaster is created from a file, it does not load the cell (pixel) valu
 \item{win}{SpatExtent to set a \code{\link{window}} (area of interest)}
 \item{snap}{character. One of "near", "in", or "out", to indicate how the extent of \code{\link{window}} should be "snapped" to \code{x}}
 \item{vsi}{logical. If \code{TRUE}, "\\vsicurl\\" is prepended to filenames that start with "http"}
+\item{raw}{logical. If \code{TRUE}, scale and offset values are ignored}
 \item{nrows}{positive integer. Number of rows}
 \item{ncols}{positive integer. Number of columns}
 \item{nlyrs}{positive integer. Number of layers}
@@ -79,7 +81,8 @@ When a SpatRaster is created from a file, it does not load the cell (pixel) valu
 \item{names}{character. An optional vector with layer names (must match the number of layers)}
 \item{time}{time or date stamps for each layer}
 \item{units}{character. units for each layer}
-\item{type}{character. If the value is not \code{"xyz"}, the raster has the same number of rows and columns as the matrix. If the value is \code{"xyz"}, the matrix must have at least two columns, the first with \code{x} (or longitude) and the second with \code{y} (or latitude) coordinates that represent the centers of raster cells. The additional columns are the values associated with the raster cells.}
+\item{type}{character. If the value is \code{"xyz"}, the matrix or data.frame \code{x} must have at least two columns, the first with \code{x} (or longitude) and the second with \code{y} (or latitude) coordinates that represent the centers of raster cells. The additional columns are the values associated with the raster cells. If the value is \code{"xylz"}, \code{x} must have four columns with the third representing the layer and the fourth the cell values. If the value is \code{""}, the resulting SpatRaster will have the same number of rows and columns as \code{x}. 
+}
 \item{digits}{integer to set the precision for detecting whether points are on a regular grid (a low number of digits is a low precision). Only used when \code{type="xyz"}}
 \item{warn}{logical. If \code{TRUE}, a warnings about empty rasters may be emitted}
 \item{...}{additional arguments passed on to the \code{rast,missing-method}}  

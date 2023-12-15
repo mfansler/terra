@@ -1,5 +1,11 @@
 #if (!isGeneric("#")) { setGeneric("#", function(x, ...) standardGeneric("#")) }
 
+if (!isGeneric("k_means")) {setGeneric("k_means", function(x, ...) standardGeneric("k_means"))}
+if (!isGeneric("princomp")) {setGeneric("princomp", function(x, ...) standardGeneric("princomp"))}
+if (!isGeneric("extractRange")) { setGeneric("extractRange", function(x, y, ...) standardGeneric("extractRange"))}
+
+if (!isGeneric("layerCor")) {setGeneric("layerCor", function(x, ...) standardGeneric("layerCor"))}
+
 if (!isGeneric("metags")) {setGeneric("metags", function(x, ...) standardGeneric("metags"))}
 if (!isGeneric("metags<-")) {setGeneric("metags<-", function(x, ..., value) standardGeneric("metags<-"))}
 
@@ -219,6 +225,7 @@ if (!isGeneric("inMemory")) {setGeneric("inMemory", function(x, ...) standardGen
 if (!isGeneric("sources")) {setGeneric("sources", function(x, ...) standardGeneric("sources"))}
 if (!isGeneric("spatSample")) { setGeneric("spatSample", function(x, ...) standardGeneric("spatSample"))}
 if (!isGeneric("terrain")) {setGeneric("terrain", function(x, ...) standardGeneric("terrain"))}
+if (!isGeneric("has.time")) {setGeneric("has.time", function(x,...) standardGeneric("has.time"))}
 if (!isGeneric("time")) {setGeneric("time", function(x,...) standardGeneric("time"))}
 if (!isGeneric("time<-")) {setGeneric("time<-", function(x, ..., value) standardGeneric("time<-"))}
 if (!isGeneric("timeInfo")) {setGeneric("timeInfo", function(x,...) standardGeneric("timeInfo"))}

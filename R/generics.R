@@ -3,49 +3,6 @@
 # Version 1.0
 # License GPL v3
 
-setMethod("metags", signature(x="SpatRaster"),
-	function(x, name=NULL) {
-		v <- x@cpp$getTags()
-		m <- matrix(v, ncol=2, byrow=TRUE, dimnames = list(NULL, c("name", "value")))
-		out <- m[,2]
-		names(out) <- m[,1]
-		if (!is.null(name)) {
-			out <- out[name]
-		} 
-		out
-	}
-)
-
-
-setMethod("metags<-", signature(x="SpatRaster"),
-	function(x, value) {
-		if (is.null(value)) {
-			value <- matrix(x@cpp$getTags(), ncol=2, byrow=TRUE)
-			value[,2] <- ""
-		} else if (NCOL(value) == 1) {
-			value <- strsplit(value, "=")
-			i <- sapply(value, length) == 1
-			if (length(i) > 0) {
-				j <- which(i)
-				for (i in j) value[[i]] <- c(value[[i]], "")
-			}
-			i <- sapply(value, length) == 2
-			value <- do.call(rbind, value[i])
-		} else if (NCOL(value) != 2) {
-			error("metags<-", "expecting a vector with 'name=value' or a two column matrix")
-		}
-		value[is.na(value)] <- ""
-		x <- deepcopy(x)
-		if (NROW(value) > 0) {
-			sapply(1:nrow(value), function(i) {
-				x@cpp$addTag(value[i,1], value[i,2])
-			})
-		}
-		x
-	}
-)
-
-
 setMethod("is.rotated", signature(x="SpatRaster"),
 	function(x) {
 		x@cpp$is_rotated()
@@ -61,18 +18,6 @@ setMethod("rangeFill", signature(x="SpatRaster"),
 	}
 )
 
-setMethod("meta", signature(x="SpatRaster"),
-	function(x, layers=FALSE) {
-		f <- function(i) {
-			if (length(i) == 0) {
-				matrix(ncol=2, nrow=0)
-			} else {
-				matrix(unlist(regmatches(i, regexpr("=", i), invert=TRUE)), ncol=2, byrow=TRUE)
-			}
-		}
-		lapply(x@cpp$metadata(layers), f)
-	}
-)
 
 
 setMethod("weighted.mean", signature(x="SpatRaster", w="numeric"),
@@ -488,8 +433,20 @@ function(x, from, to, others=NULL, raw=FALSE, filename="", ...) {
 			}
 		}
 		keepcats <- TRUE
-	} else if (fromc || toc) {
-		error("subst", "from or to has character values but x is not categorical")
+	} else {
+		if (fromc) {
+			error("subst", "from has character values but x is not categorical")
+		}
+		if (!tom) {
+			if (toc) {
+				to <- as.factor(to)
+				levels(x) <- data.frame(ID=1:length(levels(to)), value=levels(to))
+				keepcats <- TRUE
+			} else if (is.factor(to)) {
+				levels(x) <- data.frame(ID=1:length(levels(to)), value=levels(to))
+				keepcats <- TRUE			
+			}
+		}
 	}
 	
 	if (is.null(others)) {
@@ -505,7 +462,7 @@ function(x, from, to, others=NULL, raw=FALSE, filename="", ...) {
 		if (!is.null(nms)) 	opt$names = nms
 		x@cpp <- x@cpp$replaceValues(from, to, ncol(to), setothers, others, keepcats, opt)
 	} else if (frm) {
-		x@cpp <- x@cpp$replaceValues(as.vector(t(from)), to, -ncol(from), setothers, others, FALSE, opt)
+		x@cpp <- x@cpp$replaceValues(as.vector(t(from)), to, -ncol(from), setothers, others, keepcats, opt)
 	} else {
 		x@cpp <- x@cpp$replaceValues(from, to, 0, setothers, others, keepcats, opt)
 	}
@@ -1016,9 +973,11 @@ setMethod("scale", signature(x="SpatRaster"),
 setMethod("stretch", signature(x="SpatRaster"),
 	function(x, minv=0, maxv=255, minq=0, maxq=1, smin=NA, smax=NA, histeq=FALSE, scale=1, maxcell=500000, filename="", ...) {
 		if (histeq) {
+			nms <- names(x)
 			if (nlyr(x) > 1) {
 				x <- lapply(1:nlyr(x), function(i) stretch(x[[i]], histeq=TRUE, scale=scale, maxcell=maxcell))
 				x <- rast(x)
+				names(x) <- nms 
 				if (filename != "") {
 					x <- writeRaster(x, filename=filename, ...)
 				}
@@ -1033,7 +992,11 @@ setMethod("stretch", signature(x="SpatRaster"),
 					f(y) * scale
 				}
 			}
-			app(x, ecdfun, filename=filename, ...)
+			wopt <- list(...)
+			if (is.null(wopt$names)) {
+				wopt$names <- nms
+			}
+			app(x, ecdfun, filename=filename, wopt=wopt)
 		} else {
 			opt <- spatOptions(filename, ...)
 			x@cpp <- x@cpp$stretch(minv, maxv, minq, maxq, smin, smax, opt)

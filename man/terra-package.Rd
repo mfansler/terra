@@ -1,4 +1,5 @@
 \name{terra-package}
+
 \alias{terra-package}
 
 \alias{terra}
@@ -162,10 +163,12 @@ Also see the methods in section VIII
 \section{VI. Model predictions}{
 
   \tabular{ll}{
-    \code{\link{predict}} \tab Predict a non-spatial model to a SpatRaster \cr
+    \code{\link{predict}} \tab Predict a non-spatial (regression or classification) model to a SpatRaster \cr
     \code{\link{interpolate}} \tab Predict a spatial model to a SpatRaster \cr
     \code{\link{interpIDW}} \tab Inverse-distance-weighted interpolation \cr
     \code{\link{interpNear}} \tab Nearest neighbor interpolation \cr
+    \code{\link{k_means}} \tab k-means clustering of SpatRaster data \cr
+    \code{\link{princomp}} \tab Principal Component Analysis (PCA) with raster data\cr
 	
   --------------------------- \tab ------------------------------------------------------------------------------------------ \cr
 }
@@ -458,6 +461,7 @@ We use the term "attributes" for the tabular data (data.frame) associated with v
   \code{\link{normalize.longitude}} \tab move geometries that are outside of the -180 to 180 degrees range.  \cr
   \code{\link{elongate}} \tab make lines longer by extending both sides \cr
   \code{\link{combineGeoms}} \tab combine geometries that overlap, share a border, or are within a minimum distance of each other \cr
+  \code{\link{forceCCW}} \tab force counter-clockwise polygon winding \cr 
   --------------------------- \tab ------------------------------------------------------------------------------------------ \cr
 }}
 
@@ -650,7 +654,7 @@ Except where indicated otherwise, the methods and functions in this package were
 }
 
 \section{Acknowledgments}{
-This package is an attempt to climb on the shoulders of giants (GDAL, PROJ, GEOS, NCDF, GeographicLib, Rcpp, R). Many people have contributed by asking questions or \href{https://github.com/rspatial/terra}{raising issues}. Feedback and suggestions by Márcia Barbosa, Kendon Bell, Andrew Gene Brown, Jean-Luc Dupouey, Krzysztof Dyba, Sarah Endicott, Alex Ilich, Gerald Nelson, Jakub Nowosad, and Monika Tomaszewska have been especially helpful.
+This package is an attempt to climb on the shoulders of giants (GDAL, PROJ, GEOS, NCDF, GeographicLib, Rcpp, R). Many people have contributed by asking questions or \href{https://github.com/rspatial/terra}{raising issues}. Feedback and suggestions by Márcia Barbosa, Kendon Bell, Andrew Gene Brown, Jean-Luc Dupouey, Krzysztof Dyba, Sarah Endicott, Derek Friend, Alex Ilich, Gerald Nelson, Jakub Nowosad, and Monika Tomaszewska have been especially helpful.
 }
 
 

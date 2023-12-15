@@ -36,109 +36,49 @@ ext_from_rc <- function(x, r1, r2, c1, c2){
 }
 
 
-
-extractCells <- function(x, y, method="simple", cells=FALSE, xy=FALSE, layer=NULL, raw=FALSE) {
-
-	#value <- match.arg(tolower(value), c("data.frame", "list", "matrix"))
-	method <- match.arg(tolower(method), c("simple", "bilinear"))
-
-	nl <- nlyr(x)
-	useLyr <- FALSE
-	if (!is.null(layer) && nl > 1) {
-		if (any(is.na(layer))) {error("extract", "argument 'layer' cannot have NAs")}
-		stopifnot(length(layer) == nrow(y))
-		if (is.numeric(layer)) {
-			layer <- round(layer)
-			stopifnot(min(layer) > 0 & max(layer) <= nlyr(x))
-		} else {
-			layer <- match(layer, names(x))
-			if (any(is.na(layer))) error("extract", "names in argument 'layer' do not match names(x)")
-		}
-		useLyr <- TRUE
-	}
-	cn <- names(x)
-	opt <- spatOptions()
-	if ((method == "bilinear") && (NCOL(y) > 1)) {
-		e <- x@cpp$bilinearValues(y[,1], y[,2])
-	} else {
-		if (NCOL(y) == 2) {
-			y <- cellFromXY(x, y)
-		}
-		e <- x@cpp$extractCell(y-1)
-	}
-
-	e <- do.call(cbind, e)
-	cn <- names(x)
-	nc <- nl
-	if (cells) {
-		cn <- c(cn, "cell")
-		nc <- nc + 1
-		if (NCOL(y) == 2) {
-			e <- cbind(e, cellFromXY(x, y))
-		} else {
-			e <- cbind(e, y)
-		}
-	}
-	if (xy) {
-		cn <- c(cn, "x", "y")
-		nc <- nc + 2
-		if (NCOL(y) == 1) {
-			y <- xyFromCell(x, y)
-		}
-		e <- cbind(e, y)
-	}
-	colnames(e) <- cn
-
-	if (!raw) {
-		if (method != "simple") {
-			e <- as.data.frame(e)
-		} else {
-			e <- .makeDataFrame(x, e)
-		}
-	}
-
-	if (useLyr) {
-		idx <- cbind(e[,1], layer[e[,1]]+1)
-		ee <- cbind(e[,1,drop=FALSE], names(x)[idx[,2]-1], value=e[idx])
-		colnames(ee)[2] <- "layer"
-		if (ncol(e) > (nl+1)) {
-			cbind(ee, e[,(nl+1):ncol(e), drop=FALSE])
-		} else {
-			ee
+getLyrNrs <- function(layer, nms, n) { 
+	nl <- length(nms)
+	if (is.numeric(layer)) {
+		layer <- round(layer)
+		if (min(layer, na.rm=TRUE) < 1 || max(layer, na.rm=TRUE) > nl) {
+			error("extract", "layer should be between 1 and nlyr(x)")
 		}
 	} else {
-		e
+		layer <- match(layer, nms)
 	}
+	if (any(is.na(layer))) {
+		error("extract", "names in argument 'layer' do not match names(x)")
+	}
+	rep_len(layer, n)
 }
 
-use_layer <- function(e, y, layer, nl) {
-	if (!is.null(layer) && nl > 1) {
-		if (any(is.na(layer))) {error("extract", "argument 'layer' cannot have NAs")}
-		if (length(layer) == 1) {
-			lyr_name <- layer
-			layer <- as.character(y[[layer,drop=TRUE]])
-		} else {
-			lyr_name <- "layer"
-			stopifnot(length(layer) == nrow(y))
-		}
-		if (is.numeric(layer)) {
-			layer <- round(layer)
-			stopifnot(min(layer) > 0 & max(layer) <= nl)
-		} else {
-			layer <- match(layer, colnames(e))
-			if (any(is.na(layer))) error("extract", "names in argument 'layer' do not match names(x)")
-		}
 
-		idx <- cbind(e[,1], layer[e[,1]])
-		ee <- data.frame(e[,1,drop=FALSE], names(e)[idx[,2]-1], value=e[idx])
-		colnames(ee)[2] <- lyr_name
-		if (ncol(e) > (nl+1)) {
-			e <- cbind(ee, e[,(nl+1):ncol(e), drop=FALSE])
-		} else {
-			e <- ee
-		}
+extractCells <- function(x, y, raw=FALSE) {
+	e <- x@cpp$extractCell(y-1)
+	e <- do.call(cbind, e)
+	colnames(e) <- names(x)
+	if (!raw) {
+		e <- .makeDataFrame(x, e)
 	}
 	e
+}
+
+
+use_layer <- function(e, y, layer, nl) {
+# 	if (is.null(layer)) {
+# temporarily, for inlabru
+	if (is.null(layer) || (nl == 1)) {
+		return(e)
+	}
+	layer <- getLyrNrs(layer, colnames(e)[-1], nrow(y)) 
+	idx <- cbind(1:nrow(e), layer[e[,1]] + 1)
+	ee <- data.frame(e[,1,drop=FALSE], colnames(e)[idx[,2]], value=e[idx])
+	colnames(ee)[2] <- "layer"
+	if (ncol(e) > (nl+1)) {
+		cbind(ee, e[,(nl+1):ncol(e), drop=FALSE])
+	} else {
+		ee
+	}
 }
 
 
@@ -224,15 +164,21 @@ extract_table <- function(x, y, ID=FALSE, weights=FALSE, exact=FALSE, touches=FA
 
 extract_fun <- function(x, y, fun, ID=TRUE, weights=FALSE, exact=FALSE, touches=FALSE, layer=NULL, bind=FALSE, na.rm=FALSE) {
 
-	opt <- spatOptions()
+	nl <- nlyr(x)
+	nf <- length(fun)
+	if ((nf > 1) & (!is.null(layer))) {
+		error("extract", "you cannot use argument 'layer' when using multiple functions")
+	}
 
+	opt <- spatOptions()
 	e <- x@cpp$extractVectorFlat(y@cpp, fun, na.rm, touches[1], "", FALSE, FALSE, weights, exact, opt)
 	x <- messages(x, "extract")
-
-	nl <- nlyr(x)
-	e <- data.frame(matrix(e, ncol=nl, byrow=TRUE))
-	colnames(e) <- names(x)
-
+	e <- data.frame(matrix(e, ncol=nl*nf, byrow=TRUE))
+	if (nf == 1) {
+		colnames(e) <- names(x)
+	} else {
+		colnames(e) <- apply(cbind(rep(fun, each=nl), names(x)), 1, function(i) paste(i, collapse="_"))
+	}
 	if (!is.null(layer)) {
 		e <- cbind(ID=1:nrow(e), e)
 		e <- use_layer(e, y, layer, nlyr(x))
@@ -245,6 +191,7 @@ extract_fun <- function(x, y, fun, ID=TRUE, weights=FALSE, exact=FALSE, touches=
 		if (nrow(e) == nrow(y)) {
 			e <- cbind(y, e)
 		} else {
+			#? can this occur?
 			warn("extract", "cannot return a SpatVector because the number of records extracted does not match he number of rows in y (perhaps you need to use a summarizing function")
 		}
 	} else if (ID) {
@@ -288,14 +235,16 @@ function(x, y, fun=NULL, method="simple", cells=FALSE, xy=FALSE, ID=TRUE, weight
 	} else if (!is.null(fun)) { # nothing to summarize for points
 		txtfun <- .makeTextFun(fun)
 		if (inherits(txtfun, "character")) {
-			if (txtfun == "table") {
+			if (any(txtfun == "table")) {
+				if (length(fun) > 1) {
+					warn("extract", "'table' cannot be combined with other functions")
+				}			
 				if (!is.null(layer)) {
 					warn("extract", "argument 'layer' is ignored when 'fun=table'")
 				}
 				e <- extract_table(x, y, ID=ID, weights=weights, exact=exact, touches=touches, ...)
 			} else {
-				e <- extract_fun(x, y, txtfun, ID=ID, weights=weights, exact=exact, touches=touches, bind=bind
-				, layer=layer, ...)
+				e <- extract_fun(x, y, txtfun, ID=ID, weights=weights, exact=exact, touches=touches, bind=bind, layer=layer, ...)
 			}
 			return(e)
 		} else if (weights || exact) {
@@ -575,4 +524,29 @@ extractAlong <- function(x, y, ID=TRUE, cells=FALSE, xy=FALSE, online=FALSE, bil
 
 }
 
+
+setMethod("extractRange", signature(x="SpatRaster", y="ANY"),
+	function(x, y, first, last, lyr_fun=NULL, geom_fun=NULL, ID=FALSE, na.rm=TRUE, ...) {
+
+		first <- getLyrNrs(first, names(x), nrow(y)) + 1 
+		last  <- getLyrNrs(last,  names(x), nrow(y)) + 1	
+		e <- extract(x, y, geom_fun, ID=TRUE, na.rm=na.rm, ...)
+		if (nrow(e) != nrow(y)) {
+			error("range_extract", "geom_fun must return a single value for each geometry/layer")
+		}
+		a <- lapply(1:nrow(e), function(i) e[i, c(first[i]:last[i])])
+		if (!is.null(lyr_fun)) {
+			a <- sapply(a, lyr_fun, na.rm=na.rm)
+		}
+		if (ID) {
+			if (is.list(a)) {
+				names(a) <- 1:nrow(y)
+			} else {
+				a <- data.frame(ID=1:nrow(y), value=a)
+			}
+		}
+		a
+		
+	}
+)
 

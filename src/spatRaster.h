@@ -139,6 +139,7 @@ class SpatRasterSource {
 
 		std::vector<bool> hasColors;
 		std::vector<SpatDataFrame> cols;
+		SpatDataFrame legend;
 
 		bool memory=true;
 		bool hasValues=false;
@@ -232,6 +233,14 @@ class SpatRaster {
 		bool removeTag(std::string name);
 		std::string getTag(std::string name);
 		std::vector<std::string> getTags();
+
+		std::vector<std::map<std::string, std::string>> lyrTags;
+		void addLyrTags(std::vector<size_t> lyrs, std::vector<std::string> names, std::vector<std::string> values);
+
+		bool removeLyrTags();
+		bool removeLyrTag(size_t lyr, std::string name);
+		std::string getLyrTag(size_t lyr, std::string name);
+		std::vector<std::string> getLyrTags(std::vector<size_t> lyrs);
 
 		//double NA = std::numeric_limits<double>::quiet_NaN();
 
@@ -436,6 +445,11 @@ class SpatRaster {
 		bool setLabels(unsigned layer, std::vector<long> value, std::vector<std::string> labels, std::string name);
 		int getCatIndex(unsigned layer);
 		bool setCatIndex(unsigned layer, int index);
+
+		bool hasLegend();
+		bool setLegend(SpatDataFrame x);
+		SpatDataFrame getLegend();
+
 		
 		bool hasScaleOffset();
 		bool setScaleOffset(std::vector<double> sc, std::vector<double> of);
@@ -641,7 +655,7 @@ class SpatRaster {
 		SpatRaster edges(bool classes, std::string type, unsigned directions, double falseval, SpatOptions &opt);
 		SpatRaster extend(SpatExtent e, std::string snap, double fill, SpatOptions &opt);
 		std::vector<std::vector<std::vector<double>>> extractVector(SpatVector v, bool touches, std::string method, bool cells, bool xy, bool weights, bool exact, SpatOptions &opt);
-		std::vector<double> extractVectorFlat(SpatVector v, std::string fun, bool narm, bool touches, std::string method, bool cells, bool xy, bool weights, bool exact, SpatOptions &opt);
+		std::vector<double> extractVectorFlat(SpatVector v, std::vector<std::string> funs, bool narm, bool touches, std::string method, bool cells, bool xy, bool weights, bool exact, SpatOptions &opt);
 		
 		
 		std::vector<double> vectCells(SpatVector v, bool touches, std::string method, bool weights, bool exact, SpatOptions &opt);
@@ -701,11 +715,12 @@ class SpatRaster {
 		SpatRaster nonan(bool falseNA, SpatOptions &opt);
 		SpatRaster which(SpatOptions &opt);
 
-		std::vector<std::vector<double>> layerCor(std::string fun, bool narm, bool asSample, SpatOptions &opt);
+		std::vector<std::vector<double>> layerCor(std::string fun, std::string use, bool asSample, SpatOptions &opt);
 
 		std::vector<double> line_cells(SpatGeom& g);
 		SpatRaster logic(SpatRaster x, std::string oper, SpatOptions &opt);
-		SpatRaster logic(bool x, std::string oper, SpatOptions &opt);
+		SpatRaster logic(double x, std::string oper, SpatOptions &opt);
+		SpatRaster logic(std::vector<double> x, std::string oper, SpatOptions &opt);
 
 		SpatExtent ext_from_rc(int_64 r1, int_64 r2, int_64 c1, int_64 c2);
 		SpatExtent ext_from_cell(double cell);
@@ -775,6 +790,8 @@ class SpatRaster {
 		SpatRaster sort(bool decreasing, bool order, SpatOptions &opt);
 
 		SpatRaster scale(std::vector<double> center, bool docenter, std::vector<double> scale, bool doscale, SpatOptions &opt);
+		SpatRaster similarity(std::vector<double> x, SpatOptions &opt);
+
 		SpatRaster terrain(std::vector<std::string> v, unsigned neighbors, bool degrees, unsigned seed, SpatOptions &opt);
 		SpatRaster hillshade(SpatRaster aspect, std::vector<double> angle, std::vector<double> direction, bool normalize, SpatOptions &opt);
 
@@ -825,6 +842,10 @@ class SpatRaster {
 
 		SpatDataFrame zonal_poly(SpatVector x, std::string fun, bool weights, bool exact, bool touches, bool narm, SpatOptions &opt);
 		SpatDataFrame zonal_poly_weighted(SpatVector x, SpatRaster w, bool weights, bool exact, bool touches, bool narm, SpatOptions &opt);
+		
+		std::vector<std::vector<double>> zonal_poly_table(SpatVector x, bool weights, bool exact, bool touches,bool narm, SpatOptions &opt);
+
+
 
 //		SpatDataFrame zonal_old(SpatRaster x, std::string fun, bool narm, SpatOptions &opt);
 		SpatRaster rgb2col(size_t r,  size_t g, size_t b, SpatOptions &opt);

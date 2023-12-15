@@ -36,7 +36,7 @@ SpatRaster::SpatRaster(std::string fname, std::vector<int> subds, std::vector<st
 }
 
 
-SpatRaster::SpatRaster(std::vector<std::string> fname, std::vector<int> subds, std::vector<std::string> subdsname, bool multi, std::vector<std::string> drivers, std::vector<std::string> options, std::vector<size_t> x) {
+SpatRaster::SpatRaster(std::vector<std::string> fname, std::vector<int> subds, std::vector<std::string> subdsname, bool multi, std::vector<std::string> drivers, std::vector<std::string> options,std::vector<size_t> xyz) {
 // argument "x" is ignored. It is only there to have four arguments such that the  module
 // can distinguish this constructor from another with three arguments.
 	if (fname.empty()) {
@@ -46,7 +46,7 @@ SpatRaster::SpatRaster(std::vector<std::string> fname, std::vector<int> subds, s
 
 #ifdef useGDAL
 	if (multi) {
-		constructFromFileMulti(fname[0], subds, subdsname, drivers, options, x);
+		constructFromFileMulti(fname[0], subds, subdsname, drivers, options, xyz);
 		return;
 	}
 
@@ -309,6 +309,7 @@ SpatRaster SpatRaster::geometry(long nlyrs, bool properties, bool time, bool uni
 	}	
 	if (keeptags) {
 		out.tags = tags;
+		out.lyrTags = lyrTags;
 	}
 	return out;
 }
@@ -2601,6 +2602,69 @@ std::vector<std::string> SpatRaster::getTags() {
 	for(auto e : tags) {
 		out.push_back(e.first);
 		out.push_back(e.second);
+	}
+	return out;
+}
+
+
+
+void SpatRaster::addLyrTags(std::vector<size_t> lyrs, std::vector<std::string> names, std::vector<std::string> values) {
+
+	size_t n = std::max(std::max(lyrs.size(), names.size()), values.size());
+	if (n == 0) return;
+	
+	recycle(lyrs, n);
+	recycle(names, n);
+	recycle(values, n);
+	
+	size_t nl = nlyr();
+	for (size_t i=0; i<lyrs.size(); i++) {
+		if (lyrs[i] >= nl) continue;
+		lrtrim(names[i]);
+		lrtrim(values[i]);
+		if (values[i] == "") {
+			removeLyrTag(lyrs[i], names[i]);
+		} else {
+			if (lyrs[i] >= lyrTags.size()) lyrTags.resize(lyrs[i]+1);
+			if (names[i] != "") {
+				lyrTags[lyrs[i]][names[i]] = values[i];
+			} 
+		}
+	}
+}
+
+bool SpatRaster::removeLyrTag(size_t lyr, std::string name) {
+	if (lyr >= lyrTags.size()) return false;
+	std::map<std::string, std::string>::iterator it = lyrTags[lyr].find(name);
+	if (it == lyrTags[lyr].end()) return false;
+	lyrTags[lyr].erase(it);
+	return true;
+}
+
+bool SpatRaster::removeLyrTags() {
+	lyrTags.resize(0);
+	return true;
+}
+
+
+std::string SpatRaster::getLyrTag(size_t lyr, std::string name) {
+	if (lyr >= lyrTags.size()) return "";
+	std::map<std::string, std::string>::iterator it = lyrTags[lyr].find(name);
+	if (it != lyrTags[lyr].end()) return it->second;
+	return "";
+}
+
+std::vector<std::string> SpatRaster::getLyrTags(std::vector<size_t> lyrs) {
+	std::vector<std::string> out;
+	out.reserve(lyrs.size());
+	for (size_t i=0; i<lyrs.size(); i++) {
+		if (lyrs[i] < lyrTags.size()) {
+			for(auto e : lyrTags[lyrs[i]]) {
+				out.push_back(std::to_string(lyrs[i]));
+				out.push_back(e.first);
+				out.push_back(e.second);
+			}
+		}
 	}
 	return out;
 }

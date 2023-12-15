@@ -1,4 +1,34 @@
+# version 1.7-65
+
+## bug fixes
+
+- `flip` with argument `direction="vertical"` filed in some cases with large rasters processed in chunks [0b714b0](https://github.com/rspatial/terra/commit/0b714b038b101011ce27391133a7a1f9a91821cc) by Dulci on [stackoveflow](
+https://stackoverflow.com/questions/77304534/rspatial-terraflip-error-when-flipping-a-multi-layer-spatrast-object) 
+- SpatRaster now correctly handles `NA & FALSE` and `NA | TRUE` [#1316](https://github.com/rspatial/terra/issues/1316) by John Baums
+- `set.names` wasn't working properly for SpatRasterDataset or SpatRasterCollection [#1333](https://github.com/rspatial/terra/pull/1333) by Derek Friend
+- `extract` with argument "layer" not NULL shifted the layers [#1332](https://github.com/rspatial/terra/issues/1332) by Ewan Wakefield
+- `terraOptions` did not capture "memmin" on [stackoverflow](https://stackoverflow.com/questions/77552234/controlling-chunk-size-in-terra) by dww
+- `rasterize` with points and a built-in function could crash if no field was used [#1369](https://github.com/rspatial/terra/issues/1369) by anjelinejeline
+
+
+## enhancements
+
+- `mosaic` can now use `fun="modal"`
+- `rast<matrix> and rast<data.frame>` now have option 'type="xylz" [#1318](https://github.com/rspatial/terra/issues/1318) by Agustin Lobo
+- `extract<SpatRaster,SpatVector>` can now use multiple summarizing functions [#1335](https://github.com/rspatial/terra/issues/1335) by Derek Friend
+- `disagg` and `focal` have more optimistic memory requirement estimation [#1334](https://github.com/rspatial/terra/issues/1334) by Mikko Kuronen
+
+## new
+
+- `k_means<SpatRaster>` method [#1314](https://github.com/rspatial/terra/issues/1314) by Agustin Lobo
+- `princomp<SpatRaster>` method [#1361](https://github.com/rspatial/terra/issues/1361) by Alex Ilich
+- `has.time<SpatRaster>` method 
+- new argument "raw=FALSE" to `rast`, `sds`, and `sprc` to allow ignoring scale and offset [1354](https://github.com/rspatial/terra/issues/1354) by Insang Song
+
+
 # version 1.7-55
+
+Released 2023-10-14
 
 ## bug fixes
 
@@ -25,7 +55,7 @@ Hernangómez
 
 
 ## new
-- `metags<-` and `metags` to set arbitrary metadata [#1304](https://github.com/rspatial/terra/issues/1304) by Francesco Chianucci 
+- `metags<-` and `metags` to set arbitrary SpatRaster/file level metadata [#1304](https://github.com/rspatial/terra/issues/1304) by Francesco Chianucci 
 
 
 # version 1.7-46
