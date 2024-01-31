@@ -56,10 +56,10 @@ bool SpatRaster::getTempFile(std::string &filename, std::string &driver, SpatOpt
 	driver = opt.get_def_filetype();
 	if (driver.empty() || (driver == "GTiff")) {
 		driver = "GTiff";
-		filename = tempFile(opt.get_tempdir(), opt.pid, ".tif");
+		filename = tempFile(opt.get_tempdir(), opt.tmpfile, ".tif");
 		return true;
 	}
-	filename = tempFile(opt.get_tempdir(), opt.pid, "");
+	filename = tempFile(opt.get_tempdir(), opt.tmpfile, "");
 	std::unordered_map<std::string, std::string>
 	exts = {
 		{"GTiff", ".tif"},
@@ -331,7 +331,7 @@ std::string SpatRaster::make_vrt(std::vector<std::string> filenames, std::vector
 
 	std::string outfile = opt.get_filename();
 	if (outfile.empty()) {
-		outfile = tempFile(opt.get_tempdir(), opt.pid, ".vrt");
+		outfile = tempFile(opt.get_tempdir(), opt.tmpfile, ".vrt");
 	} else if (file_exists(outfile) && (!opt.get_overwrite())) {
 		setError("output file exists. You can use 'overwrite=TRUE' to overwrite it");
 		return("");
@@ -427,7 +427,7 @@ std::string gdalinfo(std::string filename, std::vector<std::string> options, std
 #endif
 
 
-bool getNAvalue(GDALDataType gdt, double & naval) {
+bool getNAvalue(GDALDataType gdt, double &naval) {
 	if (gdt == GDT_Float32) {
 		naval = NAN;
 	} else if (gdt == GDT_Int32) {
@@ -447,7 +447,7 @@ bool getNAvalue(GDALDataType gdt, double & naval) {
 // no Int64
 #else 
 	} else if (gdt == GDT_UInt64) {
-		naval = UINT64_MAX - 1101; 
+		naval = 18446744073709549568.; //UINT64_MAX - 1101; 
 	} else if (gdt == GDT_Int64) {
 		naval = INT64_MIN;
 #endif

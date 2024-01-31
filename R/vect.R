@@ -45,7 +45,7 @@ setMethod("vect", signature(x="SpatVectorCollection"),
 
 
 setMethod("vect", signature(x="character"),
-	function(x, layer="", query="", extent=NULL, filter=NULL, crs="", proxy=FALSE, what="") {
+	function(x, layer="", query="", extent=NULL, filter=NULL, crs="", proxy=FALSE, what="", opts=NULL) {
 
 		what <- trimws(tolower(what))
 		if (what != "") what <- match.arg(trimws(tolower(what)), c("geoms", "attributes"))
@@ -98,7 +98,8 @@ setMethod("vect", signature(x="character"),
 		} else {
 			extent <- as.vector(ext(extent))
 		}
-		p@cpp$read(x, layer, query, extent, filter, proxy, what)
+		if (is.null(opts)) opts <- ""[0]
+		p@cpp$read(x, layer, query, extent, filter, proxy, what, opts)
 		if (isTRUE(crs != "")) {
 			crs(p, warn=FALSE) <- crs
 		}
@@ -473,14 +474,12 @@ setMethod("query", signature(x="SpatVectorProxy"),
 			qy <- ""
 			if (!is.null(where)) {
 				qy <- paste("SELECT", vars, "FROM", layer, "WHERE", where[1])
+			} else {
+				qy <- paste("SELECT", vars, "FROM", layer)
 			}
-
 			nr <- nrow(x)
 			start <- start-1
 			if (start > 0) {
-				if (qy == "") {
-					qy <- paste("SELECT", vars, "FROM", layer)
-				}
 				if (n >= (nr-start)) {
 					qy <- paste(qy, "OFFSET", start)
 				} else {
@@ -488,9 +487,6 @@ setMethod("query", signature(x="SpatVectorProxy"),
 					qy <- paste(qy, layer, "LIMIT", n, "OFFSET", start)
 				}
 			} else if (n < nr) {
-				if (qy == "") {
-					qy <- paste("SELECT", vars, "FROM", layer)
-				}
 				n <- min(n, nr)
 				qy <- paste(qy, "LIMIT", n)
 			}
