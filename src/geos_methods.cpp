@@ -904,6 +904,10 @@ SpatVector SpatVector::crop(SpatVector v) {
 SpatVector SpatVector::hull(std::string htype, std::string by) {
 
 	SpatVector out;
+	if (nrow() == 0) {
+		out.srs = srs;
+		return out;
+	}
 
 	if (!by.empty()) {
 		SpatVector tmp = aggregate(by, false);
@@ -968,8 +972,6 @@ SpatVector SpatVector::hull(std::string htype, std::string by) {
 		h = GEOSMinimumRotatedRectangle_r(hGEOSCtxt, g[0].get());
 	#endif
 	}
-	
-	
 	
 	std::vector<GeomPtr> b(1);
 	b[0] = geos_ptr(h, hGEOSCtxt);
@@ -1092,6 +1094,11 @@ SpatVector SpatVector::buffer(std::vector<double> d, unsigned quadsegs, std::str
 	if (srs.is_empty()) {
 		out.addWarning("unknown CRS. Results may be wrong");
 	} 
+	if (d.empty()) {
+		out.setError("no buffer distance provided");
+		return out;
+	} 
+	
 	bool islonlat = is_lonlat();
 	if (d.size() == 1 && d[0] == 0) {
 		islonlat = false; //faster
@@ -1147,7 +1154,8 @@ SpatVector SpatVector::buffer(std::vector<double> d, unsigned quadsegs, std::str
 		}
 		b[i] = geos_ptr(pt, hGEOSCtxt);
 	}
-	SpatVectorCollection coll = coll_from_geos(b, hGEOSCtxt);
+	const std::vector<long> ids = std::vector<long>();
+	SpatVectorCollection coll = coll_from_geos(b, hGEOSCtxt, ids, false);
 
 	GEOSBufferParams_destroy_r(hGEOSCtxt, bufparms);	
 	geos_finish(hGEOSCtxt);
@@ -1156,6 +1164,7 @@ SpatVector SpatVector::buffer(std::vector<double> d, unsigned quadsegs, std::str
 	out.df = df;
 	return out;
 }
+
 
 
 // basic version of buffer, for debugging
@@ -2369,6 +2378,7 @@ SpatVector SpatVector::unite() {
 
 
 SpatVector SpatVector::symdif(SpatVector v) {
+
 	if ((type() != "polygons") || (v.type() != "polygons")) {
 		SpatVector out;
 		out.setError("expected two polygon geometries");
@@ -2462,6 +2472,11 @@ SpatVector SpatVector::cover(SpatVector v, bool identity, bool expand) {
 
 SpatVector SpatVector::erase_agg(SpatVector v) {
 
+	if ((nrow()==0) || (v.nrow() == 0)) {
+		return(*this);
+	}
+
+
 	if ((type() == "points") || (v.type() == "points")) {
 		std::vector<bool> b = is_related(v, "intersects");
 		std::vector<unsigned> r;
@@ -2521,6 +2536,10 @@ SpatVector SpatVector::erase_agg(SpatVector v) {
 
 
 SpatVector SpatVector::erase(SpatVector v) {
+
+	if ((nrow()==0) || (v.nrow() == 0)) {
+		return(*this);
+	}
 
 	if ((type() == "points") || (v.type() == "points")) {
 		std::vector<bool> b = is_related(v, "intersects");
@@ -2641,6 +2660,11 @@ SpatVector SpatVector::erase(SpatVector v) {
 */
 
 SpatVector SpatVector::erase(bool sequential) {
+
+	if (nrow()==0) {
+		return(*this);
+	}
+
 	SpatVector out;
 
 	if (type() != "polygons") {
@@ -2960,7 +2984,6 @@ SpatVector SpatVector::cross_dateline(bool &fixed) {
 	out.df = df;
 	return out;
 }
-
 
 
 

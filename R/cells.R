@@ -8,7 +8,7 @@ setMethod("cells", signature(x="SpatRaster", y="missing"),
 	function(x, y) {
 		if (hasValues(x)) {
 			opt <- spatOptions()
-			x@cpp$cells_notna_novalues(opt) + 1
+			x@ptr$cells_notna_novalues(opt) + 1
 		} else {
 			# is this useful?
 			1:ncell(x)
@@ -17,11 +17,20 @@ setMethod("cells", signature(x="SpatRaster", y="missing"),
 )
 
 setMethod("cells", signature(x="SpatRaster", y="numeric"),
-	function(x, y) {
+	function(x, y, pairs=FALSE) {
 		opt <- spatOptions()
-		v <- x@cpp$is_in_cells(y, opt)
+		v <- x@ptr$is_in_cells(y, pairs, opt)
 		x <- messages(x, "cells")
-		v <- lapply(v, function(i) i+1)
+		if (pairs) {
+			v <- lapply(v, function(i) {
+				m <- matrix(i, ncol=2)
+				m[,1] <- m[,1] + 1
+				colnames(m) <- c("cell", "value")
+				m
+			})
+		} else {
+			v <- lapply(v, function(i) i+1)
+		}
 		names(v) <- names(x)
 		v
 	}
@@ -29,10 +38,10 @@ setMethod("cells", signature(x="SpatRaster", y="numeric"),
 
 
 setMethod("cells", signature("SpatRaster", "SpatVector"),
-	function(x, y, method="simple", weights=FALSE, exact=FALSE, touches=is.lines(y)) {
+	function(x, y, method="simple", weights=FALSE, exact=FALSE, touches=is.lines(y), small=TRUE) {
 		method = match.arg(tolower(method), c("simple", "bilinear"))
 		opt <- spatOptions()
-		d <- x@cpp$vectCells(y@cpp, touches[1], method[1], weights[1], exact[1], opt)
+		d <- x@ptr$vectCells(y@ptr, touches[1], small[1], method[1], weights[1], exact[1], opt)
 		if (geomtype(y) == "points") {
 			d <- matrix(d, nrow=nrow(y), byrow=TRUE)
 			d <- cbind(1:nrow(y), d)
@@ -83,6 +92,6 @@ setMethod("cells", signature("SpatRaster", "SpatVector"),
 setMethod("cells", signature("SpatRaster", "SpatExtent"),
 	function(x, y) {
 		opt <- spatOptions()
-		x@cpp$extCells(y@cpp) + 1
+		x@ptr$extCells(y@ptr) + 1
 	}
 )

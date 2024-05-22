@@ -29,7 +29,7 @@
 		if ((r[2] %% 1) != 0) { r[2] <- r[2] + small }
 		breaks <- seq(r[1] , r[2], length.out=n+1)
 	}
-	breaks
+	unique(breaks)
 }
 
 .get_nrnc <- function(nr, nc, nl) {
@@ -497,9 +497,37 @@ add_box <- function(...) {
 			cbind(e[2], e[4:3]),
 			cbind(e[1], e[3])
 		)
-		lines(bx, ...)
+		if (is.null(list(...)$xpd)) {
+			lines(bx, xpd=TRUE, ...)
+		} else {
+			lines(bx, ...)		
+		}
 	}
 }
 
+
+add_grid <- function(nx=NULL, ny=nx, col="lightgray", lty="dotted", lwd=1) {
+
+	p <- get.clip()
+
+	## adapted from graphics::grid 
+	g.grid.at <- function (side, n, axp, usr2) {
+		if (is.null(n)) {
+			stopifnot(is.numeric(ax <- axp), length(ax) == 3L)
+			graphics::axTicks(side, axp=ax, usr=usr2, log=FALSE)
+		}
+		else if (!is.na(n) && (n <- as.integer(n)) >= 1L) {
+			at <- seq.int(usr2[1L], usr2[2L], length.out = n + 1L)
+			at[-c(1L, n + 1L)]
+		}
+	}
+
+    atx <- if (is.null(nx) || (!is.na(nx) && nx >= 1)) 
+        g.grid.at(1L, nx, axp = graphics::par("xaxp"), usr2 = p[1:2])
+    aty <- if (is.null(ny) || (!is.na(ny) && ny >= 1)) 
+        g.grid.at(2L, ny, axp = graphics::par("yaxp"), usr2 = p[3:4])
+    graphics::abline(v = atx, h = aty, col = col, lty = lty, lwd = lwd)
+    invisible(list(atx = atx, aty = aty))
+}
 
 

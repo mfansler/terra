@@ -766,6 +766,12 @@ bool getGCPs(GDALDataset *poDataset, SpatRasterSource &s) {
 
 bool SpatRaster::constructFromFile(std::string fname, std::vector<int> subds, std::vector<std::string> subdsname, std::vector<std::string> drivers, std::vector<std::string> options) {
 
+	if (fname == "WCS:") {
+		// for https://github.com/rspatial/terra/issues/1505
+		setError("no raster data in WCS:");
+		return false;
+	}
+	
 	std::vector<std::string> clean_ops = options;
 	bool app_so = true;
 	size_t opsz = options.size();
@@ -791,6 +797,7 @@ bool SpatRaster::constructFromFile(std::string fname, std::vector<int> subds, st
 	std::string gdrv = poDataset->GetDriver()->GetDescription();
 
 	char **metasds = poDataset->GetMetadata("SUBDATASETS");
+	
 	if (metasds != NULL) {
 		std::vector<std::string> meta;
 		for (size_t i=0; metasds[i] != NULL; i++) {
@@ -805,6 +812,7 @@ bool SpatRaster::constructFromFile(std::string fname, std::vector<int> subds, st
 	}
 
 	char **meterra = poDataset->GetMetadata("USER_TAGS");
+
 	if (meterra != NULL) {
 		std::vector<std::string> meta;
 		for (size_t i=0; meterra[i] != NULL; i++) {
@@ -1100,6 +1108,19 @@ bool SpatRaster::constructFromFile(std::string fname, std::vector<int> subds, st
 			}
 		}
 		s.set_names_time_ncdf(metadata, bandmeta, msg);
+		if (s.srs.is_empty()) {
+			bool lat = false;
+			bool lon = false;
+			for (size_t i=0; i<metadata.size(); i++) {
+				if (!lat) lat = metadata[i].find("long_name=latitude");
+				if (!lon) lon = metadata[i].find("long_name=longitude");
+			}
+			if (lon && lat) {
+				if (s.srs.set("+proj=longlat", msg)) {
+					s.parameters_changed = true;
+				}
+			}
+		}
 	} else if (gdrv == "GRIB") {	
 		s.set_names_time_grib(bandmeta, msg);
 	} else if (gdrv == "GTiff") {	

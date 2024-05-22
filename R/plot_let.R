@@ -68,11 +68,14 @@ baselayers <- function(tiles, wrap=TRUE) {
 	out <- list(v=v, leg=list())
 	
 	if (is.null(type)) type <- ""
-	if (type == "continuous") type <- "interval"	
-	if ((!is.numeric(v)) || (length(unique(v)) < 11)) {
-		type <- "classes"
+	if (type == "continuous") {
+		type <- "interval"	
 	} else if (type == "") {
-		type <- "interval"
+		if ((!is.numeric(v)) || (length(unique(v)) < 11)) {
+			type <- "classes"
+		} else {
+			type <- "interval"
+		}
 	} else {
 		type <- match.arg(type, c("interval", "classes"))
 	}
@@ -132,7 +135,7 @@ setMethod("plet", signature(x="SpatVector"),
 		g <- geomtype(x)
 		leg <- NULL
 		if (y == "") { # no legend
-			group <- x@cpp$layer
+			group <- x@ptr$layer
 			if (group == "") group = g
 			cols <- .getCols(nrow(x), col)
 			pop  <- lab <- NULL
@@ -413,7 +416,8 @@ make.panel <- function(x, maxcell) {
 
 
 setMethod("plet", signature(x="SpatRaster"),
-	function(x, y=1, col, alpha=0.8, main=names(x), tiles=NULL, wrap=TRUE, maxcell=500000, legend="bottomright", shared=FALSE, panel=FALSE, collapse=TRUE, map=NULL)  {
+	function(x, y=1, col, alpha=0.8, main=names(x), tiles=c("Streets", "Esri.WorldImagery", "OpenTopoMap"), 
+		wrap=TRUE, maxcell=500000, legend="bottomright", shared=FALSE, panel=FALSE, collapse=TRUE, map=NULL)  {
 
 		#checkLeafLetVersion()
 
@@ -469,7 +473,8 @@ setMethod("plet", signature(x="SpatRaster"),
 			tiles <- NULL
 		}
 		if (missing(col)) {
-			col <- rev(grDevices::terrain.colors(255))
+			col <- .default.pal()
+			#col <- rev(grDevices::terrain.colors(255))
 		}
 
 		main <- gsub("\n", "</br>", main)

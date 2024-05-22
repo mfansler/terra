@@ -3,7 +3,7 @@
 setMethod("blocks", signature(x="SpatRaster"),
 	function(x, n=4) {
 		opt <- spatOptions("", FALSE, ncopies=n)
-		b <- x@cpp$getBlockSizeR(n, opt$memfrac)
+		b <- x@ptr$getBlockSizeR(n, opt$memfrac)
 		b$row <- b$row + 1
 		b
 	}
@@ -15,9 +15,9 @@ setMethod("writeStart", signature(x="SpatRaster", filename="character"),
 		filename <- path.expand(trimws(filename[1]))
 		filename <- enc2utf8(filename)
 		opt <- spatOptions(filename, overwrite, ncopies=n, ...)
-		ok <- x@cpp$writeStart(opt, unique(sources))
+		ok <- x@ptr$writeStart(opt, unique(sources))
 		messages(x, "writeStart")
-		b <- x@cpp$getBlockSizeWrite()
+		b <- x@ptr$getBlockSizeWrite()
 		b$row <- b$row + 1
 		b
 	}
@@ -26,7 +26,7 @@ setMethod("writeStart", signature(x="SpatRaster", filename="character"),
 
 setMethod("writeStop", signature(x="SpatRaster"),
 	function(x) {
-		success <- x@cpp$writeStop()
+		success <- x@ptr$writeStop()
 		messages(x, "writeStop")
 		f <- sources(x)
 		if (f != "") {
@@ -38,7 +38,7 @@ setMethod("writeStop", signature(x="SpatRaster"),
 
 setMethod("writeValues", signature(x="SpatRaster", v="vector"),
 	function(x, v, start, nrows) {
-		success <- x@cpp$writeValues(v, start-1, nrows)
+		success <- x@ptr$writeValues(v, start-1, nrows)
 		messages(x, "writeValues")
 		invisible(success)
 	}
@@ -63,24 +63,26 @@ function(x, filename="", overwrite=FALSE, ...) {
 	#	return(saveRDS(x, filename))
 	#}
 	opt <- spatOptions(filename, overwrite, ...)
-	x@cpp <- x@cpp$writeRaster(opt)
+	x@ptr <- x@ptr$writeRaster(opt)
 	x <- messages(x, "writeRaster")
 	invisible(rast(filename))
 }
 )
 
 
-get_filetype <- function(filename) {
-	ext <- tolower(tools::file_ext(filename))
-	if (ext == "shp" || ext == "") {
+get_filetype <- function(filename) {  
+	fn <- tolower(filename)
+	ext <- tools::file_ext(fn)
+	ext2 <- gsub("^[^.]*\\.(.*).*$", "\\1", fn)
+	if (ext == "shp" || ext == "shz" || (ext == "zip" && ext2 == "shp.zip") || ext == "") {
 		"ESRI Shapefile"
-	} else if (ext == "gpkg") {
+	} else if (ext == "gpkg" || (ext == "zip" && ext2 == "gpkg.zip")) {
 		"GPKG"
 	} else if (ext == "gdb") {
 		"OpenFileGDB"
 	} else if (ext == "gml") {
 		"GML"
-	} else if (ext == "json") {
+	} else if (ext == "json" || ext == "geojson") {
 		"GeoJSON"
 	} else if (ext == "cdf") {
 		"netCDF"
@@ -132,11 +134,11 @@ function(x, filename, filetype=NULL, layer=NULL, insert=FALSE, overwrite=FALSE, 
 				newnms[j] <- paste0(newnms[j], "0")
 				nms[i] <- newnms
 			}
-			x@cpp <- x@cpp$deepcopy()
+			x@ptr <- x@ptr$deepcopy()
 			names(x) <- nms
 		}
 	}
-	success <- x@cpp$write(filename, layer, filetype, insert[1], overwrite[1], options)
+	success <- x@ptr$write(filename, layer, filetype, insert[1], overwrite[1], options)
 	messages(x, "writeVector")
 	invisible(TRUE)
 }
@@ -173,11 +175,11 @@ function(x, filename, filetype=NULL, layer=NULL, insert=FALSE, overwrite=FALSE, 
 				# newnms[j] <- paste0(newnms[j], "0")
 				# nms[i] <- newnms
 			# }
-			# x@cpp <- x@cpp$deepcopy()
+			# x@ptr <- x@ptr$deepcopy()
 			# names(x) <- nms
 		# }
 	# }
-	# success <- x@cpp$write_proxy(filename, layer, filetype, insert[1], FALSE, overwrite[1], options)
+	# success <- x@ptr$write_proxy(filename, layer, filetype, insert[1], FALSE, overwrite[1], options)
 	# messages(x, "writeVector")
 	# invisible(TRUE)
 # }

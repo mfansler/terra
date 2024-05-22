@@ -97,11 +97,11 @@
 	ncvars <- list()
 	cal <- NA
 	for (i in 1:n) {
-		if ((nl[i] > 1) || (x[i]@cpp$hasTime)) {
+		if ((nl[i] > 1) || (x[i]@ptr$hasTime)) {
 			y <- x[i]
-			if (y@cpp$hasTime) {
-				zv <- y@cpp$time
-				tstep <- y@cpp$timestep
+			if (y@ptr$hasTime) {
+				zv <- y@ptr$time
+				tstep <- y@ptr$timestep
 				cal <- "standard"
 				if (tstep == "seconds") {
 					zunit <- "seconds since 1970-1-1 00:00:00"
@@ -203,7 +203,7 @@
 	ncdf4::ncatt_put(ncobj, 0, "date", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), prec="text")
 
 	atts <- grep("=", atts, value=TRUE)
-	if (length(atts) > 1) {
+	if (length(atts) > 0) {
 		atts <- strsplit(atts, "=")
 		for (i in 1:length(atts)) {
 			ncdf4::ncatt_put(ncobj, 0, atts[[i]][1], atts[[i]][2], prec="text")

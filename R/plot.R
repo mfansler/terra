@@ -306,7 +306,7 @@ setMethod("barplot", "SpatRaster",
 shade <- function(slope, aspect, angle=45, direction=0, normalize=FALSE, filename="", overwrite=FALSE, ...) {
 	stopifnot(inherits(slope, "SpatRaster"))
 	opt <- spatOptions(filename, overwrite=overwrite, ...)
-	slope@cpp <- slope@cpp$hillshade(aspect@cpp, angle, direction, normalize[1], opt)
+	slope@ptr <- slope@ptr$hillshade(aspect@ptr, angle, direction, normalize[1], opt)
 	messages(slope, "shade")
 }
 
@@ -318,8 +318,12 @@ map.pal <- function(name, n=50, ...) {
 		return(names(v))
 	}
 	if (name %in% names(v)) {
-		r <- grDevices::colorRampPalette(v[[name]], ...)
-		r(n)
+		v <- v[[name]]
+		if ((n > 0) && ((length(v) != n))) {
+			grDevices::colorRampPalette(v, ...)(n)
+		} else {
+			v
+		}
 	} else {
 		error("map.pal", paste(name, "is not a known palette"))
 	}

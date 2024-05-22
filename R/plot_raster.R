@@ -1,4 +1,13 @@
 
+.default.pal <- function() {
+	opt.pal <- options("terra.pal")[[1]]
+	if (is.null(opt.pal))  {
+		map.pal("viridis", 100)
+	} else {
+		opt.pal
+	}
+}
+
 .as.raster.rgb <- function(out, x) {
 
 	if (is.null(out$rgb$scale)) {
@@ -71,11 +80,17 @@
 }
 
 
-.as.raster.continuous <- function(out, x, type) {
+.as.raster.continuous <- function(out, x, type, Z=NULL) {
+
+	if (is.null(Z)) {
+		Z <- as.matrix(x, wide=TRUE)
+		Z[is.nan(Z) | is.infinite(Z)] <- NA
+	}
 
 	Z <- as.matrix(x, wide=TRUE)
 	Z[is.nan(Z) | is.infinite(Z)] <- NA
-
+	Z[] <- round(Z, 12)
+	
 # loss of precision
 #	z <- stats::na.omit(round(as.vector(Z), 12))
 	z <- stats::na.omit(as.vector(Z))
@@ -87,14 +102,14 @@
 		return(out)
 	}
 
-	uzi <- round(unique(z), 12)
+	uzi <- unique(z)
 
 	if (type == "depends") {
 		if (length(uzi) < 9) {
-			return (.as.raster.classes(out, x))
+			return (.as.raster.classes(out, x, Z=Z))
 		}
 	} else if ((length(uzi) == 1) && is.null(out$range)) {
-		return (.as.raster.classes(out, x))
+		return (.as.raster.classes(out, x, Z=Z))
 	}
 
 	if (is.null(out$range)) {
@@ -114,8 +129,12 @@
 #	} else {
 #		out$frange <- out$range	
 #	}
-	Z[] <- out$cols[as.integer(cut(Z, breaks, include.lowest=TRUE, right=FALSE))]
-
+	if (length(breaks) == 1) {
+		Z[] <- out$cols[ceiling(length(out$cols)/2)]
+	} else {
+		Z[] <- out$cols[as.integer(cut(Z, breaks, include.lowest=TRUE, right=FALSE))]
+	}
+	
 	out$r <- as.raster(Z)
 
 	out$legend_type <- "continuous"
@@ -142,10 +161,12 @@ prettyNumbs <- function(x, digits) {
 	gsub("\\.$", "", x)
 }
 
-.as.raster.classes <- function(out, x, ...) {
+.as.raster.classes <- function(out, x, Z=NULL, ...) {
 
-	Z <- as.matrix(x, wide=TRUE)
-	Z[is.nan(Z) | is.infinite(Z)] <- NA
+	if (is.null(Z)) {
+		Z <- as.matrix(x, wide=TRUE)
+		Z[is.nan(Z) | is.infinite(Z)] <- NA
+	}
 	if (all(is.na(Z))) {
 		#out$values = FALSE
 		out$range <- c(NA, NA)
@@ -462,7 +483,7 @@ prettyNumbs <- function(x, digits) {
 		arglist <- c(list(x=x$lim[1:2], y=x$lim[3:4], type="n", xlab="", ylab="", asp=x$asp, xaxs=x$xaxs, yaxs=x$yaxs, axes=FALSE), x$dots)
 		do.call(plot, arglist)
 		if (!is.null(x$background)) {
-			graphics::rect(x$lim[1], x$lim[3], x$lim[2], x$lim[4], col=x$background)			
+			graphics::rect(x$lim[1], x$lim[3], x$lim[2], x$lim[4], col=x$background, border=TRUE)			
 		}
 	}
 	if (!x$values) {
@@ -560,8 +581,8 @@ prettyNumbs <- function(x, digits) {
 	if ((!is.null(ext)) || (!is.null(xlim)) || (!is.null(ylim))) {
 		if (!is.null(ext)) {
 			ext <- ext(ext)
-			#e <- as.vector(align( intersect(ext, ext(x)), x))
-			e <- as.vector(align(ext, x))
+			#e <- as.vector(align(ext, x))
+			e <- as.vector(ext)
 			out$lim <- out$ext <- e
 		} 
 		if (!is.null(xlim)) {
@@ -806,7 +827,8 @@ setMethod("plot", signature(x="SpatRaster", y="numeric"),
 		}
 
 		if (missing(col)) {
-			col <- rev(grDevices::terrain.colors(255))
+			col <- .default.pal()
+			#col <- rev(grDevices::terrain.colors(255))
 		} else if (inherits(col, "data.frame")) {
 			if (ncol(col) == 2) {
 				type <- "classes"

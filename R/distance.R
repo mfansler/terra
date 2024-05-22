@@ -7,7 +7,7 @@
 setMethod("buffer", signature(x="SpatRaster"),
 	function(x, width, background=0, filename="", ...) {
 		opt <- spatOptions(filename, ...)
-		x@cpp <- x@cpp$buffer(width, background, opt)
+		x@ptr <- x@ptr$buffer(width, background, opt)
 		messages(x, "buffer")
 	}
 )
@@ -32,7 +32,7 @@ setMethod("distance", signature(x="SpatRaster", y="missing"),
 		} else {
 			exclude <- NA
 		}
-		x@cpp <- x@cpp$rastDistance(target, exclude, keepNA, tolower(unit), TRUE, haversine, opt)
+		x@ptr <- x@ptr$rastDistance(target, exclude, keepNA, tolower(unit), TRUE, haversine, opt)
 		messages(x, "distance")
 	}
 )
@@ -42,7 +42,7 @@ setMethod("costDist", signature(x="SpatRaster"),
 	function(x, target=0, scale=1, maxiter=50, filename="", ...) {
 		opt <- spatOptions(filename, ...)
 		maxiter <- max(maxiter[1], 2)
-		x@cpp <- x@cpp$costDistance(target[1], scale[1], maxiter, FALSE, opt)
+		x@ptr <- x@ptr$costDistance(target[1], scale[1], maxiter, FALSE, opt)
 		messages(x, "costDist")
 	}
 )
@@ -52,10 +52,10 @@ setMethod("gridDist", signature(x="SpatRaster"),
 	function(x, target=0, scale=1, maxiter=50, filename="", ...) {
 		opt <- spatOptions(filename, ...)
 		if (is.na(target)) {
-			x@cpp <- x@cpp$gridDistance(scale[1]	, opt)
+			x@ptr <- x@ptr$gridDistance(scale[1]	, opt)
 		} else {
 			maxiter <- max(maxiter[1], 2)
-			x@cpp <- x@cpp$costDistance(target[1], scale[1], maxiter, TRUE, opt)
+			x@ptr <- x@ptr$costDistance(target[1], scale[1], maxiter, TRUE, opt)
 		}
 		messages(x, "gridDist")
 	}
@@ -67,9 +67,9 @@ setMethod("distance", signature(x="SpatRaster", y="SpatVector"),
 		opt <- spatOptions(filename, ...)
 		unit <- as.character(unit[1])
 		if (rasterize) {
-			x@cpp <- x@cpp$vectDistanceRasterize(y@cpp, NA, NA, unit, haversine, opt)
+			x@ptr <- x@ptr$vectDistanceRasterize(y@ptr, NA, NA, unit, haversine, opt)
 		} else {
-			x@cpp <- x@cpp$vectDistanceDirect(y@cpp, unit, haversine, opt)
+			x@ptr <- x@ptr$vectDistanceDirect(y@ptr, unit, haversine, opt)
 		}
 		messages(x, "distance")
 	}
@@ -111,10 +111,10 @@ setMethod("distance", signature(x="SpatVector", y="ANY"),
 		}
 
 		if (sequential) {
-			return( x@cpp$distance_self(sequential, unit))
+			return( x@ptr$distance_self(sequential, unit))
 		}
 		unit <- as.character(unit[1])
-		d <- x@cpp$distance_self(sequential, unit)
+		d <- x@ptr$distance_self(sequential, unit)
 		messages(x, "distance")
 		class(d) <- "dist"
 		attr(d, "Size") <- nrow(x)
@@ -134,7 +134,7 @@ setMethod("distance", signature(x="SpatVector", y="ANY"),
 setMethod("distance", signature(x="SpatVector", y="SpatVector"),
 	function(x, y, pairwise=FALSE, unit="m") {
 		unit <- as.character(unit[1])
-		d <- x@cpp$distance_other(y@cpp, pairwise, unit)
+		d <- x@ptr$distance_other(y@ptr, pairwise, unit)
 		messages(x, "distance")
 		if (!pairwise) {
 			d <- matrix(d, nrow=nrow(x), ncol=nrow(y), byrow=TRUE)
@@ -150,7 +150,7 @@ test.for.lonlat <- function(xy) {
 }
 
 setMethod("distance", signature(x="matrix", y="matrix"),
-	function(x, y, lonlat, pairwise=FALSE) {
+	function(x, y, lonlat, pairwise=FALSE, unit="m") {
 		if (missing(lonlat)) {
 			lonlat <- test.for.lonlat(x) & test.for.lonlat(y)
 			warn("distance", paste0("lonlat not set. Assuming lonlat=", lonlat))
@@ -158,7 +158,9 @@ setMethod("distance", signature(x="matrix", y="matrix"),
 		stopifnot(ncol(x) == 2)
 		stopifnot(ncol(y) == 2)
 		v <- vect()
-		d <- v@cpp$point_distance(x[,1], x[,2], y[,1], y[,2], pairwise[1], 1, lonlat)
+		stopifnot(unit %in% c("m", "km"))
+		m <- ifelse(unit == "m", 1, 0.001)
+		d <- v@ptr$point_distance(x[,1], x[,2], y[,1], y[,2], pairwise[1], 1, lonlat)
 		messages(v)
 		if (pairwise) {
 			d
@@ -169,14 +171,14 @@ setMethod("distance", signature(x="matrix", y="matrix"),
 )
 
 setMethod("distance", signature(x="data.frame", y="data.frame"),
-	function(x, y, lonlat, pairwise=FALSE) {
+	function(x, y, lonlat, pairwise=FALSE, unit="m") {
 		distance(as.matrix(x), as.matrix(y), lonlat, pairwise=pairwise)
 	}
 )
 
 
 setMethod("distance", signature(x="matrix", y="missing"),
-	function(x, y, lonlat=NULL, sequential=FALSE, pairs=FALSE, symmetrical=TRUE) {
+	function(x, y, lonlat=NULL, sequential=FALSE, pairs=FALSE, symmetrical=TRUE, unit="m") {
 
 		if (missing(lonlat)) {
 			lonlat <- test.for.lonlat(x) & test.for.lonlat(y)
@@ -186,13 +188,13 @@ setMethod("distance", signature(x="matrix", y="missing"),
 		crs <- ifelse(isTRUE(lonlat), "+proj=longlat +datum=WGS84",
 							          "+proj=utm +zone=1 +datum=WGS84")
 		x <- vect(x, crs=crs)
-		distance(x, sequential=sequential, pairs=pairs, symmetrical=symmetrical)
+		distance(x, sequential=sequential, pairs=pairs, symmetrical=symmetrical, unit=unit)
 	}
 )
 
 setMethod("distance", signature(x="data.frame", y="missing"),
-	function(x, y, lonlat=NULL, sequential=FALSE, pairs=FALSE, symmetrical=TRUE) {
-		distance(as.matrix(x), lonlat=lonlat, sequential=sequential, pairs=pairs, symmetrical=symmetrical)
+	function(x, y, lonlat=NULL, sequential=FALSE, pairs=FALSE, symmetrical=TRUE, unit="m") {
+		distance(as.matrix(x), lonlat=lonlat, sequential=sequential, pairs=pairs, symmetrical=symmetrical, unit=unit)
 	}
 )
 
@@ -200,8 +202,54 @@ setMethod("distance", signature(x="data.frame", y="missing"),
 setMethod("direction", signature(x="SpatRaster"),
 	function(x, from=FALSE, degrees=FALSE, filename="", ...) {
 		opt <- spatOptions(filename, ...)
-		x@cpp <- x@cpp$rastDirection(from[1], degrees[1], NA, NA, opt)
+		x@ptr <- x@ptr$rastDirection(from[1], degrees[1], NA, NA, opt)
 		messages(x, "direction")
 	}
 )
 
+
+
+setMethod("bestMatch", signature(x="SpatRaster", y="SpatVector"),
+	function(x, y, labels=NULL, filename="", ...) {
+		e <- as.matrix(extract(x, y, fun="mean", na.rm=TRUE, ID=FALSE))
+		d <- list()
+		for (i in 1:nrow(e)) {
+		  d[[i]] <- sum((x - e[i,])^2)
+		}	
+		out <- which.min(rast(d))
+		if (!is.null(labels)) {
+			levels(out) <- data.frame(ID=1:nrow(y), label=labels)
+		}
+		if (filename!="") {
+			out <- writeRaster(out, filename, ...)
+		}
+		out
+	}
+)
+
+setMethod("bestMatch", signature(x="SpatRaster", y="data.frame"),
+	function(x, y, labels=NULL, filename="", ...) {
+		
+		if (!(all(names(y) %in% names(x)) && (all(names(x) %in% names(y))))) {
+			error("bestMatch", "names of x and y must match")
+		}
+		y <- y[, names(x)]
+		i <- unique(sapply(y, class))
+		if (any(i != "numeric")) {
+			error("bestMatch", "all values in y must be numeric")
+		}
+		y <- as.matrix(y)
+		d <- list()
+		for (i in 1:nrow(y)) {
+		  d[[i]] <- sum((x - y[i,])^2)
+		}	
+		out <- which.min(rast(d))
+		if (!is.null(labels)) {
+			levels(out) <- data.frame(ID=1:nrow(y), label=labels)
+		}
+		if (filename!="") {
+			out <- writeRaster(out, filename, ...)
+		}
+		out
+	}
+)

@@ -312,12 +312,7 @@ SpatRaster SpatRaster::rasterizeGeom(SpatVector x, std::string unit, std::string
 			tom = std::isnan(tom) ? 1 : tom;
 			m *= tom;
 		}
-		if (x.type() == "lines") {
-			out.setNames({"length"});
-		} else {
-			out.setNames({"area"});
-			m *= m;
-		}
+		out.setNames({fun});
 		opt.ncopies = std::max(opt.ncopies, (unsigned)4) * 8;
 		if (!out.writeStart(opt, filenames())) {
 			return out;
@@ -762,7 +757,7 @@ SpatRaster SpatRaster::rasterize(SpatVector x, std::string field, std::vector<do
 }
 
 
-std::vector<double> SpatRaster::rasterizeCells(SpatVector &v, bool touches, SpatOptions &opt) {
+std::vector<double> SpatRaster::rasterizeCells(SpatVector &v, bool touches, bool small, SpatOptions &opt) {
 // note that this is only for lines and polygons
     SpatOptions ropt(opt);
 	SpatRaster r = geometry(1);
@@ -791,17 +786,21 @@ std::vector<double> SpatRaster::rasterizeCells(SpatVector &v, bool touches, Spat
 	SpatVector pts = rcr.as_points(false, true, false, ropt);
 	std::vector<double> cells;
 	if (pts.empty()) {
-		pts = v.as_points(false, true);
-		SpatDataFrame vd = pts.getGeometryDF();
-		std::vector<double> x = vd.getD(0);
-		std::vector<double> y = vd.getD(1);
-		cells = r.cellFromXY(x, y);	
-		cells.erase(std::remove_if(cells.begin(), cells.end(),
-                    [](const double& value) { return std::isnan(value); }), cells.end());
-		std::sort( cells.begin(), cells.end() );
-		cells.erase(std::unique(cells.begin(), cells.end()), cells.end());
-		if (cells.empty()) {
-			cells.resize(1, NAN);
+		if (small) {
+			pts = v.as_points(false, true);
+			SpatDataFrame vd = pts.getGeometryDF();
+			std::vector<double> x = vd.getD(0);
+			std::vector<double> y = vd.getD(1);
+			cells = r.cellFromXY(x, y);	
+			cells.erase(std::remove_if(cells.begin(), cells.end(),
+						[](const double& value) { return std::isnan(value); }), cells.end());
+			std::sort( cells.begin(), cells.end() );
+			cells.erase(std::unique(cells.begin(), cells.end()), cells.end());
+			if (cells.empty()) {
+				cells.resize(1, NAN);
+			}
+		} else {
+			cells.resize(1, NAN);			
 		}
 	} else {
 		SpatDataFrame vd = pts.getGeometryDF();

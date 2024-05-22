@@ -50,35 +50,32 @@ SpatDataFrame readAttributes(OGRLayer *poLayer, bool as_proxy) {
 	if (nfields == 0) return df;
 
 	OGRFieldType ft;
-    poLayer->ResetReading();
-    OGRFeature *poFeature;
 	OGRFieldDefn *poFieldDefn;
 	df.resize_cols(nfields);
-	bool first = true;
 	unsigned dtype;
 	long longNA = NA<long>::value;
 
-    while( (poFeature = poLayer->GetNextFeature()) != NULL ) {
-		if (first) {
-			for (size_t i = 0; i < nfields; i++ ) {
-				poFieldDefn = poFDefn->GetFieldDefn(i);
-				std::string fname = poFieldDefn->GetNameRef();
-				ft = poFieldDefn->GetType();
-				if (ft == OFTReal) {
-					dtype = 0;
-				} else if ((ft == OFTInteger) | (ft == OFTInteger64)) {
-					if (poFieldDefn->GetSubType() == OFSTBoolean) {
-						dtype = 3;
-					} else {
-						dtype = 1;
-					}
-				} else {
-					dtype = 2;
-				}
-				df.add_column(dtype, fname);
+	for (size_t i = 0; i < nfields; i++ ) {
+		poFieldDefn = poFDefn->GetFieldDefn(i);
+		std::string fname = poFieldDefn->GetNameRef();
+		ft = poFieldDefn->GetType();
+		if (ft == OFTReal) {
+			dtype = 0;
+		} else if ((ft == OFTInteger) | (ft == OFTInteger64)) {
+			if (poFieldDefn->GetSubType() == OFSTBoolean) {
+				dtype = 3;
+			} else {
+				dtype = 1;
 			}
-			first = false;
+		} else {
+			dtype = 2;
 		}
+		df.add_column(dtype, fname);
+	}
+
+    OGRFeature *poFeature;
+    poLayer->ResetReading();
+    while( (poFeature = poLayer->GetNextFeature()) != NULL ) {
 
 		for (size_t i = 0; i < nfields; i++ ) {
 			poFieldDefn = poFDefn->GetFieldDefn( i );
@@ -385,7 +382,7 @@ SpatGeom emptyGeom() {
 }
 
 
-bool layerQueryFilter(GDALDataset *&poDS, OGRLayer *&poLayer, std::string &layer, std::string &query, std::vector<double> &extent, SpatVector &filter, std::string &errmsg, std::vector<std::string> &wrms) {
+bool layerQueryFilter(GDALDataset *&poDS, OGRLayer *&poLayer, std::string &layer, std::string &query, std::vector<double> &ext, SpatVector &filter, std::string &errmsg, std::vector<std::string> &wrms) {
 
 	if (query.empty()) {
 		if (layer.empty()) {
@@ -456,15 +453,15 @@ bool layerQueryFilter(GDALDataset *&poDS, OGRLayer *&poLayer, std::string &layer
 		}
 		OGRFeature::DestroyFeature( fFeature );
 		GDALClose(filterDS);
-	} else if (!extent.empty()) {
-		poLayer->SetSpatialFilterRect(extent[0], extent[2], extent[1], extent[3]);
+	} else if (!ext.empty()) {
+		poLayer->SetSpatialFilterRect(ext[0], ext[2], ext[1], ext[3]);
 	}
 
 	return true;
 }
 
 
-bool SpatVector::read_ogr(GDALDataset *&poDS, std::string layer, std::string query, std::vector<double> extent, SpatVector filter, bool as_proxy, std::string what) {
+bool SpatVector::read_ogr(GDALDataset *&poDS, std::string layer, std::string query, std::vector<double> ext, SpatVector filter, bool as_proxy, std::string what) {
 
 	if (poDS == NULL) {
 		setError("dataset is empty");
@@ -476,11 +473,11 @@ bool SpatVector::read_ogr(GDALDataset *&poDS, std::string layer, std::string que
 	poLayer = poDS->GetLayer(0);
 
 	read_query = query;
-	read_extent = extent;
+	read_extent = ext;
 	std::string errmsg;
 	std::vector<std::string> wrnmsg;
 
-	if (!layerQueryFilter(poDS, poLayer, layer, query, extent, filter, errmsg, wrnmsg)) {
+	if (!layerQueryFilter(poDS, poLayer, layer, query, ext, filter, errmsg, wrnmsg)) {
 		setError(errmsg);
 		return false;
 	} else if (!wrnmsg.empty()) {
@@ -575,6 +572,19 @@ bool SpatVector::read_ogr(GDALDataset *&poDS, std::string layer, std::string que
 			}
 			addGeom(g);
 			OGRFeature::DestroyFeature( poFeature );
+		} else if (wkbgeom == wkbUnknown) {
+			long long fcnt = poLayer->GetFeatureCount(true);
+			if (fcnt == 0) return true;
+			if (fcnt < 0) {
+				if ( (poFeature = poLayer->GetNextFeature()) != NULL ) {
+					return true;
+				}	
+			} 
+			const char *geomtypechar = OGRGeometryTypeToName(wkbgeom);
+			std::string strgeomtype = geomtypechar;
+			std::string s = "cannot read this geometry type: "+ strgeomtype;
+			setError(s);
+			return false;			
 		} else if (wkbgeom != wkbNone) {
 			const char *geomtypechar = OGRGeometryTypeToName(wkbgeom);
 			std::string strgeomtype = geomtypechar;
@@ -583,6 +593,23 @@ bool SpatVector::read_ogr(GDALDataset *&poDS, std::string layer, std::string que
 			return false;
 		}
 		geom_count = poLayer->GetFeatureCount();
+		
+		// not checking for multiple geom fields
+        // int nGeomFieldCount = poLayer->GetLayerDefn()->GetGeomFieldCount();
+
+		OGREnvelope oExt;
+		if (poLayer->GetExtent(&oExt, FALSE) == OGRERR_NONE) {
+			extent.xmin = oExt.MinX; 
+            extent.xmax = oExt.MaxX;
+			extent.ymin = oExt.MinY;
+			extent.ymax = oExt.MaxY;
+		} else {
+			extent.xmin = NAN; 
+            extent.xmax = NAN;
+			extent.ymin = NAN;
+			extent.ymax = NAN;			
+		}
+		
 		is_proxy = true;
 		return true;
 	}
@@ -639,6 +666,15 @@ bool SpatVector::read_ogr(GDALDataset *&poDS, std::string layer, std::string que
 			OGRFeature::DestroyFeature( poFeature );
 		}
 	} else if (wkbgeom == wkbUnknown) {
+
+		long long fcnt = poLayer->GetFeatureCount(true);
+		if (fcnt == 0) return true;
+		if (fcnt < 0) {
+			if ( (poFeature = poLayer->GetNextFeature()) != NULL ) {
+				return true;
+			}	
+		}
+
 		SpatVectorCollection sv;
 		std::vector<double> dempty;
 		SpatVector filter2;
@@ -673,7 +709,7 @@ bool SpatVector::read_ogr(GDALDataset *&poDS, std::string layer, std::string que
 }
 
 
-bool SpatVector::read(std::string fname, std::string layer, std::string query, std::vector<double> extent, SpatVector filter, bool as_proxy, std::string what, std::vector<std::string> options) {
+bool SpatVector::read(std::string fname, std::string layer, std::string query, std::vector<double> ext, SpatVector filter, bool as_proxy, std::string what, std::vector<std::string> options) {
 
 	char ** openops = NULL;
 	for (size_t i=0; i<options.size(); i++) {
@@ -692,7 +728,7 @@ bool SpatVector::read(std::string fname, std::string layer, std::string query, s
 		}
 		return false;
     }
-	bool success = read_ogr(poDS, layer, query, extent, filter, as_proxy, what);
+	bool success = read_ogr(poDS, layer, query, ext, filter, as_proxy, what);
 	if (poDS != NULL) GDALClose( poDS );
 	source = fname;
 	return success;
